@@ -1,0 +1,181 @@
+import { type ReactNode, useState } from 'react';
+
+export type AppView = 'import' | 'data-browser' | 'salary-review' | 'compare' | 'parameters';
+
+interface LayoutProps {
+  children: ReactNode;
+  currentView: AppView;
+  onNavigate: (view: AppView) => void;
+}
+
+const navSections: {
+  label: string;
+  items: {
+    label: string;
+    id?: AppView;
+    icon: string;
+    expandable?: boolean;
+    action?: 'collapse';
+  }[];
+}[] = [
+  {
+    label: 'GET STARTED',
+    items: [
+      { label: 'Import data', id: 'import', icon: 'upload' },
+      { label: 'Data browser', id: 'data-browser', icon: 'grid' },
+    ],
+  },
+  {
+    label: 'REVIEW',
+    items: [{ label: 'Salary review', id: 'salary-review', icon: 'person' }],
+  },
+  {
+    label: 'CONFIGURATION',
+    items: [{ label: 'Parameters', id: 'parameters', icon: 'settings' }],
+  },
+  {
+    label: 'OUTPUT',
+    items: [
+      { label: 'Compare scenarios', id: 'compare', icon: 'compare', expandable: true },
+      { label: 'Collapse', icon: 'collapse', action: 'collapse' },
+    ],
+  },
+];
+
+function NavIcon({ name }: { name: string }) {
+  const cls = 'w-5 h-5 shrink-0 text-slate-500';
+  switch (name) {
+    case 'upload':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      );
+    case 'grid':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      );
+    case 'person':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      );
+    case 'compare':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+      );
+    case 'collapse':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+      );
+    case 'settings':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+export function Layout({ children, currentView, onNavigate }: LayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <div className="min-h-screen flex bg-slate-50">
+      <aside
+        className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
+          collapsed ? 'w-[72px]' : 'w-64'
+        }`}
+      >
+        {/* Header: logo + title */}
+        <div className="p-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+              <span className="text-white font-bold text-sm">ASI</span>
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="font-semibold text-slate-900 truncate">Annual Salary Increases</h1>
+                <p className="text-xs text-slate-500 truncate">Compensation planning</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable nav */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 min-h-0">
+          {navSections.map((section) => (
+            <div key={section.label} className={collapsed ? 'mb-2' : 'mb-4'}>
+              {!collapsed && (
+                <div className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  {section.label}
+                </div>
+              )}
+              {section.items.map((item) => {
+                if (item.action === 'collapse') {
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setCollapsed((c) => !c)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-slate-700 hover:bg-slate-100 transition-colors"
+                      title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    >
+                      <NavIcon name={item.icon} />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </button>
+                  );
+                }
+                const isActive = item.id != null && currentView === item.id;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => item.id != null && onNavigate(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      isActive
+                        ? 'bg-slate-100 text-slate-900 font-medium'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    } ${collapsed ? 'justify-center' : ''}`}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <NavIcon name={item.icon} />
+                    {!collapsed && (
+                      <>
+                        <span className="truncate flex-1">{item.label}</span>
+                        {item.expandable && (
+                          <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        {!collapsed && (
+          <div className="p-3 border-t border-slate-100 shrink-0">
+            <p className="text-xs text-slate-400 text-center">Salary & compensation review</p>
+          </div>
+        )}
+      </aside>
+
+      <main className="flex-1 min-h-0 overflow-auto p-6">{children}</main>
+    </div>
+  );
+}

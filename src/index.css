@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --app-primary: 79 70 229; /* indigo-600 #4f46e5 */
+    --app-primary-light: 129 140 248; /* indigo-400 */
+    --app-primary-dark: 55 48 163; /* indigo-800 */
+    --app-paper-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.07), 0 2px 4px -2px rgba(79, 70, 229, 0.07);
+    --app-paper-border: 1px solid rgba(79, 70, 229, 0.08);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(160deg, #f0f4ff 0%, #e8eef9 50%, #f5f7fc 100%);
+    min-height: 100vh;
+    color: #1e293b;
+  }
+}
