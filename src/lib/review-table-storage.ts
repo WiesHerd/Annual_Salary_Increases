@@ -67,9 +67,9 @@ function parseColumnWidths(raw: unknown): Record<ReviewTableColumnId, number> | 
 }
 
 function parseFrozenColumnIds(raw: unknown): ReviewTableColumnId[] {
-  if (!Array.isArray(raw)) return ['providerName'] as ReviewTableColumnId[];
+  if (!Array.isArray(raw)) return ['compareCheckbox', 'providerName'] as ReviewTableColumnId[];
   const ids = raw.filter((id): id is ReviewTableColumnId => typeof id === 'string' && VALID_COLUMN_IDS.has(id as ReviewTableColumnId));
-  return (ids.length > 0 ? ids : ['providerName']) as ReviewTableColumnId[];
+  return (ids.length > 0 ? ids : ['compareCheckbox', 'providerName']) as ReviewTableColumnId[];
 }
 
 function parseSavedCustomViews(raw: unknown): SavedCustomView[] {
@@ -100,7 +100,7 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
     const preset = rawPreset ? parsePreset(JSON.parse(rawPreset)) : null;
     const savedCustomViews = rawSavedViews ? parseSavedCustomViews(JSON.parse(rawSavedViews)) : [];
     const columnWidths = rawColumnWidths ? parseColumnWidths(JSON.parse(rawColumnWidths)) ?? defaultWidths : defaultWidths;
-    const frozenColumnIds = rawFrozenColumns ? parseFrozenColumnIds(JSON.parse(rawFrozenColumns)) : (['providerName'] as ReviewTableColumnId[]);
+    const frozenColumnIds = rawFrozenColumns ? parseFrozenColumnIds(JSON.parse(rawFrozenColumns)) : (['compareCheckbox', 'providerName'] as ReviewTableColumnId[]);
     let activeId: string | null = null;
     if (typeof rawActiveViewId === 'string' && rawActiveViewId) {
       try {
@@ -139,7 +139,7 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
       savedCustomViews: [],
       activeCustomViewId: null,
       columnWidths: defaultWidths,
-      frozenColumnIds: ['providerName'] as ReviewTableColumnId[],
+      frozenColumnIds: ['compareCheckbox', 'providerName'] as ReviewTableColumnId[],
     };
   }
 }

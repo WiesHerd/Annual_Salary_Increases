@@ -1,16 +1,25 @@
 import { useCallback } from 'react';
 import type { PcpAppRuleRow } from '../../../types/pcp-app-rules';
+import type { ParameterOptions } from '../../../lib/parameter-options';
+import { SearchableSelect } from '../../../components/searchable-select';
 
 interface PcpAppRulesTabProps {
   pcpAppRules: PcpAppRuleRow[];
   setPcpAppRules: (v: PcpAppRuleRow[] | ((prev: PcpAppRuleRow[]) => PcpAppRuleRow[])) => void;
+  options: ParameterOptions;
+}
+
+function optionsWithCurrent(options: string[], current: string | undefined): string[] {
+  if (!current || current.trim() === '') return options;
+  if (options.includes(current.trim())) return options;
+  return [current.trim(), ...options];
 }
 
 function newId() {
   return `pcp-app-${Date.now()}`;
 }
 
-export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules }: PcpAppRulesTabProps) {
+export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules, options }: PcpAppRulesTabProps) {
   const addRow = useCallback(() => {
     setPcpAppRules((prev) => [...prev, { id: newId(), division: '', fixedTarget: 0, defaultCurrentCf: 0, defaultProposedCf: 0, allowOverride: true }]);
   }, [setPcpAppRules]);
@@ -32,6 +41,9 @@ export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules }: PcpAppRulesTabPr
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-800">PCP APP fixed target / CF settings</h3>
         <p className="text-sm text-slate-600 mt-1">Per-division fixed target and default CF values. Allow override lets analysts change CF in the review.</p>
+        {options.divisions.length === 0 && (
+          <p className="text-xs text-amber-700 mt-2">Upload provider data in Data to choose division from existing values.</p>
+        )}
       </div>
       <div className="flex justify-end mb-3">
         <button
@@ -62,15 +74,28 @@ export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules }: PcpAppRulesTabPr
                 </td>
               </tr>
             ) : (
-              pcpAppRules.map((r) => (
+              pcpAppRules.map((r) => {
+                const divisionOpts = optionsWithCurrent(options.divisions, r.division);
+                return (
                 <tr key={r.id} className="hover:bg-slate-50/50">
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.division}
-                      onChange={(e) => update(r.id, { division: e.target.value })}
-                      className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                    />
+                    {divisionOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.division}
+                        options={divisionOpts}
+                        onChange={(v) => update(r.id, { division: v })}
+                        emptyOptionLabel="—"
+                        className="min-w-[120px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.division}
+                        onChange={(e) => update(r.id, { division: e.target.value })}
+                        className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                        placeholder="Division"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <input
@@ -115,7 +140,8 @@ export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules }: PcpAppRulesTabPr
                     </button>
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>

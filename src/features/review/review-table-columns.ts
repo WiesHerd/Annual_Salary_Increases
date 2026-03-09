@@ -4,9 +4,15 @@
 
 import type { ProviderRecord } from '../../types/provider';
 import type { ExperienceBand } from '../../types/experience-band';
-import { getExperienceBandLabel, getTargetTccRange } from '../../lib/calculations/recalculate-provider-row';
+import {
+  getExperienceBandAlignment,
+  getExperienceBandLabel,
+  getTargetTccRange,
+} from '../../lib/calculations/recalculate-provider-row';
+import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
 
 export type ReviewTableColumnId =
+  | 'compareCheckbox'
   | 'providerName'
   | 'division'
   | 'specialty'
@@ -30,6 +36,8 @@ export type ReviewTableColumnId =
   | 'currentTccPercentile'
   | 'proposedTccPercentile'
   | 'targetTccRange'
+  | 'bandAlignment'
+  | 'equityRecommendation'
   | 'wrvuPercentile'
   | 'tccWrvuGap'
   | 'currentCf'
@@ -48,6 +56,7 @@ export interface ReviewTableColumnDef {
 }
 
 export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
+  { id: 'compareCheckbox', label: '', align: 'left', format: 'text' },
   { id: 'providerName', label: 'Provider Name', align: 'left', format: 'text' },
   { id: 'division', label: 'Division', align: 'left', format: 'text' },
   { id: 'specialty', label: 'Specialty', align: 'left', format: 'text' },
@@ -71,6 +80,8 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
   { id: 'currentTccPercentile', label: 'Current TCC Percentile', align: 'right', format: 'percent' },
   { id: 'proposedTccPercentile', label: 'Proposed TCC Percentile', align: 'right', format: 'percent' },
   { id: 'targetTccRange', label: 'Target TCC Range', align: 'left', format: 'text' },
+  { id: 'bandAlignment', label: 'Band alignment', align: 'left', format: 'text' },
+  { id: 'equityRecommendation', label: 'Recommendation', align: 'left', format: 'text' },
   { id: 'wrvuPercentile', label: 'wRVU Percentile', align: 'right', format: 'percent' },
   { id: 'tccWrvuGap', label: 'TCC - wRVU Gap', align: 'right', format: 'currency' },
   { id: 'currentCf', label: 'Current CF', align: 'right', format: 'currency' },
@@ -83,9 +94,30 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
 
 const DEFAULT_VISIBLE_IDS = REVIEW_TABLE_COLUMNS.map((c) => c.id);
 
-/** Default column width in pixels. Provider name wider; others 8rem equivalent. */
+/** Default column width in pixels. Long-label columns get more room so headers don't truncate. */
+const DEFAULT_WIDTH_COMPARE_CHECKBOX = 44;
 const DEFAULT_WIDTH_PROVIDER_NAME = 192;
 const DEFAULT_WIDTH_OTHER = 128;
+/** Columns with longer labels or content get a wider default so the full header/content fits. */
+const WIDER_DEFAULT_IDS: ReviewTableColumnId[] = [
+  'division',
+  'specialty',
+  'currentBaseSalary',
+  'proposedBaseSalary',
+  'proposedBaseSalaryAt1Fte',
+  'approvedIncreasePercent',
+  'approvedIncreaseAmount',
+  'currentTccPercentile',
+  'proposedTccPercentile',
+  'targetTccRange',
+  'bandAlignment',
+  'equityRecommendation',
+  'reviewStatus',
+  'experienceBand',
+  'evaluationScore',
+  'defaultIncreasePercent',
+];
+const DEFAULT_WIDTH_WIDER = 160;
 
 export function getDefaultVisibleColumnIds(): ReviewTableColumnId[] {
   return [...DEFAULT_VISIBLE_IDS];
@@ -95,7 +127,10 @@ export function getDefaultVisibleColumnIds(): ReviewTableColumnId[] {
 export function getDefaultColumnWidths(): Record<ReviewTableColumnId, number> {
   const out = {} as Record<ReviewTableColumnId, number>;
   for (const c of REVIEW_TABLE_COLUMNS) {
-    out[c.id] = c.id === 'providerName' ? DEFAULT_WIDTH_PROVIDER_NAME : DEFAULT_WIDTH_OTHER;
+    if (c.id === 'compareCheckbox') out[c.id] = DEFAULT_WIDTH_COMPARE_CHECKBOX;
+    else if (c.id === 'providerName') out[c.id] = DEFAULT_WIDTH_PROVIDER_NAME;
+    else if (WIDER_DEFAULT_IDS.includes(c.id)) out[c.id] = DEFAULT_WIDTH_WIDER;
+    else out[c.id] = DEFAULT_WIDTH_OTHER;
   }
   return out;
 }
@@ -113,6 +148,7 @@ export interface SavedCustomView {
 /** Column IDs for each preset. */
 export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId[]> = {
   meeting: [
+    'compareCheckbox',
     'providerName',
     'specialty',
     'currentBaseSalary',
@@ -126,6 +162,7 @@ export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId
   ],
   full: [...DEFAULT_VISIBLE_IDS],
   comp: [
+    'compareCheckbox',
     'providerName',
     'specialty',
     'currentBaseSalary',
@@ -138,6 +175,9 @@ export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId
     'proposedTcc',
     'currentTccPercentile',
     'proposedTccPercentile',
+    'targetTccRange',
+    'bandAlignment',
+    'equityRecommendation',
     'wrvuPercentile',
     'currentCf',
     'proposedCf',
@@ -155,6 +195,8 @@ export function getReviewCellValue(
   const r = record;
   const yoe = r.Years_of_Experience ?? r.Total_YOE;
   switch (columnId) {
+    case 'compareCheckbox':
+      return '';
     case 'providerName':
       return r.Provider_Name ?? '—';
     case 'division':
@@ -219,6 +261,22 @@ export function getReviewCellValue(
       return r.Proposed_TCC_Percentile ?? '—';
     case 'targetTccRange':
       return getTargetTccRange(yoe, experienceBands);
+    case 'bandAlignment': {
+      const alignment = getExperienceBandAlignment(yoe, r.Current_TCC_Percentile, experienceBands);
+      if (alignment === 'below') return 'Below target';
+      if (alignment === 'in') return 'In range';
+      if (alignment === 'above') return 'Above target';
+      return '—';
+    }
+    case 'equityRecommendation': {
+      const rec = getEquityRecommendation(r, experienceBands);
+      if (!rec) return '—';
+      const suffix =
+        rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte)
+          ? ` ~${formatCurrencyTwoDecimals(rec.suggestedTccAt1Fte)} at 1.0 FTE`
+          : '';
+      return rec.action + suffix;
+    }
     case 'wrvuPercentile':
       return r.WRVU_Percentile ?? '—';
     case 'tccWrvuGap':
@@ -283,12 +341,34 @@ export function formatReviewCellValue(
   return String(value);
 }
 
+/** Sort order for band alignment: below=0, in=1, above=2, unknown=3. */
+function getBandAlignmentSortOrder(alignment: string): number {
+  if (alignment === 'Below target') return 0;
+  if (alignment === 'In range') return 1;
+  if (alignment === 'Above target') return 2;
+  return 3;
+}
+
 /** Raw value for sorting (number or string). */
 export function getReviewCellSortValue(
   record: ProviderRecord,
   columnId: ReviewTableColumnId,
   experienceBands: ExperienceBand[] = []
 ): number | string {
+  if (columnId === 'compareCheckbox') return '';
+  if (columnId === 'bandAlignment') {
+    const v = getReviewCellValue(record, columnId, experienceBands);
+    return getBandAlignmentSortOrder(String(v ?? ''));
+  }
+  if (columnId === 'equityRecommendation') {
+    const yoe = record.Years_of_Experience ?? record.Total_YOE;
+    const tccPercentile = record.Proposed_TCC_Percentile ?? record.Current_TCC_Percentile;
+    const alignment = getExperienceBandAlignment(yoe, tccPercentile, experienceBands);
+    if (alignment === 'below') return 0;
+    if (alignment === 'in') return 1;
+    if (alignment === 'above') return 2;
+    return 3;
+  }
   const v = getReviewCellValue(record, columnId, experienceBands);
   if (typeof v === 'number') return v;
   return String(v ?? '');

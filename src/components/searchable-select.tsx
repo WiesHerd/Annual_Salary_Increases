@@ -20,7 +20,7 @@ export function SearchableSelect({
   value,
   options,
   onChange,
-  placeholder = '—',
+  placeholder: _placeholder = '—',
   label,
   'aria-label': ariaLabel,
   className = '',
@@ -51,8 +51,6 @@ export function SearchableSelect({
     searchLower === ''
       ? options
       : options.filter((opt) => opt.toLowerCase().includes(searchLower));
-
-  const displayValue = value || placeholder;
 
   return (
     <div ref={ref} className="relative">

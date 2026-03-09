@@ -1,4 +1,6 @@
 import { type ReactNode, useState } from 'react';
+import { useParametersState } from '../hooks/use-parameters-state';
+import { useSelectedCycle } from '../hooks/use-selected-cycle';
 
 export type AppView = 'import' | 'data-browser' | 'salary-review' | 'compare' | 'parameters';
 
@@ -15,7 +17,6 @@ const navSections: {
     id?: AppView;
     icon: string;
     expandable?: boolean;
-    action?: 'collapse';
   }[];
 }[] = [
   {
@@ -31,14 +32,11 @@ const navSections: {
   },
   {
     label: 'CONFIGURATION',
-    items: [{ label: 'Parameters', id: 'parameters', icon: 'settings' }],
+    items: [{ label: 'Control Panel', id: 'parameters', icon: 'settings' }],
   },
   {
     label: 'OUTPUT',
-    items: [
-      { label: 'Compare scenarios', id: 'compare', icon: 'compare', expandable: true },
-      { label: 'Collapse', icon: 'collapse', action: 'collapse' },
-    ],
+    items: [{ label: 'Compare scenarios', id: 'compare', icon: 'compare', expandable: true }],
   },
 ];
 
@@ -69,12 +67,6 @@ function NavIcon({ name }: { name: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
         </svg>
       );
-    case 'collapse':
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-        </svg>
-      );
     case 'settings':
       return (
         <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,12 +81,14 @@ function NavIcon({ name }: { name: string }) {
 
 export function Layout({ children, currentView, onNavigate }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { cycles } = useParametersState();
+  const [selectedCycleId, setSelectedCycleId] = useSelectedCycle(cycles);
 
   return (
     <div className="min-h-screen flex bg-slate-50">
       <aside
         className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
-          collapsed ? 'w-[72px]' : 'w-64'
+          collapsed ? 'w-[72px]' : 'w-72'
         }`}
       >
         {/* Header: logo + title */}
@@ -122,20 +116,6 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
                 </div>
               )}
               {section.items.map((item) => {
-                if (item.action === 'collapse') {
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => setCollapsed((c) => !c)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-slate-700 hover:bg-slate-100 transition-colors"
-                      title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                    >
-                      <NavIcon name={item.icon} />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </button>
-                  );
-                }
                 const isActive = item.id != null && currentView === item.id;
                 return (
                   <button
@@ -167,12 +147,52 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
           ))}
         </nav>
 
-        {/* Footer */}
-        {!collapsed && (
-          <div className="p-3 border-t border-slate-100 shrink-0">
-            <p className="text-xs text-slate-400 text-center">Salary & compensation review</p>
-          </div>
-        )}
+        {/* Footer: budget cycle dropdown (when expanded and cycles exist) + collapse toggle + tagline */}
+        <div className="shrink-0 border-t border-slate-100 flex flex-col">
+          {!collapsed && cycles.length > 0 && (
+            <div className="border-b border-slate-100 px-4 py-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  Budget cycle
+                </span>
+                <select
+                  value={selectedCycleId || (cycles[0]?.id ?? '')}
+                  onChange={(e) => setSelectedCycleId(e.target.value)}
+                  className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                  aria-label="Select budget cycle"
+                >
+                  {cycles.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className={`flex items-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${collapsed ? 'justify-center py-3' : 'gap-3 px-4 py-2.5'}`}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? (
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            )}
+          </button>
+          {!collapsed && (
+            <div className="px-4 pb-3">
+              <p className="text-xs text-slate-400 text-center">Salary & compensation review</p>
+            </div>
+          )}
+        </div>
       </aside>
 
       <main className="flex-1 min-h-0 overflow-auto p-6">{children}</main>

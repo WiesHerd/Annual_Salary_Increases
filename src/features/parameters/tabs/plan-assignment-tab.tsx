@@ -1,10 +1,19 @@
 import { useCallback } from 'react';
 import type { PlanAssignmentRuleRow } from '../../../types/plan-assignment-row';
 import { CompensationPlanType } from '../../../types/enums';
+import type { ParameterOptions } from '../../../lib/parameter-options';
+import { SearchableSelect } from '../../../components/searchable-select';
 
 interface PlanAssignmentTabProps {
   planAssignmentRules: PlanAssignmentRuleRow[];
   setPlanAssignmentRules: (v: PlanAssignmentRuleRow[] | ((prev: PlanAssignmentRuleRow[]) => PlanAssignmentRuleRow[])) => void;
+  options: ParameterOptions;
+}
+
+function optionsWithCurrent(options: string[], current: string | undefined): string[] {
+  if (!current || current.trim() === '') return options;
+  if (options.includes(current.trim())) return options;
+  return [current.trim(), ...options];
 }
 
 function newId() {
@@ -13,7 +22,7 @@ function newId() {
 
 const PLAN_TYPE_OPTIONS = Object.values(CompensationPlanType);
 
-export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules }: PlanAssignmentTabProps) {
+export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules, options }: PlanAssignmentTabProps) {
   const addRow = useCallback(() => {
     setPlanAssignmentRules((prev) => [
       ...prev,
@@ -38,6 +47,11 @@ export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules 
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-800">Plan assignment rules</h3>
         <p className="text-sm text-slate-600 mt-1">Match population, division, department, job code, or benchmark group to assign a compensation plan type. Lower priority number runs first.</p>
+        {options.divisions.length === 0 && options.providerTypes.length === 0 && (
+          <p className="text-xs text-amber-700 mt-2">
+            Upload provider data in Data to choose from existing values.
+          </p>
+        )}
       </div>
       <div className="flex justify-end mb-3">
         <button
@@ -70,48 +84,104 @@ export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules 
                 </td>
               </tr>
             ) : (
-              planAssignmentRules.map((r) => (
+              planAssignmentRules.map((r) => {
+                const populationOpts = optionsWithCurrent(options.providerTypes, r.population);
+                const divisionOpts = optionsWithCurrent(options.divisions, r.division);
+                const departmentOpts = optionsWithCurrent(options.departments, r.department);
+                const jobCodeOpts = optionsWithCurrent(options.jobCodes, r.jobCode);
+                const benchmarkOpts = optionsWithCurrent(options.benchmarkGroups, r.benchmarkGroup);
+                return (
                 <tr key={r.id} className="hover:bg-slate-50/50">
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.population ?? ''}
-                      onChange={(e) => update(r.id, { population: e.target.value || undefined })}
-                      className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                      placeholder="physician, app"
-                    />
+                    {populationOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.population ?? ''}
+                        options={populationOpts}
+                        onChange={(v) => update(r.id, { population: v || undefined })}
+                        emptyOptionLabel="—"
+                        className="min-w-[90px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.population ?? ''}
+                        onChange={(e) => update(r.id, { population: e.target.value || undefined })}
+                        className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                        placeholder="physician, app"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.division ?? ''}
-                      onChange={(e) => update(r.id, { division: e.target.value || undefined })}
-                      className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                    />
+                    {divisionOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.division ?? ''}
+                        options={divisionOpts}
+                        onChange={(v) => update(r.id, { division: v || undefined })}
+                        emptyOptionLabel="—"
+                        className="min-w-[90px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.division ?? ''}
+                        onChange={(e) => update(r.id, { division: e.target.value || undefined })}
+                        className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.department ?? ''}
-                      onChange={(e) => update(r.id, { department: e.target.value || undefined })}
-                      className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                    />
+                    {departmentOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.department ?? ''}
+                        options={departmentOpts}
+                        onChange={(v) => update(r.id, { department: v || undefined })}
+                        emptyOptionLabel="—"
+                        className="min-w-[90px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.department ?? ''}
+                        onChange={(e) => update(r.id, { department: e.target.value || undefined })}
+                        className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.jobCode ?? ''}
-                      onChange={(e) => update(r.id, { jobCode: e.target.value || undefined })}
-                      className="w-full min-w-[80px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                    />
+                    {jobCodeOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.jobCode ?? ''}
+                        options={jobCodeOpts}
+                        onChange={(v) => update(r.id, { jobCode: v || undefined })}
+                        emptyOptionLabel="—"
+                        className="min-w-[80px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.jobCode ?? ''}
+                        onChange={(e) => update(r.id, { jobCode: e.target.value || undefined })}
+                        className="w-full min-w-[80px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={r.benchmarkGroup ?? ''}
-                      onChange={(e) => update(r.id, { benchmarkGroup: e.target.value || undefined })}
-                      className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                    />
+                    {benchmarkOpts.length > 0 ? (
+                      <SearchableSelect
+                        value={r.benchmarkGroup ?? ''}
+                        options={benchmarkOpts}
+                        onChange={(v) => update(r.id, { benchmarkGroup: v || undefined })}
+                        emptyOptionLabel="—"
+                        className="min-w-[90px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={r.benchmarkGroup ?? ''}
+                        onChange={(e) => update(r.id, { benchmarkGroup: e.target.value || undefined })}
+                        className="w-full min-w-[90px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     <select
@@ -142,7 +212,8 @@ export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules 
                     </button>
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>

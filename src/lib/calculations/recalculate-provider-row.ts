@@ -10,6 +10,19 @@ import type { MarketRow } from '../../types/market';
 import type { ExperienceBand } from '../../types/experience-band';
 import type { MeritMatrixRow } from '../../types/merit-matrix-row';
 
+/** FTE below this is flagged as higher risk when normalizing to 1.0 FTE for market comparison. */
+export const FTE_NORMALIZATION_CAUTION_THRESHOLD = 0.7;
+
+/**
+ * True if the provider's Current FTE or Clinical FTE is below the caution threshold.
+ * Normalizing to 1.0 FTE (dividing by a small FTE) can make percentiles less reliable.
+ */
+export function isLowFteForNormalization(record: ProviderRecord): boolean {
+  const currentFte = record.Current_FTE ?? 1;
+  const clinicalFte = record.Clinical_FTE ?? record.Current_FTE ?? 1;
+  return currentFte < FTE_NORMALIZATION_CAUTION_THRESHOLD || clinicalFte < FTE_NORMALIZATION_CAUTION_THRESHOLD;
+}
+
 /** Supplemental pay components that add to TCC. */
 function getSupplementalTotal(p: ProviderRecord): number {
   return (
@@ -65,6 +78,27 @@ export function getTargetTccRange(yoe: number | undefined, bands: ExperienceBand
   const band = bands.find((b) => yoe >= b.minYoe && yoe <= b.maxYoe);
   if (!band) return '—';
   return `${band.targetTccPercentileLow}–${band.targetTccPercentileHigh}`;
+}
+
+export type ExperienceBandAlignment = 'below' | 'in' | 'above';
+
+/**
+ * Compare current TCC percentile to the experience band target range.
+ * Returns 'below' | 'in' | 'above' when determinable; undefined when band or percentile is missing.
+ */
+export function getExperienceBandAlignment(
+  yoe: number | undefined,
+  currentTccPercentile: number | undefined,
+  bands: ExperienceBand[]
+): ExperienceBandAlignment | undefined {
+  if (yoe == null || !Number.isFinite(yoe) || bands.length === 0) return undefined;
+  if (currentTccPercentile == null || !Number.isFinite(currentTccPercentile)) return undefined;
+  const band = bands.find((b) => yoe >= b.minYoe && yoe <= b.maxYoe);
+  if (!band) return undefined;
+  const { targetTccPercentileLow, targetTccPercentileHigh } = band;
+  if (currentTccPercentile < targetTccPercentileLow) return 'below';
+  if (currentTccPercentile > targetTccPercentileHigh) return 'above';
+  return 'in';
 }
 
 export interface RecalculateProviderRowInput {

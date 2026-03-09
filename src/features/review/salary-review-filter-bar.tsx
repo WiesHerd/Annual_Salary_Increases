@@ -18,6 +18,7 @@ export interface SalaryReviewFilterBarProps {
     planTypes: string[];
     populations: string[];
     experienceBands: string[];
+    bandAlignments: string[];
   };
   totalCount: number;
   filteredCount: number;
@@ -42,6 +43,7 @@ const DIMENSION_KEYS = [
   { key: 'planTypes', label: 'Plan', optionsKey: 'planTypes' as const },
   { key: 'populations', label: 'Provider Type', optionsKey: 'populations' as const },
   { key: 'experienceBands', label: 'Experience Band', optionsKey: 'experienceBands' as const },
+  { key: 'bandAlignments', label: 'Band alignment', optionsKey: 'bandAlignments' as const },
 ] as const;
 
 function MultiSelectDropdown({
@@ -170,6 +172,7 @@ export function SalaryReviewFilterBar({
     filters.planTypes.length > 0 ||
     filters.populations.length > 0 ||
     (filters.experienceBands?.length ?? 0) > 0 ||
+    (filters.bandAlignments?.length ?? 0) > 0 ||
     filters.approvedIncreasePercentMin != null ||
     filters.approvedIncreasePercentMax != null ||
     filters.tccPercentileMin != null ||
@@ -183,7 +186,8 @@ export function SalaryReviewFilterBar({
     (filters.departments.length > 0 ? 1 : 0) +
     (filters.planTypes.length > 0 ? 1 : 0) +
     (filters.populations.length > 0 ? 1 : 0) +
-    ((filters.experienceBands?.length ?? 0) > 0 ? 1 : 0);
+    ((filters.experienceBands?.length ?? 0) > 0 ? 1 : 0) +
+    ((filters.bandAlignments?.length ?? 0) > 0 ? 1 : 0);
   const [filtersExpanded, setFiltersExpanded] = useState(activeDimensionCount > 0);
 
   const setPreset = (presetId: SalaryReviewPresetId) => {
@@ -210,6 +214,7 @@ export function SalaryReviewFilterBar({
       planTypes: [],
       populations: [],
       experienceBands: [],
+      bandAlignments: [],
       approvedIncreasePercentMin: undefined,
       approvedIncreasePercentMax: undefined,
       tccPercentileMin: undefined,
@@ -220,7 +225,7 @@ export function SalaryReviewFilterBar({
   const setDimension = (
     key: keyof Pick<
       SalaryReviewFilters,
-      'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands'
+      'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands' | 'bandAlignments'
     >,
     value: string[]
   ) => {
@@ -305,14 +310,14 @@ export function SalaryReviewFilterBar({
         </button>
         {filtersExpanded && (
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {DIMENSION_KEYS.map(({ key, label, optionsKey, dropdownClassName: listClass }) => (
+            {DIMENSION_KEYS.map((item) => (
               <MultiSelectDropdown
-                key={key}
-                label={label}
-                options={filterOptions[optionsKey]}
-                selected={filters[key]}
-                onChange={(selected) => setDimension(key, selected)}
-                dropdownClassName={listClass}
+                key={item.key}
+                label={item.label}
+                options={filterOptions[item.optionsKey]}
+                selected={filters[item.key]}
+                onChange={(selected) => setDimension(item.key, selected)}
+                dropdownClassName={'dropdownClassName' in item ? item.dropdownClassName : undefined}
               />
             ))}
           </div>

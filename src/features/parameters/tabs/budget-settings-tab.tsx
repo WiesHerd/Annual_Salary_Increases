@@ -1,19 +1,35 @@
 import { useCallback } from 'react';
 import type { BudgetSettingsRow } from '../../../types/budget-settings';
+import type { Cycle } from '../../../types/cycle';
 
 interface BudgetSettingsTabProps {
   budgetSettings: BudgetSettingsRow[];
   setBudgetSettings: (v: BudgetSettingsRow[] | ((prev: BudgetSettingsRow[]) => BudgetSettingsRow[])) => void;
+  cycles: Cycle[];
 }
 
 function newId() {
   return `budget-${Date.now()}`;
 }
 
-export function BudgetSettingsTab({ budgetSettings, setBudgetSettings }: BudgetSettingsTabProps) {
+export function BudgetSettingsTab({ budgetSettings, setBudgetSettings, cycles }: BudgetSettingsTabProps) {
   const addRow = useCallback(() => {
-    setBudgetSettings((prev) => [...prev, { id: newId(), cycleId: '', cycleLabel: '', budgetTargetAmount: undefined, budgetTargetPercent: undefined, warningThresholdPercent: undefined, hardStopThresholdPercent: undefined }]);
-  }, [setBudgetSettings]);
+    const first = cycles[0];
+    const cycleId = first?.id ?? '';
+    const cycleLabel = first?.label ?? '';
+    setBudgetSettings((prev) => [
+      ...prev,
+      {
+        id: newId(),
+        cycleId,
+        cycleLabel,
+        budgetTargetAmount: undefined,
+        budgetTargetPercent: undefined,
+        warningThresholdPercent: undefined,
+        hardStopThresholdPercent: undefined,
+      },
+    ]);
+  }, [setBudgetSettings, cycles]);
 
   const update = useCallback(
     (id: string, updates: Partial<BudgetSettingsRow>) => {
@@ -65,13 +81,24 @@ export function BudgetSettingsTab({ budgetSettings, setBudgetSettings }: BudgetS
               budgetSettings.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50/50">
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
+                    <select
                       value={r.cycleId}
-                      onChange={(e) => update(r.id, { cycleId: e.target.value, cycleLabel: r.cycleLabel ?? e.target.value })}
-                      className="w-full min-w-[100px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
-                      placeholder="e.g. FY2026"
-                    />
+                      onChange={(e) => {
+                        const c = cycles.find((x) => x.id === e.target.value);
+                        update(r.id, { cycleId: c?.id ?? e.target.value, cycleLabel: c?.label ?? '' });
+                      }}
+                      className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white"
+                    >
+                      <option value="">Select cycle</option>
+                      {cycles.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label || c.id}
+                        </option>
+                      ))}
+                      {r.cycleId && !cycles.some((c) => c.id === r.cycleId) && (
+                        <option value={r.cycleId}>{r.cycleLabel || r.cycleId}</option>
+                      )}
+                    </select>
                   </td>
                   <td className="px-4 py-2 text-right">
                     <input

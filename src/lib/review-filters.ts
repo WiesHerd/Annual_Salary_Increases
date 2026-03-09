@@ -6,7 +6,10 @@
 import type { ProviderRecord } from '../types/provider';
 import type { ExperienceBand } from '../types/experience-band';
 import { ReviewStatus } from '../types/enums';
-import { getExperienceBandLabel } from './calculations/recalculate-provider-row';
+import {
+  getExperienceBandAlignment,
+  getExperienceBandLabel,
+} from './calculations/recalculate-provider-row';
 
 /** Filter state for the Salary Review screen. */
 export interface SalaryReviewFilters {
@@ -19,6 +22,7 @@ export interface SalaryReviewFilters {
   planTypes: string[];
   populations: string[];
   experienceBands: string[];
+  bandAlignments: string[];
   approvedIncreasePercentMin?: number;
   approvedIncreasePercentMax?: number;
   tccPercentileMin?: number;
@@ -35,6 +39,7 @@ export const DEFAULT_SALARY_REVIEW_FILTERS: SalaryReviewFilters = {
   planTypes: [],
   populations: [],
   experienceBands: [],
+  bandAlignments: [],
 };
 
 const SEARCH_FIELDS: (keyof ProviderRecord)[] = [
@@ -111,6 +116,23 @@ export function applyFilters(
       if (!selectedSetMatches(bandLabel, filters.experienceBands)) return false;
     }
 
+    if (filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
+      const alignment = getExperienceBandAlignment(
+        getYoe(r),
+        r.Current_TCC_Percentile,
+        experienceBandsConfig
+      );
+      const display =
+        alignment === 'below'
+          ? 'Below target'
+          : alignment === 'in'
+            ? 'In range'
+            : alignment === 'above'
+              ? 'Above target'
+              : '—';
+      if (!selectedSetMatches(display, filters.bandAlignments)) return false;
+    }
+
     const incPct = r.Approved_Increase_Percent;
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
@@ -154,6 +176,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
         approvedIncreasePercentMin: undefined,
         approvedIncreasePercentMax: undefined,
         tccPercentileMin: undefined,
@@ -169,6 +192,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
       };
     case 'in-review':
       return {
@@ -180,6 +204,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
       };
     case 'approved':
       return {
@@ -191,6 +216,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
       };
     case 'below-market':
       return {
@@ -202,6 +228,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
         tccPercentileMin: undefined,
         tccPercentileMax: 50,
       };
@@ -215,6 +242,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         planTypes: [],
         populations: [],
         experienceBands: [],
+        bandAlignments: [],
         approvedIncreasePercentMin: HIGH_INCREASE_PERCENT_THRESHOLD,
         approvedIncreasePercentMax: undefined,
       };
@@ -234,7 +262,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
     filters.departments.length > 0 ||
     filters.planTypes.length > 0 ||
     filters.populations.length > 0 ||
-    (filters.experienceBands?.length ?? 0) > 0;
+    (filters.experienceBands?.length ?? 0) > 0 ||
+    (filters.bandAlignments?.length ?? 0) > 0;
 
   if (!hasSearch && !hasDimension) {
     if (
@@ -253,7 +282,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
       filters.departments.length === 0 &&
       filters.planTypes.length === 0 &&
       filters.populations.length === 0 &&
-      (filters.experienceBands?.length ?? 0) === 0;
+      (filters.experienceBands?.length ?? 0) === 0 &&
+      (filters.bandAlignments?.length ?? 0) === 0;
     if (
       filters.reviewStatuses.length === 2 &&
       filters.reviewStatuses.includes(ReviewStatus.Draft) &&
@@ -320,6 +350,7 @@ export function deriveFilterOptions(
   planTypes: string[];
   populations: string[];
   experienceBands: string[];
+  bandAlignments: string[];
 } {
   const blank = '—';
   const add = (set: Set<string>, val: string | undefined) => {
@@ -334,6 +365,7 @@ export function deriveFilterOptions(
   const planTypes = new Set<string>();
   const populations = new Set<string>();
   const experienceBands = new Set<string>();
+  const bandAlignments = new Set<string>();
 
   for (const r of records) {
     add(providerNames, r.Provider_Name);
@@ -345,6 +377,20 @@ export function deriveFilterOptions(
     add(populations, r.Population);
     if (experienceBandsConfig?.length) {
       add(experienceBands, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
+      const alignment = getExperienceBandAlignment(
+        getYoe(r),
+        r.Current_TCC_Percentile,
+        experienceBandsConfig
+      );
+      const display =
+        alignment === 'below'
+          ? 'Below target'
+          : alignment === 'in'
+            ? 'In range'
+            : alignment === 'above'
+              ? 'Above target'
+              : '—';
+      bandAlignments.add(display);
     }
   }
 
@@ -358,12 +404,13 @@ export function deriveFilterOptions(
     planTypes: Array.from(planTypes).sort(sort),
     populations: Array.from(populations).sort(sort),
     experienceBands: Array.from(experienceBands).sort(sort),
+    bandAlignments: Array.from(bandAlignments).sort(sort),
   };
 }
 
 type DimensionKey = keyof Pick<
   SalaryReviewFilters,
-  'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands'
+  'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands' | 'bandAlignments'
 >;
 
 const DIMENSION_FIELDS: { key: Exclude<DimensionKey, 'experienceBands'>; field: keyof ProviderRecord }[] = [
@@ -410,6 +457,18 @@ function applyFiltersExceptDimension(
       const bandLabel = getExperienceBandLabel(getYoe(r), experienceBandsConfig);
       if (!selectedSetMatches(bandLabel, filters.experienceBands)) return false;
     }
+    if (excludeDimension !== 'bandAlignments' && filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
+      const alignment = getExperienceBandAlignment(getYoe(r), r.Current_TCC_Percentile, experienceBandsConfig);
+      const display =
+        alignment === 'below'
+          ? 'Below target'
+          : alignment === 'in'
+            ? 'In range'
+            : alignment === 'above'
+              ? 'Above target'
+              : '—';
+      if (!selectedSetMatches(display, filters.bandAlignments)) return false;
+    }
     const incPct = r.Approved_Increase_Percent;
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
@@ -440,6 +499,7 @@ export function deriveFilterOptionsCascading(
   planTypes: string[];
   populations: string[];
   experienceBands: string[];
+  bandAlignments: string[];
 } {
   const blank = '—';
   const add = (set: Set<string>, val: string | undefined) => {
@@ -457,6 +517,7 @@ export function deriveFilterOptionsCascading(
     planTypes: [] as string[],
     populations: [] as string[],
     experienceBands: [] as string[],
+    bandAlignments: [] as string[],
   };
 
   for (const { key, field } of DIMENSION_FIELDS) {
@@ -471,6 +532,24 @@ export function deriveFilterOptionsCascading(
     const set = new Set<string>();
     for (const r of subset) add(set, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
     result.experienceBands = Array.from(set).sort(sort);
+  }
+
+  if (experienceBandsConfig?.length) {
+    const subset = applyFiltersExceptDimension(records, filters, 'bandAlignments', experienceBandsConfig);
+    const set = new Set<string>();
+    for (const r of subset) {
+      const alignment = getExperienceBandAlignment(getYoe(r), r.Current_TCC_Percentile, experienceBandsConfig);
+      const display =
+        alignment === 'below'
+          ? 'Below target'
+          : alignment === 'in'
+            ? 'In range'
+            : alignment === 'above'
+              ? 'Above target'
+              : '—';
+      set.add(display);
+    }
+    result.bandAlignments = Array.from(set).sort(sort);
   }
 
   return result;
@@ -494,6 +573,7 @@ export function loadFiltersFromStorage(): SalaryReviewFilters {
       planTypes: Array.isArray(parsed.planTypes) ? parsed.planTypes : [],
       populations: Array.isArray(parsed.populations) ? parsed.populations : [],
       experienceBands: Array.isArray(parsed.experienceBands) ? parsed.experienceBands : [],
+      bandAlignments: Array.isArray(parsed.bandAlignments) ? parsed.bandAlignments : [],
       approvedIncreasePercentMin:
         typeof parsed.approvedIncreasePercentMin === 'number' ? parsed.approvedIncreasePercentMin : undefined,
       approvedIncreasePercentMax:

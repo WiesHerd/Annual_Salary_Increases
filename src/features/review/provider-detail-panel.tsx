@@ -5,6 +5,15 @@
 
 import type { ProviderRecord } from '../../types/provider';
 import type { TccComponent } from '../../types/provider-review-record';
+import type { ExperienceBand } from '../../types/experience-band';
+import {
+  getExperienceBandAlignment,
+  getExperienceBandLabel,
+  getTargetTccRange,
+  isLowFteForNormalization,
+  FTE_NORMALIZATION_CAUTION_THRESHOLD,
+} from '../../lib/calculations/recalculate-provider-row';
+import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
 
 export interface ProviderDetailEnrichment {
   currentTccBreakdown?: TccComponent[];
@@ -15,6 +24,7 @@ export interface ProviderDetailEnrichment {
 interface ProviderDetailPanelProps {
   provider: ProviderRecord | null;
   enrichment?: ProviderDetailEnrichment | null;
+  experienceBands?: ExperienceBand[];
   onClose?: () => void;
   onSelectPrev?: () => void;
   onSelectNext?: () => void;
@@ -25,6 +35,7 @@ interface ProviderDetailPanelProps {
 export function ProviderDetailPanel({
   provider,
   enrichment,
+  experienceBands = [],
   onClose,
   onSelectPrev,
   onSelectNext,
@@ -57,6 +68,29 @@ export function ProviderDetailPanel({
     provider.Market_TCC_90 != null;
   const tccPercentile = provider.Proposed_TCC_Percentile ?? provider.Current_TCC_Percentile ?? undefined;
   const markerPosition = tccPercentile != null ? ((tccPercentile - 25) / 65) * 100 : 0;
+
+  const yoe = provider.Years_of_Experience ?? provider.Total_YOE;
+  const experienceBandLabel = experienceBands.length ? getExperienceBandLabel(yoe, experienceBands) : null;
+  const targetTccRange = experienceBands.length ? getTargetTccRange(yoe, experienceBands) : null;
+  const bandAlignment = experienceBands.length
+    ? getExperienceBandAlignment(yoe, provider.Current_TCC_Percentile, experienceBands)
+    : undefined;
+  const alignmentLabel =
+    bandAlignment === 'below'
+      ? 'Current salary is below target'
+      : bandAlignment === 'in'
+        ? 'Current salary is in range'
+        : bandAlignment === 'above'
+          ? 'Current salary is above target'
+          : null;
+  const alignmentClass =
+    bandAlignment === 'below'
+      ? 'bg-amber-100 text-amber-900'
+      : bandAlignment === 'in'
+        ? 'bg-emerald-50 text-emerald-800'
+        : bandAlignment === 'above'
+          ? 'bg-sky-100 text-sky-900'
+          : '';
 
   function formatOrdinal(n: number): string {
     if (n >= 11 && n <= 13) return `${n}th`;
@@ -154,6 +188,63 @@ export function ProviderDetailPanel({
           </div>
         </section>
 
+        {/* Experience band and alignment */}
+        {(experienceBandLabel != null || targetTccRange != null || alignmentLabel != null) && (
+          <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Experience band</h4>
+            <div className="space-y-1.5 text-sm text-slate-700">
+              {experienceBandLabel != null && (
+                <div className="flex justify-between">
+                  <span>Experience band</span>
+                  <span className="tabular-nums">{experienceBandLabel}</span>
+                </div>
+              )}
+              {targetTccRange != null && (
+                <div className="flex justify-between">
+                  <span>Target TCC range</span>
+                  <span className="tabular-nums">{targetTccRange}%</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Current TCC percentile</span>
+                <span className="tabular-nums">
+                  {provider.Current_TCC_Percentile != null
+                    ? `${Number(provider.Current_TCC_Percentile).toFixed(2)}%`
+                    : '—'}
+                </span>
+              </div>
+              {alignmentLabel != null && (
+                <div className={`mt-2 px-2 py-1.5 rounded-lg text-sm font-medium ${alignmentClass}`}>
+                  {alignmentLabel}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Internal equity recommendation */}
+        {experienceBands.length > 0 && (() => {
+          const rec = getEquityRecommendation(provider, experienceBands);
+          if (!rec) return null;
+          return (
+            <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Internal equity recommendation</h4>
+              <div className="space-y-1.5 text-sm text-slate-700">
+                <p className="font-medium text-slate-800">{rec.action}</p>
+                {rec.detail != null && (
+                  <p className="text-slate-600">{rec.detail}</p>
+                )}
+                {rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte) && (
+                  <p className="text-slate-700">
+                    Consider moving toward ~{rec.suggestedTccAt1Fte.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at 1.0 FTE.
+                  </p>
+                )}
+                <p className="text-xs text-slate-500 mt-1">Comparisons use compensation at 1.0 FTE.</p>
+              </div>
+            </section>
+          );
+        })()}
+
         {/* Normalization */}
         <section>
           <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Normalization</h4>
@@ -170,6 +261,11 @@ export function ProviderDetailPanel({
               <span>Administrative FTE</span>
               <span className="tabular-nums">{provider.Administrative_FTE ?? '—'}</span>
             </div>
+            {isLowFteForNormalization(provider) && (
+              <div className="mt-2 px-2 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-xs border border-amber-200">
+                FTE &lt; {FTE_NORMALIZATION_CAUTION_THRESHOLD} — normalization to 1.0 FTE may be less reliable for market comparison.
+              </div>
+            )}
           </div>
         </section>
 

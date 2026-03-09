@@ -1,11 +1,15 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
 import { useParametersState } from '../../hooks/use-parameters-state';
+import { useSelectedCycle } from '../../hooks/use-selected-cycle';
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketRow } from '../../types/market';
 import { ReviewStatus } from '../../types/enums';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
-import { recalculateProviderRow } from '../../lib/calculations/recalculate-provider-row';
+import {
+  getExperienceBandAlignment,
+  recalculateProviderRow,
+} from '../../lib/calculations/recalculate-provider-row';
 import { enrichReviewDetail } from '../../lib/review-detail-enrichment';
 import {
   applyFilters,
@@ -31,8 +35,17 @@ import {
   type SavedCustomView,
 } from './review-table-columns';
 import { loadReviewTableFromStorage, saveReviewTableToStorage } from '../../lib/review-table-storage';
+import {
+  computeSummary,
+  computeSummaryByDimension,
+  resolveBudgetForCycle,
+} from '../../lib/salary-review-summary';
 import { ProviderDetailPanel } from './provider-detail-panel';
+import { ProviderCompareModal } from './provider-compare-modal';
 import { SalaryReviewFilterBar } from './salary-review-filter-bar';
+import { SalaryReviewSummaryBar } from './salary-review-summary-bar';
+import { ExperienceSalaryTrendChart } from './experience-salary-trend-chart';
+import type { ExperienceSalaryGroupBy } from '../../lib/experience-salary-chart-data';
 
 type SortDir = 'asc' | 'desc';
 
@@ -42,20 +55,23 @@ interface SalaryReviewPageProps {
 
 export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) {
   const { records, setRecords, marketData, loaded } = useAppState();
-  const { experienceBands, meritMatrix } = useParametersState();
+  const { experienceBands, meritMatrix, cycles, budgetSettings } = useParametersState();
+  const [selectedCycleId] = useSelectedCycle(cycles);
   const [reviewTableState, setReviewTableState] = useState(loadReviewTableFromStorage);
   const visibleColumnIds = reviewTableState.visibleColumnIds;
   const activePreset = reviewTableState.preset;
   const savedCustomViews = reviewTableState.savedCustomViews ?? [];
   const activeCustomViewId = reviewTableState.activeCustomViewId ?? null;
   const columnWidths = reviewTableState.columnWidths ?? getDefaultColumnWidths();
-  const frozenColumnIds = reviewTableState.frozenColumnIds ?? ['providerName'];
+  const frozenColumnIds = reviewTableState.frozenColumnIds ?? ['compareCheckbox', 'providerName'];
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [sortKey, setSortKey] = useState<ReviewTableColumnId>('providerName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [notesModalEmployeeId, setNotesModalEmployeeId] = useState<string | null>(null);
-  const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [customViewDropdownOpen, setCustomViewDropdownOpen] = useState(false);
+  const [columnDropdownOpen, setColumnDropdownOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState('');
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
@@ -69,6 +85,8 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   const [editBuffer, setEditBuffer] = useState('');
   const [resizingColumnIndex, setResizingColumnIndex] = useState<number | null>(null);
   const resizeRef = useRef<{ columnId: ReviewTableColumnId; startX: number; startWidth: number } | null>(null);
+  const [reviewViewMode, setReviewViewMode] = useState<'table' | 'trend'>('table');
+  const [trendGroupBy, setTrendGroupBy] = useState<ExperienceSalaryGroupBy>('population');
 
   const DRAWER_MIN_WIDTH = 320;
   const DRAWER_MAX_WIDTH = 900;
@@ -117,10 +135,15 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     return m;
   }, [marketData]);
 
-  const orderedColumnIds = useMemo(() => {
+  const orderedColumnIds = useMemo((): ReviewTableColumnId[] => {
     const frozenOrdered = frozenColumnIds.filter((id) => visibleColumnIds.includes(id));
     const rest = visibleColumnIds.filter((id) => !frozenColumnIds.includes(id));
-    return [...frozenOrdered, ...rest];
+    const order: ReviewTableColumnId[] = [...frozenOrdered, ...rest];
+    // Always show compare checkbox left of provider name when visible (column is not draggable).
+    if (visibleColumnIds.includes('compareCheckbox') && order[0] !== 'compareCheckbox') {
+      return ['compareCheckbox', ...order.filter((id) => id !== 'compareCheckbox')];
+    }
+    return order;
   }, [visibleColumnIds, frozenColumnIds]);
 
   const visibleColumns = useMemo(
@@ -131,13 +154,18 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     [orderedColumnIds]
   );
 
+  const totalTableWidthPx = useMemo(() => {
+    return visibleColumns.reduce((sum, col) => sum + (columnWidths[col.id] ?? 128), 0);
+  }, [visibleColumns, columnWidths]);
+
   const frozenLeftOffsets = useMemo(() => {
     const offsets: number[] = [];
     let sum = 0;
     for (let i = 0; i < orderedColumnIds.length; i++) {
+      const colId = orderedColumnIds[i];
       offsets[i] = sum;
-      if (frozenColumnIds.includes(orderedColumnIds[i])) {
-        sum += columnWidths[orderedColumnIds[i]] ?? 128;
+      if (frozenColumnIds.includes(colId)) {
+        sum += columnWidths[colId] ?? 128;
       }
     }
     return offsets;
@@ -168,28 +196,37 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   );
 
   useEffect(() => {
-    if (resizeRef.current == null) return;
-    const onMove = (e: MouseEvent) => {
-      const ref = resizeRef.current;
-      if (!ref) return;
-      const delta = e.clientX - ref.startX;
-      setColumnWidth(ref.columnId, ref.startWidth + delta);
-    };
-    const onUp = () => {
-      resizeRef.current = null;
-      setResizingColumnIndex(null);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [setColumnWidth]);
-
-  useEffect(() => {
     saveReviewTableToStorage(reviewTableState);
   }, [reviewTableState]);
+
+  const closeCustomDropdown = useCallback(() => {
+    setCustomViewDropdownOpen(false);
+    setSaveViewOpen(false);
+    setSaveViewName('');
+  }, []);
+
+  const openCustomDropdown = useCallback(() => {
+    setReviewTableState((prev) => {
+      if (prev.preset === 'custom') return prev;
+      const presetIds = REVIEW_VIEW_PRESETS[prev.preset as ReviewViewPresetId];
+      return {
+        ...prev,
+        preset: 'custom',
+        activeCustomViewId: null,
+        visibleColumnIds: presetIds ? [...presetIds] : prev.visibleColumnIds,
+      };
+    });
+    setCustomViewDropdownOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!customViewDropdownOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCustomDropdown();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [customViewDropdownOpen, closeCustomDropdown]);
 
   const applyPreset = useCallback((presetId: ReviewViewPresetId) => {
     setReviewTableState((prev) => ({
@@ -227,7 +264,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     });
     setSaveViewName('');
     setSaveViewOpen(false);
-    setColumnPickerOpen(false);
+    setCustomViewDropdownOpen(false);
   }, [visibleColumnIds]);
 
   const removeSavedCustomView = useCallback((id: string) => {
@@ -254,6 +291,26 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     () => deriveFilterOptionsCascading(records, filters, experienceBands),
     [records, filters, experienceBands]
   );
+
+  const summaryTotals = useMemo(() => computeSummary(filteredRecords), [filteredRecords]);
+  const summaryBreakdown = useMemo(
+    () => ({
+      division: computeSummaryByDimension(filteredRecords, 'division'),
+      department: computeSummaryByDimension(filteredRecords, 'department'),
+      population: computeSummaryByDimension(filteredRecords, 'population'),
+      specialty: computeSummaryByDimension(filteredRecords, 'specialty'),
+      planType: computeSummaryByDimension(filteredRecords, 'planType'),
+    }),
+    [filteredRecords]
+  );
+  const budgetAmount = useMemo(
+    () => resolveBudgetForCycle(selectedCycleId, budgetSettings, cycles),
+    [selectedCycleId, budgetSettings, cycles]
+  );
+  const budgetWarningThresholdPercent = useMemo(() => {
+    const row = budgetSettings.find((b) => b.cycleId === selectedCycleId);
+    return row?.warningThresholdPercent;
+  }, [selectedCycleId, budgetSettings]);
 
   const sortedRecords = useMemo(() => {
     return [...filteredRecords].sort((a, b) => {
@@ -314,10 +371,39 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   }, []);
 
   const handleSort = useCallback((id: ReviewTableColumnId) => {
+    if (id === 'compareCheckbox') return;
     setSortKey(id);
     setSortDir((d) => (sortKey === id ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
     setPage(1);
   }, [sortKey]);
+
+  const toggleProviderForCompare = useCallback((employeeId: string) => {
+    setSelectedForCompare((prev) => {
+      if (prev.includes(employeeId)) return prev.filter((id) => id !== employeeId);
+      if (prev.length >= 4) return prev;
+      return [...prev, employeeId];
+    });
+  }, []);
+
+  const selectAllOnPageForCompare = useCallback(() => {
+    const onPage = paginatedRecords.map((r) => r.Employee_ID);
+    const current = new Set(selectedForCompare);
+    const added = onPage.filter((id) => !current.has(id));
+    if (added.length === 0) {
+      setSelectedForCompare((prev) => prev.filter((id) => !onPage.includes(id)));
+    } else {
+      setSelectedForCompare((prev) => {
+        const next = [...prev];
+        for (const id of added) {
+          if (next.length >= 4) break;
+          next.push(id);
+        }
+        return next;
+      });
+    }
+  }, [paginatedRecords, selectedForCompare]);
+
+  const clearCompareSelection = useCallback(() => setSelectedForCompare([]), []);
 
   useEffect(() => {
     if (page > totalPages && totalPages >= 1) setPage(totalPages);
@@ -396,6 +482,13 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     }));
   }, []);
 
+  const resetColumnWidths = useCallback(() => {
+    setReviewTableState((prev) => ({
+      ...prev,
+      columnWidths: getDefaultColumnWidths(),
+    }));
+  }, []);
+
   const setFrozenColumnIds = useCallback((updater: (prev: ReviewTableColumnId[]) => ReviewTableColumnId[]) => {
     setReviewTableState((prev) => ({
       ...prev,
@@ -409,6 +502,26 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }, [setFrozenColumnIds]);
+
+  useEffect(() => {
+    if (resizeRef.current == null) return;
+    const onMove = (e: MouseEvent) => {
+      const ref = resizeRef.current;
+      if (!ref) return;
+      const delta = e.clientX - ref.startX;
+      setColumnWidth(ref.columnId, ref.startWidth + delta);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      setResizingColumnIndex(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [setColumnWidth]);
 
   const moveColumn = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
@@ -489,16 +602,36 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     <div className="flex flex-col min-w-0">
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
-          <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+            <div className="flex rounded-xl border border-slate-300 bg-slate-50">
+              {(['table', 'trend'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setReviewViewMode(mode)}
+                  className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${mode === 'table' ? 'rounded-l-xl' : 'rounded-r-xl'} ${
+                    reviewViewMode === mode
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {mode === 'table' ? 'Table' : 'Trend'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-2 items-center flex-wrap">
+            {reviewViewMode === 'table' && (
+              <>
             <span className="text-sm text-slate-600 mr-1">View:</span>
-            <div className="flex rounded-xl border border-slate-300 overflow-hidden bg-slate-50">
-              {(['meeting', 'full', 'comp'] as const).map((presetId) => (
+            <div className="flex rounded-xl border border-slate-300 bg-slate-50">
+              {(['meeting', 'full', 'comp'] as const).map((presetId, idx) => (
                 <button
                   key={presetId}
                   type="button"
                   onClick={() => applyPreset(presetId)}
-                  className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${
+                  className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${
                     activePreset === presetId
                       ? 'bg-indigo-600 text-white'
                       : 'text-slate-700 hover:bg-slate-200'
@@ -507,102 +640,162 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                   {presetId}
                 </button>
               ))}
-              {savedCustomViews.length > 0 ? (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setCustomViewDropdownOpen((o) => !o)}
-                    className={`px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
-                      activePreset === 'custom'
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-700 hover:bg-slate-200'
-                    }`}
-                    aria-expanded={customViewDropdownOpen}
-                    aria-haspopup="menu"
-                  >
-                    Custom
-                    <span className="text-xs opacity-80">▾</span>
-                  </button>
-                  {customViewDropdownOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        aria-hidden
-                        onClick={() => setCustomViewDropdownOpen(false)}
-                      />
-                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] py-1 bg-white border border-slate-200 rounded-xl shadow-lg">
-                        <button
-                          type="button"
-                          onClick={selectCurrentSelection}
-                          className={`w-full px-3 py-2 text-sm text-left ${
-                            activePreset === 'custom' && !activeCustomViewId
-                              ? 'bg-indigo-50 text-indigo-800 font-medium'
-                              : 'text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          Current selection
-                        </button>
-                        {savedCustomViews.map((view) => (
-                          <button
-                            key={view.id}
-                            type="button"
-                            onClick={() => applySavedCustomView(view)}
-                            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between gap-2 ${
-                              activeCustomViewId === view.id
-                                ? 'bg-indigo-50 text-indigo-800 font-medium'
-                                : 'text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <span className="truncate">{view.name}</span>
-                          </button>
-                        ))}
-                        <div className="border-t border-slate-100 mt-1 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSaveViewOpen(true);
-                              setCustomViewDropdownOpen(false);
-                            }}
-                            className="w-full px-3 py-2 text-sm text-left text-indigo-600 hover:bg-indigo-50"
-                          >
-                            Save current as new view…
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={selectCurrentSelection}
-                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  onClick={() => {
+                    setColumnDropdownOpen(false);
+                    if (customViewDropdownOpen) {
+                      setCustomViewDropdownOpen(false);
+                    } else {
+                      openCustomDropdown();
+                    }
+                  }}
+                  className={`rounded-r-xl px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
                     activePreset === 'custom'
                       ? 'bg-indigo-600 text-white'
                       : 'text-slate-700 hover:bg-slate-200'
                   }`}
+                  aria-expanded={customViewDropdownOpen}
+                  aria-haspopup="menu"
                 >
                   Custom
+                  <span className="text-xs opacity-80">▾</span>
                 </button>
-              )}
+                {customViewDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      aria-hidden
+                      onClick={closeCustomDropdown}
+                    />
+                    <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-[20rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
+                      <button
+                        type="button"
+                        onClick={selectCurrentSelection}
+                        className={`w-full px-3 py-2 text-sm text-left ${
+                          activePreset === 'custom' && !activeCustomViewId
+                            ? 'bg-indigo-50 text-indigo-800 font-medium'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        Current selection
+                      </button>
+                      {savedCustomViews.length > 0 ? (
+                        <>
+                          <p className="px-3 pt-2 pb-1 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                            Saved views
+                          </p>
+                          <div className="overflow-y-auto flex-1 min-h-0 max-h-48">
+                            {savedCustomViews.map((view) => (
+                              <div
+                                key={view.id}
+                                className={`flex items-center gap-1 px-3 py-2 text-sm ${
+                                  activeCustomViewId === view.id
+                                    ? 'bg-indigo-50 text-indigo-800 font-medium'
+                                    : 'text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => applySavedCustomView(view)}
+                                  className="flex-1 min-w-0 text-left truncate"
+                                >
+                                  {view.name}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeSavedCustomView(view.id);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded shrink-0"
+                                  title="Delete view"
+                                  aria-label={`Delete ${view.name}`}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="px-3 py-2 text-sm text-slate-500">No saved views yet.</p>
+                      )}
+                      <div className="border-t border-slate-200 p-2 shrink-0">
+                        {saveViewOpen ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={saveViewName}
+                              onChange={(e) => setSaveViewName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') addSavedCustomView(saveViewName);
+                                if (e.key === 'Escape') setSaveViewOpen(false);
+                              }}
+                              placeholder="View name"
+                              className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => addSavedCustomView(saveViewName)}
+                              disabled={!saveViewName.trim()}
+                              className="px-2 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
+                              className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSaveViewOpen(true)}
+                            className="w-full px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg text-left"
+                          >
+                            Save current columns as view…
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="relative">
+            <div className="relative flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setColumnPickerOpen((o) => !o)}
+                onClick={() => {
+                setCustomViewDropdownOpen(false);
+                setColumnDropdownOpen((o) => !o);
+              }}
                 className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
+                aria-expanded={columnDropdownOpen}
+                aria-haspopup="menu"
               >
                 Columns
               </button>
-              {columnPickerOpen && (
+              {columnDropdownOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" aria-hidden onClick={() => { setColumnPickerOpen(false); setSaveViewOpen(false); setSaveViewName(''); }} />
-                  <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-[28rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
-                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
-                      Show / Pin
+                  <div
+                    className="fixed inset-0 z-40"
+                    aria-hidden
+                    onClick={() => setColumnDropdownOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-[28rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
+                    <div className="px-3 py-2 border-b border-slate-100">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Show / Pin
+                      </p>
                     </div>
-                    <div className="py-2 overflow-y-auto flex-1 min-h-0">
-                      {REVIEW_TABLE_COLUMNS.map((col) => (
+                    <div className="py-2 overflow-y-auto flex-1 min-h-0 max-h-64">
+                      {REVIEW_TABLE_COLUMNS.filter((col) => col.id !== 'compareCheckbox').map((col) => (
                         <div key={col.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50">
                           <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
                             <input
@@ -610,9 +803,9 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                               checked={visibleColumnIds.includes(col.id)}
                               onChange={() => toggleColumn(col.id)}
                               className="rounded border-slate-300"
-                              aria-label={`Show ${col.label}`}
+                              aria-label={col.label ? `Show ${col.label}` : 'Show column'}
                             />
-                            <span className="text-sm text-slate-700 truncate">{col.label}</span>
+                            <span className="text-sm text-slate-700 truncate">{col.label || '—'}</span>
                           </label>
                           <label className="flex items-center gap-1 shrink-0 cursor-pointer" title="Freeze column">
                             <span className="text-xs text-slate-500">Pin</span>
@@ -622,86 +815,38 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                               disabled={!visibleColumnIds.includes(col.id)}
                               onChange={() => toggleFrozenColumn(col.id)}
                               className="rounded border-slate-300 disabled:opacity-50"
-                              aria-label={`Freeze ${col.label}`}
+                              aria-label={col.label ? `Freeze ${col.label}` : 'Freeze column'}
                               onClick={(e) => e.stopPropagation()}
                             />
                           </label>
                         </div>
                       ))}
                     </div>
-                    <div className="border-t border-slate-200 p-2 shrink-0 space-y-2">
-                      {saveViewOpen ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={saveViewName}
-                            onChange={(e) => setSaveViewName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') addSavedCustomView(saveViewName);
-                              if (e.key === 'Escape') setSaveViewOpen(false);
-                            }}
-                            placeholder="View name"
-                            className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            onClick={() => addSavedCustomView(saveViewName)}
-                            disabled={!saveViewName.trim()}
-                            className="px-2 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
-                            className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setSaveViewOpen(true)}
-                          className="w-full px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg text-left"
-                        >
-                          Save current columns as view…
-                        </button>
-                      )}
-                      {savedCustomViews.length > 0 && (
-                        <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                          <p className="px-1 text-xs font-medium text-slate-500 uppercase tracking-wide">Saved views</p>
-                          {savedCustomViews.map((view) => (
-                            <div
-                              key={view.id}
-                              className="flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-slate-50"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => applySavedCustomView(view)}
-                                className="flex-1 text-left text-sm text-slate-700 truncate"
-                              >
-                                {view.name}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeSavedCustomView(view.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded"
-                                title="Delete view"
-                                aria-label={`Delete ${view.name}`}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </>
               )}
+              <button
+                type="button"
+                onClick={resetColumnWidths}
+                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
+                title="Reset all column widths to defaults"
+              >
+                Reset widths
+              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setCompareModalOpen(true)}
+              disabled={selectedForCompare.length < 2}
+              className={`px-3 py-2 text-sm font-medium rounded-xl ${
+                selectedForCompare.length >= 2
+                  ? 'bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700'
+                  : 'border border-slate-300 text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+              title={selectedForCompare.length < 2 ? 'Select 2–4 providers to compare' : 'Compare selected providers'}
+            >
+              Compare {selectedForCompare.length > 0 ? `(${selectedForCompare.length})` : ''}
+            </button>
             <button
               type="button"
               onClick={handleExportCsv}
@@ -716,8 +861,16 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             >
               Export XLSX
             </button>
+              </>
+            )}
           </div>
         </div>
+        <SalaryReviewSummaryBar
+          summaryTotals={summaryTotals}
+          budgetAmount={budgetAmount}
+          budgetWarningThresholdPercent={budgetWarningThresholdPercent}
+          breakdown={summaryBreakdown}
+        />
         <div className="shrink-0 px-5">
           <SalaryReviewFilterBar
             filters={filters}
@@ -728,9 +881,27 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
           />
         </div>
         <div
-          className={`flex flex-col min-w-0 ${filteredRecords.length === 0 ? 'min-h-[420px]' : ''}`}
+          className={`flex flex-col min-w-0 ${reviewViewMode === 'table' && filteredRecords.length === 0 ? 'min-h-[420px]' : ''}`}
         >
-          {filteredRecords.length === 0 ? (
+          {reviewViewMode === 'trend' ? (
+            <div className="px-5 py-4 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-700">Group by</label>
+                <select
+                  value={trendGroupBy}
+                  onChange={(e) => setTrendGroupBy(e.target.value as ExperienceSalaryGroupBy)}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[160px]"
+                  aria-label="Group chart by"
+                >
+                  <option value="none">No grouping</option>
+                  <option value="population">Population</option>
+                  <option value="specialty">Specialty</option>
+                  <option value="division">Division</option>
+                </select>
+              </div>
+              <ExperienceSalaryTrendChart records={filteredRecords} groupBy={trendGroupBy} />
+            </div>
+          ) : filteredRecords.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center">
               <p className="text-slate-600 font-medium">No providers match your filters.</p>
               <p className="text-sm text-slate-500 mt-1">Clear filters or change criteria to see providers.</p>
@@ -743,15 +914,19 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
               </button>
             </div>
           ) : (
-          <div className="min-w-0 overflow-x-auto">
-            <table className="min-w-full border-collapse table-fixed">
+          <>
+          <div className="min-w-0 overflow-auto max-h-[calc(100vh-16rem)]">
+            <table
+              className="border-collapse table-fixed"
+              style={{ width: totalTableWidthPx, minWidth: totalTableWidthPx }}
+            >
               <colgroup>
                 {visibleColumns.map((col) => (
                   <col key={col.id} style={{ width: columnWidths[col.id] ?? 128, minWidth: columnWidths[col.id] ?? 128 }} />
                 ))}
               </colgroup>
-              <thead className="sticky top-0 z-20 bg-slate-100 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_1px_0_0_rgba(203,213,225,0.8)]">
-                <tr className="bg-slate-100">
+              <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
+                <tr className="bg-neutral-50">
                   {visibleColumns.map((col, index) => {
                     const frozen = isFrozenColumn(index);
                     const left = frozen ? frozenLeftOffsets[index] : undefined;
@@ -759,46 +934,64 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                     return (
                       <th
                         key={col.id}
-                        draggable
-                        onDragStart={handleHeaderDragStart(index)}
+                        draggable={col.id !== 'compareCheckbox'}
+                        onDragStart={col.id === 'compareCheckbox' ? undefined : handleHeaderDragStart(index)}
                         onDragOver={handleHeaderDragOver(index)}
                         onDragLeave={handleHeaderDragLeave}
                         onDrop={handleHeaderDrop(index)}
                         onDragEnd={handleHeaderDragEnd}
-                        title={col.label}
+                        title={col.id === 'compareCheckbox' ? 'Select for compare' : col.label}
                         style={{
                           width: widthPx,
                           minWidth: widthPx,
                           maxWidth: widthPx,
                           ...(frozen && left !== undefined ? { position: 'sticky', left, zIndex: 21 } : {}),
                         }}
-                        className={`relative px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide cursor-pointer select-none bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap ${
-                          frozen ? 'shadow-[2px_0_4px_rgba(0,0,0,0.06)]' : ''
-                        } ${col.align === 'right' ? 'text-right' : 'text-left'} ${draggingColumnIndex === index ? 'opacity-50' : ''} ${
-                          dragOverColumnIndex === index ? 'bg-indigo-200 ring-1 ring-indigo-400' : ''
+                        className={`relative px-3 py-2.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors whitespace-normal overflow-hidden ${
+                          col.id === 'compareCheckbox' ? 'cursor-default' : 'cursor-pointer'
+                        } ${frozen ? 'shadow-[2px_0_4px_rgba(0,0,0,0.06)]' : ''} ${col.align === 'right' ? 'text-right' : 'text-left'} ${draggingColumnIndex === index ? 'opacity-50' : ''} ${
+                          dragOverColumnIndex === index ? 'bg-indigo-100 ring-1 ring-indigo-300' : ''
                         } ${resizingColumnIndex === index ? 'select-none' : ''}`}
-                        onClick={() => handleSort(col.id)}
+                        onClick={col.id === 'compareCheckbox' ? undefined : () => handleSort(col.id)}
                       >
-                        <span className="inline-flex items-center gap-1 truncate">
+                        {col.id === 'compareCheckbox' ? (
+                          <label className="flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paginatedRecords.length > 0 && paginatedRecords.every((r) => selectedForCompare.includes(r.Employee_ID))}
+                              ref={(el) => {
+                                if (el) el.indeterminate = paginatedRecords.length > 0 && paginatedRecords.some((r) => selectedForCompare.includes(r.Employee_ID)) && !paginatedRecords.every((r) => selectedForCompare.includes(r.Employee_ID));
+                              }}
+                              onChange={selectAllOnPageForCompare}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded border-slate-300"
+                              aria-label="Select all on page for compare"
+                            />
+                          </label>
+                        ) : (
+                        <span className={`flex items-center gap-1 min-w-0 ${col.align === 'right' ? 'justify-end' : ''}`}>
                           <span
-                            className="inline-block w-3 shrink-0 cursor-grab active:cursor-grabbing text-slate-400"
+                            className="shrink-0 w-3 cursor-grab active:cursor-grabbing text-neutral-400"
                             aria-hidden
                             title="Drag to reorder column"
                             onClick={(e) => e.stopPropagation()}
                           >
                             ⋮⋮
                           </span>
-                          {col.label}
+                          <span className={`min-w-0 truncate block ${col.align === 'right' ? 'text-right' : 'text-left'}`} title={col.label}>
+                            {col.label}
+                          </span>
                           {sortKey === col.id && (
-                            <span className="text-indigo-600 shrink-0" aria-hidden>
+                            <span className="text-blue-600 shrink-0" aria-hidden>
                               {sortDir === 'asc' ? '↑' : '↓'}
                             </span>
                           )}
                         </span>
+                        )}
                         <span
                           role="separator"
                           aria-label={`Resize column ${col.label}`}
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 touch-none hover:bg-indigo-300/50 active:bg-indigo-400/50"
+                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 touch-none hover:bg-blue-300/40 active:bg-blue-400/40"
                           style={{ marginRight: '-3px' }}
                           onMouseDown={handleResizeStart(index)}
                         />
@@ -808,16 +1001,21 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
-                {paginatedRecords.map((r) => (
+                {paginatedRecords.map((r) => {
+                  const yoe = r.Years_of_Experience ?? r.Total_YOE;
+                  const bandAlignment = getExperienceBandAlignment(yoe, r.Current_TCC_Percentile, experienceBands);
+                  const rowAlignmentClass =
+                    bandAlignment === 'below'
+                      ? 'bg-amber-50/50'
+                      : bandAlignment === 'above'
+                        ? 'bg-sky-50/50'
+                        : '';
+                  return (
                   <tr
                     key={r.Employee_ID}
-                    onClick={() => {
-                      setSelectedEmployeeId(r.Employee_ID);
-                      setDrawerClosing(false);
-                    }}
-                    className={`group transition-colors cursor-pointer ${
+                    className={`group transition-colors ${
                       selectedEmployeeId === r.Employee_ID ? 'bg-indigo-100/60' : 'hover:bg-indigo-50/30'
-                    }`}
+                    } ${rowAlignmentClass}`}
                   >
                     {visibleColumns.map((col, colIndex) => {
                       const value = getReviewCellValue(r, col.id, experienceBands);
@@ -832,6 +1030,18 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                             selectedEmployeeId === r.Employee_ID ? 'bg-indigo-100' : 'bg-white group-hover:bg-indigo-50'
                           }`
                         : '';
+                      const alignmentCellClass =
+                        col.id === 'bandAlignment' && bandAlignment
+                          ? bandAlignment === 'below'
+                            ? 'bg-amber-100'
+                            : bandAlignment === 'in'
+                              ? 'bg-emerald-50'
+                              : 'bg-sky-100'
+                          : col.id === 'currentTccPercentile' && bandAlignment && bandAlignment !== 'in'
+                            ? bandAlignment === 'below'
+                              ? 'bg-amber-100'
+                              : 'bg-sky-100'
+                            : '';
 
                       return (
                         <td
@@ -842,15 +1052,26 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                             maxWidth: widthPx,
                             ...(frozen && left !== undefined ? { position: 'sticky', left } : {}),
                           }}
-                          className={`px-3 py-2 text-sm text-slate-800 whitespace-nowrap ${stickyCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
+                          className={`px-3 py-2 text-sm text-slate-800 whitespace-nowrap overflow-hidden ${stickyCellClass} ${alignmentCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
                           onClick={(e) => isNotes && e.stopPropagation()}
                         >
-                          {col.id === 'reviewStatus' && col.editable ? (
+                          {col.id === 'compareCheckbox' ? (
+                            <label className="flex items-center justify-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedForCompare.includes(r.Employee_ID)}
+                                onChange={() => toggleProviderForCompare(r.Employee_ID)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border-slate-300"
+                                aria-label={`Select ${r.Provider_Name ?? r.Employee_ID} for compare`}
+                              />
+                            </label>
+                          ) : col.id === 'reviewStatus' && col.editable ? (
                             <select
                               value={r.Review_Status ?? ''}
                               onChange={(e) => updateRecord(r.Employee_ID, { Review_Status: e.target.value as ReviewStatus })}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-full min-w-[100px] px-2 py-1 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             >
                               {Object.values(ReviewStatus).map((s) => (
                                 <option key={s} value={s}>
@@ -861,14 +1082,29 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                           ) : isNotes && col.editable ? (
                             <button
                               type="button"
+                              tabIndex={-1}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setNotesModalEmployeeId(r.Employee_ID);
                               }}
                               className="p-1 rounded hover:bg-slate-200 text-slate-600"
                               title={r.Notes ?? 'Add note'}
+                              aria-label={r.Notes ? 'Edit note' : 'Add note'}
                             >
                               {r.Notes ? '📝' : '+'}
+                            </button>
+                          ) : col.id === 'providerName' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEmployeeId(r.Employee_ID);
+                                setDrawerClosing(false);
+                              }}
+                              className="text-left w-full min-w-0 truncate block text-indigo-600 hover:text-indigo-800 hover:underline focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded px-0.5 -mx-0.5"
+                              title="View provider details"
+                            >
+                              {display}
                             </button>
                           ) : isEditable && (col.id === 'proposedBaseSalary' || col.id === 'approvedIncreaseAmount') ? (
                             (() => {
@@ -890,7 +1126,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                                     setEditingCell(null);
                                   }}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="w-28 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
+                                  className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
                                 />
                               );
                             })()
@@ -913,7 +1149,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                                     setEditingCell(null);
                                   }}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="w-24 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
+                                  className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
                                 />
                               );
                             })()
@@ -927,7 +1163,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                                 updateRecord(r.Employee_ID, { Proposed_CF: num });
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-24 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
+                              className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg tabular-nums text-right focus:ring-2 focus:ring-indigo-500"
                               step={1}
                             />
                           ) : isEditable && col.id === 'proposedTier' ? (
@@ -936,28 +1172,47 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                               value={r.Proposed_Tier ?? ''}
                               onChange={(e) => updateRecord(r.Employee_ID, { Proposed_Tier: e.target.value || undefined })}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-24 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                              className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                             />
                           ) : (
-                            display
+                            <span className="block truncate min-w-0" title={String(display)}>
+                              {display}
+                            </span>
                           )}
                         </td>
                       );
                     })}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          </>
           )}
-          {filteredRecords.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/80 shrink-0 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
+          {reviewViewMode === 'table' && filteredRecords.length > 0 && (
+          <div className="shrink-0 border-t border-slate-200">
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+              <span className="font-semibold text-slate-800">Color key (row highlight):</span>
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded border-2 border-amber-400 bg-amber-100 shrink-0" aria-hidden />
+                <span className="text-slate-700">Below target</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded border-2 border-emerald-400 bg-emerald-100 shrink-0" aria-hidden />
+                <span className="text-slate-700">In range</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded border-2 border-sky-400 bg-sky-100 shrink-0" aria-hidden />
+                <span className="text-slate-700">Above target</span>
+              </span>
+            </div>
+            <div className="px-4 py-2.5 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <span className="text-sm text-slate-600">
                 Showing <span className="font-medium text-slate-800">{startRow}</span>–<span className="font-medium text-slate-800">{endRow}</span> of{' '}
                 <span className="font-medium text-slate-800">{sortedRecords.length}</span> provider{sortedRecords.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-slate-400">|</span>
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 Rows per page
                 <select
@@ -1015,6 +1270,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                 Next
               </button>
             </div>
+            </div>
           </div>
           )}
         </div>
@@ -1048,6 +1304,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             <ProviderDetailPanel
               provider={selectedRecord}
               enrichment={selectedEnrichment}
+              experienceBands={experienceBands}
               onClose={handleCloseDrawer}
               onSelectPrev={handleSelectPrev}
               onSelectNext={handleSelectNext}
@@ -1056,6 +1313,18 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             />
           </div>
         </>
+      )}
+
+      {/* Provider compare modal */}
+      {compareModalOpen && (
+        <ProviderCompareModal
+          providerIds={selectedForCompare}
+          records={records}
+          marketBySpecialty={marketBySpecialty}
+          experienceBands={experienceBands}
+          onClose={() => setCompareModalOpen(false)}
+          onClearSelection={clearCompareSelection}
+        />
       )}
 
       {/* Notes modal */}
@@ -1085,49 +1354,6 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
         ) : null;
       })()}
 
-      {/* Save current columns as view modal (when opened from Custom dropdown) */}
-      {saveViewOpen && !columnPickerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
-          onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-semibold text-slate-800 mb-2">Save current columns as view</h3>
-            <input
-              type="text"
-              value={saveViewName}
-              onChange={(e) => setSaveViewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') addSavedCustomView(saveViewName);
-                if (e.key === 'Escape') { setSaveViewOpen(false); setSaveViewName(''); }
-              }}
-              placeholder="View name"
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-4"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => addSavedCustomView(saveViewName)}
-                disabled={!saveViewName.trim()}
-                className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
