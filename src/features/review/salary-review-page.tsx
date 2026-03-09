@@ -25,8 +25,10 @@ import {
   parseCurrencyInput,
   formatPercentTwoDecimals,
   parsePercentInput,
+  getDefaultColumnWidths,
   type ReviewTableColumnId,
   type ReviewViewPresetId,
+  type SavedCustomView,
 } from './review-table-columns';
 import { loadReviewTableFromStorage, saveReviewTableToStorage } from '../../lib/review-table-storage';
 import { ProviderDetailPanel } from './provider-detail-panel';
@@ -44,11 +46,18 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   const [reviewTableState, setReviewTableState] = useState(loadReviewTableFromStorage);
   const visibleColumnIds = reviewTableState.visibleColumnIds;
   const activePreset = reviewTableState.preset;
+  const savedCustomViews = reviewTableState.savedCustomViews ?? [];
+  const activeCustomViewId = reviewTableState.activeCustomViewId ?? null;
+  const columnWidths = reviewTableState.columnWidths ?? getDefaultColumnWidths();
+  const frozenColumnIds = reviewTableState.frozenColumnIds ?? ['providerName'];
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<ReviewTableColumnId>('providerName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [notesModalEmployeeId, setNotesModalEmployeeId] = useState<string | null>(null);
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
+  const [customViewDropdownOpen, setCustomViewDropdownOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -58,6 +67,8 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   const [goToPageInput, setGoToPageInput] = useState('');
   const [editingCell, setEditingCell] = useState<{ employeeId: string; columnId: ReviewTableColumnId } | null>(null);
   const [editBuffer, setEditBuffer] = useState('');
+  const [resizingColumnIndex, setResizingColumnIndex] = useState<number | null>(null);
+  const resizeRef = useRef<{ columnId: ReviewTableColumnId; startX: number; startWidth: number } | null>(null);
 
   const DRAWER_MIN_WIDTH = 320;
   const DRAWER_MAX_WIDTH = 900;
@@ -106,24 +117,133 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     return m;
   }, [marketData]);
 
+  const orderedColumnIds = useMemo(() => {
+    const frozenOrdered = frozenColumnIds.filter((id) => visibleColumnIds.includes(id));
+    const rest = visibleColumnIds.filter((id) => !frozenColumnIds.includes(id));
+    return [...frozenOrdered, ...rest];
+  }, [visibleColumnIds, frozenColumnIds]);
+
   const visibleColumns = useMemo(
     () =>
-      visibleColumnIds
+      orderedColumnIds
         .map((id) => REVIEW_TABLE_COLUMNS.find((c) => c.id === id))
         .filter((c): c is (typeof REVIEW_TABLE_COLUMNS)[number] => c != null),
-    [visibleColumnIds]
+    [orderedColumnIds]
+  );
+
+  const frozenLeftOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let sum = 0;
+    for (let i = 0; i < orderedColumnIds.length; i++) {
+      offsets[i] = sum;
+      if (frozenColumnIds.includes(orderedColumnIds[i])) {
+        sum += columnWidths[orderedColumnIds[i]] ?? 128;
+      }
+    }
+    return offsets;
+  }, [orderedColumnIds, frozenColumnIds, columnWidths]);
+
+  const isFrozenColumn = useCallback(
+    (colIndex: number) => {
+      const id = orderedColumnIds[colIndex];
+      return id != null && frozenColumnIds.includes(id);
+    },
+    [orderedColumnIds, frozenColumnIds]
+  );
+
+  const handleResizeStart = useCallback(
+    (colIndex: number) => (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const col = visibleColumns[colIndex];
+      if (!col) return;
+      setResizingColumnIndex(colIndex);
+      resizeRef.current = {
+        columnId: col.id,
+        startX: e.clientX,
+        startWidth: columnWidths[col.id] ?? 128,
+      };
+    },
+    [visibleColumns, columnWidths]
   );
 
   useEffect(() => {
-    saveReviewTableToStorage({ visibleColumnIds, preset: activePreset });
-  }, [visibleColumnIds, activePreset]);
+    if (resizeRef.current == null) return;
+    const onMove = (e: MouseEvent) => {
+      const ref = resizeRef.current;
+      if (!ref) return;
+      const delta = e.clientX - ref.startX;
+      setColumnWidth(ref.columnId, ref.startWidth + delta);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      setResizingColumnIndex(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [setColumnWidth]);
+
+  useEffect(() => {
+    saveReviewTableToStorage(reviewTableState);
+  }, [reviewTableState]);
 
   const applyPreset = useCallback((presetId: ReviewViewPresetId) => {
-    setReviewTableState({ visibleColumnIds: [...REVIEW_VIEW_PRESETS[presetId]], preset: presetId });
+    setReviewTableState((prev) => ({
+      ...prev,
+      visibleColumnIds: [...REVIEW_VIEW_PRESETS[presetId]],
+      preset: presetId,
+      activeCustomViewId: null,
+    }));
   }, []);
 
-  const setVisibleColumnIds = useCallback((updater: (prev: ReviewTableColumnId[]) => ReviewTableColumnId[]) => {
-    setReviewTableState((prev) => ({ ...prev, visibleColumnIds: updater(prev.visibleColumnIds), preset: 'custom' }));
+  const applySavedCustomView = useCallback((view: SavedCustomView) => {
+    setReviewTableState((prev) => ({
+      ...prev,
+      visibleColumnIds: [...view.columnIds],
+      preset: 'custom',
+      activeCustomViewId: view.id,
+    }));
+    setCustomViewDropdownOpen(false);
+  }, []);
+
+  const addSavedCustomView = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || visibleColumnIds.length === 0) return;
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `view-${Date.now()}`;
+    const newView: SavedCustomView = { id, name: trimmed, columnIds: [...visibleColumnIds] };
+    setReviewTableState((prev) => {
+      const nextViews = [...(prev.savedCustomViews ?? []), newView].slice(-10);
+      return {
+        ...prev,
+        savedCustomViews: nextViews,
+        visibleColumnIds: newView.columnIds,
+        preset: 'custom',
+        activeCustomViewId: id,
+      };
+    });
+    setSaveViewName('');
+    setSaveViewOpen(false);
+    setColumnPickerOpen(false);
+  }, [visibleColumnIds]);
+
+  const removeSavedCustomView = useCallback((id: string) => {
+    setReviewTableState((prev) => {
+      const nextViews = (prev.savedCustomViews ?? []).filter((v) => v.id !== id);
+      return {
+        ...prev,
+        savedCustomViews: nextViews,
+        activeCustomViewId: prev.activeCustomViewId === id ? null : prev.activeCustomViewId,
+      };
+    });
+  }, []);
+
+  const selectCurrentSelection = useCallback(() => {
+    setReviewTableState((prev) => ({ ...prev, preset: 'custom', activeCustomViewId: null }));
+    setCustomViewDropdownOpen(false);
   }, []);
 
   const filteredRecords = useMemo(
@@ -259,18 +379,45 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   };
 
   const toggleColumn = useCallback((id: ReviewTableColumnId) => {
-    setVisibleColumnIds((prev) =>
+    setReviewTableState((prev) => {
+      const nextVisible = prev.visibleColumnIds.includes(id)
+        ? prev.visibleColumnIds.filter((x) => x !== id)
+        : [...prev.visibleColumnIds, id];
+      const nextFrozen = (prev.frozenColumnIds ?? []).filter((fid) => nextVisible.includes(fid));
+      return { ...prev, visibleColumnIds: nextVisible, frozenColumnIds: nextFrozen, preset: 'custom' };
+    });
+  }, []);
+
+  const setColumnWidth = useCallback((columnId: ReviewTableColumnId, widthPx: number) => {
+    const clamped = Math.max(80, Math.min(400, widthPx));
+    setReviewTableState((prev) => ({
+      ...prev,
+      columnWidths: { ...(prev.columnWidths ?? getDefaultColumnWidths()), [columnId]: clamped },
+    }));
+  }, []);
+
+  const setFrozenColumnIds = useCallback((updater: (prev: ReviewTableColumnId[]) => ReviewTableColumnId[]) => {
+    setReviewTableState((prev) => ({
+      ...prev,
+      frozenColumnIds: updater(prev.frozenColumnIds ?? ['providerName']),
+      preset: 'custom',
+    }));
+  }, []);
+
+  const toggleFrozenColumn = useCallback((id: ReviewTableColumnId) => {
+    setFrozenColumnIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-  }, [setVisibleColumnIds]);
+  }, [setFrozenColumnIds]);
 
   const moveColumn = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
-    setVisibleColumnIds((prev) => {
-      const next = [...prev];
+    setReviewTableState((prev) => {
+      const ordered = [...(prev.frozenColumnIds ?? []).filter((id) => prev.visibleColumnIds.includes(id)), ...prev.visibleColumnIds.filter((id) => !(prev.frozenColumnIds ?? []).includes(id))];
+      const next = [...ordered];
       const [removed] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, removed);
-      return next;
+      return { ...prev, visibleColumnIds: next };
     });
     setDraggingColumnIndex(null);
     setDragOverColumnIndex(null);
@@ -360,17 +507,84 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                   {presetId}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setReviewTableState((prev) => ({ ...prev, preset: 'custom' }))}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
-                  activePreset === 'custom'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                Custom
-              </button>
+              {savedCustomViews.length > 0 ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setCustomViewDropdownOpen((o) => !o)}
+                    className={`px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
+                      activePreset === 'custom'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-700 hover:bg-slate-200'
+                    }`}
+                    aria-expanded={customViewDropdownOpen}
+                    aria-haspopup="menu"
+                  >
+                    Custom
+                    <span className="text-xs opacity-80">▾</span>
+                  </button>
+                  {customViewDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        aria-hidden
+                        onClick={() => setCustomViewDropdownOpen(false)}
+                      />
+                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] py-1 bg-white border border-slate-200 rounded-xl shadow-lg">
+                        <button
+                          type="button"
+                          onClick={selectCurrentSelection}
+                          className={`w-full px-3 py-2 text-sm text-left ${
+                            activePreset === 'custom' && !activeCustomViewId
+                              ? 'bg-indigo-50 text-indigo-800 font-medium'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Current selection
+                        </button>
+                        {savedCustomViews.map((view) => (
+                          <button
+                            key={view.id}
+                            type="button"
+                            onClick={() => applySavedCustomView(view)}
+                            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between gap-2 ${
+                              activeCustomViewId === view.id
+                                ? 'bg-indigo-50 text-indigo-800 font-medium'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="truncate">{view.name}</span>
+                          </button>
+                        ))}
+                        <div className="border-t border-slate-100 mt-1 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSaveViewOpen(true);
+                              setCustomViewDropdownOpen(false);
+                            }}
+                            className="w-full px-3 py-2 text-sm text-left text-indigo-600 hover:bg-indigo-50"
+                          >
+                            Save current as new view…
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={selectCurrentSelection}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    activePreset === 'custom'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Custom
+                </button>
+              )}
             </div>
             <div className="relative">
               <button
@@ -382,19 +596,108 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
               </button>
               {columnPickerOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" aria-hidden onClick={() => setColumnPickerOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-64 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-2">
-                    {REVIEW_TABLE_COLUMNS.map((col) => (
-                      <label key={col.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={visibleColumnIds.includes(col.id)}
-                          onChange={() => toggleColumn(col.id)}
-                          className="rounded border-slate-300"
-                        />
-                        <span className="text-sm text-slate-700">{col.label}</span>
-                      </label>
-                    ))}
+                  <div className="fixed inset-0 z-40" aria-hidden onClick={() => { setColumnPickerOpen(false); setSaveViewOpen(false); setSaveViewName(''); }} />
+                  <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-[28rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                      Show / Pin
+                    </div>
+                    <div className="py-2 overflow-y-auto flex-1 min-h-0">
+                      {REVIEW_TABLE_COLUMNS.map((col) => (
+                        <div key={col.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50">
+                          <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={visibleColumnIds.includes(col.id)}
+                              onChange={() => toggleColumn(col.id)}
+                              className="rounded border-slate-300"
+                              aria-label={`Show ${col.label}`}
+                            />
+                            <span className="text-sm text-slate-700 truncate">{col.label}</span>
+                          </label>
+                          <label className="flex items-center gap-1 shrink-0 cursor-pointer" title="Freeze column">
+                            <span className="text-xs text-slate-500">Pin</span>
+                            <input
+                              type="checkbox"
+                              checked={frozenColumnIds.includes(col.id)}
+                              disabled={!visibleColumnIds.includes(col.id)}
+                              onChange={() => toggleFrozenColumn(col.id)}
+                              className="rounded border-slate-300 disabled:opacity-50"
+                              aria-label={`Freeze ${col.label}`}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-200 p-2 shrink-0 space-y-2">
+                      {saveViewOpen ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={saveViewName}
+                            onChange={(e) => setSaveViewName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addSavedCustomView(saveViewName);
+                              if (e.key === 'Escape') setSaveViewOpen(false);
+                            }}
+                            placeholder="View name"
+                            className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addSavedCustomView(saveViewName)}
+                            disabled={!saveViewName.trim()}
+                            className="px-2 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
+                            className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setSaveViewOpen(true)}
+                          className="w-full px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg text-left"
+                        >
+                          Save current columns as view…
+                        </button>
+                      )}
+                      {savedCustomViews.length > 0 && (
+                        <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                          <p className="px-1 text-xs font-medium text-slate-500 uppercase tracking-wide">Saved views</p>
+                          {savedCustomViews.map((view) => (
+                            <div
+                              key={view.id}
+                              className="flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-slate-50"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => applySavedCustomView(view)}
+                                className="flex-1 text-left text-sm text-slate-700 truncate"
+                              >
+                                {view.name}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSavedCustomView(view.id)}
+                                className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                title="Delete view"
+                                aria-label={`Delete ${view.name}`}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -441,44 +744,67 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             </div>
           ) : (
           <div className="min-w-0 overflow-x-auto">
-            <table className="min-w-full border-collapse table-auto">
-              <thead className="sticky top-0 z-20 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_1px_0_0_rgba(203,213,225,0.8)]">
+            <table className="min-w-full border-collapse table-fixed">
+              <colgroup>
+                {visibleColumns.map((col) => (
+                  <col key={col.id} style={{ width: columnWidths[col.id] ?? 128, minWidth: columnWidths[col.id] ?? 128 }} />
+                ))}
+              </colgroup>
+              <thead className="sticky top-0 z-20 bg-slate-100 shadow-[0_2px_4px_rgba(0,0,0,0.06),0_1px_0_0_rgba(203,213,225,0.8)]">
                 <tr className="bg-slate-100">
-                  {visibleColumns.map((col, index) => (
-                    <th
-                      key={col.id}
-                      draggable
-                      onDragStart={handleHeaderDragStart(index)}
-                      onDragOver={handleHeaderDragOver(index)}
-                      onDragLeave={handleHeaderDragLeave}
-                      onDrop={handleHeaderDrop(index)}
-                      onDragEnd={handleHeaderDragEnd}
-                      title={col.label}
-                      className={`px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide cursor-pointer select-none bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap w-max ${
-                        index === 0 ? 'sticky left-0 z-[21] min-w-[12rem] shadow-[2px_0_4px_rgba(0,0,0,0.06)]' : 'min-w-[8rem]'
-                      } ${col.align === 'right' ? 'text-right' : 'text-left'} ${draggingColumnIndex === index ? 'opacity-50' : ''} ${
-                        dragOverColumnIndex === index ? 'bg-indigo-200 ring-1 ring-indigo-400' : ''
-                      }`}
-                      onClick={() => handleSort(col.id)}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        <span
-                          className="inline-block w-3 shrink-0 cursor-grab active:cursor-grabbing text-slate-400"
-                          aria-hidden
-                          title="Drag to reorder column"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          ⋮⋮
-                        </span>
-                        {col.label}
-                        {sortKey === col.id && (
-                          <span className="text-indigo-600" aria-hidden>
-                            {sortDir === 'asc' ? '↑' : '↓'}
+                  {visibleColumns.map((col, index) => {
+                    const frozen = isFrozenColumn(index);
+                    const left = frozen ? frozenLeftOffsets[index] : undefined;
+                    const widthPx = columnWidths[col.id] ?? 128;
+                    return (
+                      <th
+                        key={col.id}
+                        draggable
+                        onDragStart={handleHeaderDragStart(index)}
+                        onDragOver={handleHeaderDragOver(index)}
+                        onDragLeave={handleHeaderDragLeave}
+                        onDrop={handleHeaderDrop(index)}
+                        onDragEnd={handleHeaderDragEnd}
+                        title={col.label}
+                        style={{
+                          width: widthPx,
+                          minWidth: widthPx,
+                          maxWidth: widthPx,
+                          ...(frozen && left !== undefined ? { position: 'sticky', left, zIndex: 21 } : {}),
+                        }}
+                        className={`relative px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide cursor-pointer select-none bg-slate-100 hover:bg-slate-200 transition-colors whitespace-nowrap ${
+                          frozen ? 'shadow-[2px_0_4px_rgba(0,0,0,0.06)]' : ''
+                        } ${col.align === 'right' ? 'text-right' : 'text-left'} ${draggingColumnIndex === index ? 'opacity-50' : ''} ${
+                          dragOverColumnIndex === index ? 'bg-indigo-200 ring-1 ring-indigo-400' : ''
+                        } ${resizingColumnIndex === index ? 'select-none' : ''}`}
+                        onClick={() => handleSort(col.id)}
+                      >
+                        <span className="inline-flex items-center gap-1 truncate">
+                          <span
+                            className="inline-block w-3 shrink-0 cursor-grab active:cursor-grabbing text-slate-400"
+                            aria-hidden
+                            title="Drag to reorder column"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ⋮⋮
                           </span>
-                        )}
-                      </span>
-                    </th>
-                  ))}
+                          {col.label}
+                          {sortKey === col.id && (
+                            <span className="text-indigo-600 shrink-0" aria-hidden>
+                              {sortDir === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          role="separator"
+                          aria-label={`Resize column ${col.label}`}
+                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 touch-none hover:bg-indigo-300/50 active:bg-indigo-400/50"
+                          style={{ marginRight: '-3px' }}
+                          onMouseDown={handleResizeStart(index)}
+                        />
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
@@ -498,17 +824,25 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                       const display = formatReviewCellValue(value, col.format);
                       const isEditable = col.editable && col.id !== 'notesIndicator';
                       const isNotes = col.id === 'notesIndicator';
-                      const isFirstCol = colIndex === 0;
-                      const stickyCellClass = isFirstCol
-                        ? `sticky left-0 z-10 shadow-[2px_0_4px_rgba(0,0,0,0.06)] ${
-                            selectedEmployeeId === r.Employee_ID ? 'bg-indigo-100/60' : 'bg-white group-hover:bg-indigo-50/30'
+                      const frozen = isFrozenColumn(colIndex);
+                      const left = frozen ? frozenLeftOffsets[colIndex] : undefined;
+                      const widthPx = columnWidths[col.id] ?? 128;
+                      const stickyCellClass = frozen
+                        ? `z-10 shadow-[2px_0_4px_rgba(0,0,0,0.06)] ${
+                            selectedEmployeeId === r.Employee_ID ? 'bg-indigo-100' : 'bg-white group-hover:bg-indigo-50'
                           }`
                         : '';
 
                       return (
                         <td
                           key={col.id}
-                          className={`px-3 py-2 text-sm text-slate-800 whitespace-nowrap w-max ${stickyCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
+                          style={{
+                            width: widthPx,
+                            minWidth: widthPx,
+                            maxWidth: widthPx,
+                            ...(frozen && left !== undefined ? { position: 'sticky', left } : {}),
+                          }}
+                          className={`px-3 py-2 text-sm text-slate-800 whitespace-nowrap ${stickyCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
                           onClick={(e) => isNotes && e.stopPropagation()}
                         >
                           {col.id === 'reviewStatus' && col.editable ? (
@@ -750,6 +1084,50 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
           </div>
         ) : null;
       })()}
+
+      {/* Save current columns as view modal (when opened from Custom dropdown) */}
+      {saveViewOpen && !columnPickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+          onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-slate-800 mb-2">Save current columns as view</h3>
+            <input
+              type="text"
+              value={saveViewName}
+              onChange={(e) => setSaveViewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addSavedCustomView(saveViewName);
+                if (e.key === 'Escape') { setSaveViewOpen(false); setSaveViewName(''); }
+              }}
+              placeholder="View name"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => addSavedCustomView(saveViewName)}
+                disabled={!saveViewName.trim()}
+                className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

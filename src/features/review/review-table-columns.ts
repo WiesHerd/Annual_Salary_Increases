@@ -83,12 +83,32 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
 
 const DEFAULT_VISIBLE_IDS = REVIEW_TABLE_COLUMNS.map((c) => c.id);
 
+/** Default column width in pixels. Provider name wider; others 8rem equivalent. */
+const DEFAULT_WIDTH_PROVIDER_NAME = 192;
+const DEFAULT_WIDTH_OTHER = 128;
+
 export function getDefaultVisibleColumnIds(): ReviewTableColumnId[] {
   return [...DEFAULT_VISIBLE_IDS];
 }
 
+/** Default column widths (px) for the salary review table. */
+export function getDefaultColumnWidths(): Record<ReviewTableColumnId, number> {
+  const out = {} as Record<ReviewTableColumnId, number>;
+  for (const c of REVIEW_TABLE_COLUMNS) {
+    out[c.id] = c.id === 'providerName' ? DEFAULT_WIDTH_PROVIDER_NAME : DEFAULT_WIDTH_OTHER;
+  }
+  return out;
+}
+
 /** Preset view IDs for one-click column sets. */
 export type ReviewViewPresetId = 'meeting' | 'full' | 'comp';
+
+/** User-saved custom column view. */
+export interface SavedCustomView {
+  id: string;
+  name: string;
+  columnIds: ReviewTableColumnId[];
+}
 
 /** Column IDs for each preset. */
 export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId[]> = {
