@@ -915,7 +915,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             </div>
           ) : (
           <>
-          <div className="min-w-0 overflow-auto max-h-[calc(100vh-16rem)]">
+          <div className="min-w-0 overflow-auto max-h-[calc(100vh-12rem)]">
             <table
               className="border-collapse table-fixed"
               style={{ width: totalTableWidthPx, minWidth: totalTableWidthPx }}
