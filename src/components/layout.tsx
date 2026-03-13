@@ -113,13 +113,17 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
         {/* Header: logo + title */}
         <div className="p-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-sm">ASI</span>
+            <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+              <img
+                src="/GrokImage.jpg"
+                alt="Meritly"
+                className="max-w-full max-h-full w-full h-full object-contain"
+              />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold text-slate-900 truncate">Annual Salary Increases</h1>
-                <p className="text-xs text-slate-500 truncate">Compensation planning</p>
+                <h1 className="font-meritly text-lg font-semibold tracking-tight text-slate-900 truncate">Meritly</h1>
+                <p className="text-xs text-slate-500 truncate mt-0.5">Compensation planning</p>
               </div>
             )}
           </div>
