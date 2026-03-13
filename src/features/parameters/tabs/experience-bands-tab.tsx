@@ -33,8 +33,10 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands }: Expe
   return (
     <div className="p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-slate-800">Experience band target ranges</h3>
-        <p className="text-sm text-slate-600 mt-1">YOE ranges and target TCC percentile ranges. Optionally scope by population or plan.</p>
+        <h3 className="text-lg font-semibold text-slate-800">Experience band guardrails (review)</h3>
+        <p className="text-sm text-slate-600 mt-1">
+          Target TCC percentile ranges by years of experience. Used in Salary Review for band alignment, target display, and equity recommendations—not for calculating increase %. Optionally scope by population or plan.
+        </p>
       </div>
       <div className="flex justify-end mb-3">
         <button

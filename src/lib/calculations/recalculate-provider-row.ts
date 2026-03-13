@@ -9,6 +9,9 @@ import type { ProviderRecord } from '../../types/provider';
 import type { MarketRow } from '../../types/market';
 import type { ExperienceBand } from '../../types/experience-band';
 import type { MeritMatrixRow } from '../../types/merit-matrix-row';
+import type { PolicyEvaluationResult } from '../../types/compensation-policy';
+import type { CfBySpecialtyRow } from '../../types/cf-by-specialty';
+import { getEffectiveCfForProvider } from '../cf-resolver';
 
 /** FTE below this is flagged as higher risk when normalizing to 1.0 FTE for market comparison. */
 export const FTE_NORMALIZATION_CAUTION_THRESHOLD = 0.7;
@@ -107,6 +110,10 @@ export interface RecalculateProviderRowInput {
   experienceBands?: ExperienceBand[];
   /** Optional merit matrix for default increase lookup by evaluation score + performance label. */
   meritMatrixRows?: MeritMatrixRow[];
+  /** Optional policy engine result; when present, used as default % and source of policy metadata. */
+  policyResult?: PolicyEvaluationResult;
+  /** Optional CF by specialty; when record lacks Current_CF/Proposed_CF, lookup by specialty. */
+  cfBySpecialty?: CfBySpecialtyRow[];
 }
 
 /**
@@ -125,12 +132,20 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
   let approvedPct = p.Approved_Increase_Percent;
   let approvedAmt = p.Approved_Increase_Amount;
 
-  // If user set approved %, derive amount and proposed base (override always wins)
-  if (approvedPct != null && Number.isFinite(approvedPct)) {
+  // If policy assigns fixed base salary (e.g. YOE tier base salary model), use it — tier base wins over saved %/amt
+  // Tier base salaries are defined at 1.0 FTE; normalize by provider's FTE when applying
+  if (input.policyResult?.proposedBaseSalary != null && Number.isFinite(input.policyResult.proposedBaseSalary)) {
+    const fte = p.Current_FTE ?? 1;
+    proposedBase = input.policyResult.proposedBaseSalary * (fte > 0 ? fte : 1);
+    approvedAmt = proposedBase - currentBase;
+    approvedPct = currentBase > 0 ? (approvedAmt / currentBase) * 100 : 0;
+  }
+  // If user set approved %, derive amount and proposed base (override when no tier base from policy)
+  else if (approvedPct != null && Number.isFinite(approvedPct)) {
     approvedAmt = (currentBase * approvedPct) / 100;
     proposedBase = currentBase + (approvedAmt ?? 0);
   }
-  // If user set approved amount, derive percent and proposed base (override always wins)
+  // If user set approved amount, derive percent and proposed base (override when no tier base from policy)
   else if (approvedAmt != null && Number.isFinite(approvedAmt)) {
     approvedPct = currentBase > 0 ? (approvedAmt / currentBase) * 100 : 0;
     proposedBase = currentBase + approvedAmt;
@@ -140,9 +155,9 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     approvedAmt = proposedBase - currentBase;
     approvedPct = currentBase > 0 ? ((proposedBase - currentBase) / currentBase) * 100 : 0;
   }
-  // Otherwise keep default increase and derive proposed base (from record or merit matrix lookup)
+  // Otherwise keep default increase and derive proposed base (policy result, record, or merit matrix lookup)
   else {
-    let defaultPct = p.Default_Increase_Percent;
+    let defaultPct = p.Default_Increase_Percent ?? input.policyResult?.finalRecommendedIncreasePercent;
     if (defaultPct == null && input.meritMatrixRows?.length && p.Evaluation_Score != null && p.Performance_Category) {
       const match = input.meritMatrixRows.find(
         (m) => m.evaluationScore === Number(p.Evaluation_Score) && m.performanceLabel.toLowerCase().trim() === String(p.Performance_Category).toLowerCase().trim()
@@ -155,7 +170,11 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     proposedBase = currentBase + (approvedAmt ?? 0);
   }
 
-  const cf = p.Proposed_CF ?? p.Current_CF ?? 0;
+  let cf = p.Proposed_CF ?? p.Current_CF;
+  if (cf == null && input.cfBySpecialty?.length) {
+    cf = getEffectiveCfForProvider(p, input.cfBySpecialty).proposedCf;
+  }
+  cf = cf ?? 0;
   const productivity = getProductivityComponent(cf, p);
   const supplemental = getSupplementalTotal(p);
   const proposedTcc = (proposedBase ?? 0) + productivity + supplemental;
@@ -174,6 +193,7 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     proposedTccPercentile = p.Proposed_TCC_Percentile;
   }
 
+  const policyResult = input.policyResult;
   return {
     ...p,
     Approved_Increase_Percent: approvedPct,
@@ -183,5 +203,20 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     Merit_Increase_Amount: approvedAmt,
     Proposed_TCC: proposedTcc,
     Proposed_TCC_Percentile: proposedTccPercentile,
+    ...(policyResult && {
+      Policy_Applied: true,
+      Policy_Source_Name: policyResult.finalPolicySource,
+      Policy_Type: policyResult.finalModelType,
+      Policy_Logic_Status: policyResult.blocked ? 'Blocked' : policyResult.finalModelType ?? 'Applied',
+      Policy_Explanation_Summary: policyResult.explanation?.slice(0, 2).join('; ') ?? undefined,
+      Policy_Rule_Id: policyResult.appliedPolicies?.[0]?.id,
+      Policy_Tier_Assigned: policyResult.tierAssigned,
+      Manual_Review_Flag: policyResult.manualReview,
+      // When policy assigns a tier and Proposed_Tier is empty, populate so the tier is visible in "Proposed Tier" column
+      ...(policyResult.tierAssigned != null &&
+        (p.Proposed_Tier == null || String(p.Proposed_Tier).trim() === '') && {
+          Proposed_Tier: policyResult.tierAssigned,
+        }),
+    }),
   };
 }

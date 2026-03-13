@@ -54,15 +54,15 @@ describe('applyFilters', () => {
     expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, searchText: 'Building' })).toHaveLength(1);
   });
 
-  it('filters by review status', () => {
+  it('filters by review status (In progress | Complete)', () => {
     const records = [
       makeRecord({ Employee_ID: 'e1', Review_Status: ReviewStatus.Draft }),
       makeRecord({ Employee_ID: 'e2', Review_Status: ReviewStatus.Approved }),
       makeRecord({ Employee_ID: 'e3', Review_Status: ReviewStatus.InReview }),
     ];
-    const f: SalaryReviewFilters = { ...DEFAULT_SALARY_REVIEW_FILTERS, reviewStatuses: [ReviewStatus.Draft] };
-    expect(applyFilters(records, f)).toHaveLength(1);
-    expect(applyFilters(records, { ...f, reviewStatuses: [ReviewStatus.Draft, ReviewStatus.InReview] })).toHaveLength(2);
+    expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, reviewStatuses: ['In progress'] })).toHaveLength(2);
+    expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, reviewStatuses: ['Complete'] })).toHaveLength(1);
+    expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, reviewStatuses: ['In progress', 'Complete'] })).toHaveLength(3);
   });
 
   it('filters by provider names (multi-select)', () => {
@@ -131,9 +131,9 @@ describe('getPresetFilters', () => {
     expect(out.specialties).toEqual([]);
   });
 
-  it('needs-review sets Draft and InReview only', () => {
+  it('needs-review sets In progress', () => {
     const out = getPresetFilters('needs-review');
-    expect(out.reviewStatuses).toEqual([ReviewStatus.Draft, ReviewStatus.InReview]);
+    expect(out.reviewStatuses).toEqual(['In progress']);
   });
 
   it('below-market sets tccPercentileMax 50', () => {
@@ -152,11 +152,11 @@ describe('getActivePresetId', () => {
     expect(getActivePresetId(DEFAULT_SALARY_REVIEW_FILTERS)).toBe('all');
   });
 
-  it('returns needs-review when only Draft and InReview selected', () => {
+  it('returns needs-review when In progress selected', () => {
     expect(
       getActivePresetId({
         ...DEFAULT_SALARY_REVIEW_FILTERS,
-        reviewStatuses: [ReviewStatus.Draft, ReviewStatus.InReview],
+        reviewStatuses: ['In progress'],
       })
     ).toBe('needs-review');
   });
@@ -180,9 +180,8 @@ describe('deriveFilterOptions', () => {
     expect(opts.specialties).toContain('Cardiology');
     expect(opts.specialties).toContain('Ortho');
     expect(opts.specialties).toContain('—');
-    expect(opts.reviewStatuses).toContain(ReviewStatus.Draft);
-    expect(opts.reviewStatuses).toContain(ReviewStatus.Approved);
-    expect(opts.reviewStatuses).toContain('—');
+    expect(opts.reviewStatuses).toContain('In progress');
+    expect(opts.reviewStatuses).toContain('Complete');
   });
 });
 

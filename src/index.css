@@ -4,11 +4,15 @@
 
 @layer base {
   :root {
+    /* Primary palette - indigo */
     --app-primary: 79 70 229; /* indigo-600 #4f46e5 */
     --app-primary-light: 129 140 248; /* indigo-400 */
     --app-primary-dark: 55 48 163; /* indigo-800 */
-    --app-paper-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.07), 0 2px 4px -2px rgba(79, 70, 229, 0.07);
-    --app-paper-border: 1px solid rgba(79, 70, 229, 0.08);
+    /* Neutral paper/card styling - consistent across app */
+    --app-card-bg: #ffffff;
+    --app-card-border: rgb(226 232 240); /* slate-200 */
+    --app-card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03);
+    --app-card-radius: 0.5rem; /* 8px - tighter like reference */
   }
 
   * {
@@ -20,8 +24,81 @@
     font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: linear-gradient(160deg, #f0f4ff 0%, #e8eef9 50%, #f5f7fc 100%);
+    background: #f8fafc; /* slate-50 - clean, consistent */
     min-height: 100vh;
     color: #1e293b;
+  }
+}
+
+/* Shared component patterns */
+@layer components {
+  .app-card {
+    background: var(--app-card-bg);
+    border: 1px solid var(--app-card-border);
+    border-radius: var(--app-card-radius);
+    box-shadow: var(--app-card-shadow);
+  }
+
+  .app-btn-primary {
+    @apply px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  }
+
+  .app-btn-secondary {
+    @apply px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors;
+  }
+
+  .app-icon-btn {
+    @apply p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500;
+  }
+
+  .app-icon-btn-danger {
+    @apply p-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:hover:bg-transparent disabled:hover:text-slate-400;
+  }
+
+  /* Bordered square action button - reference card look */
+  .app-action-btn {
+    @apply w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-slate-200;
+  }
+
+  .app-action-btn-danger {
+    @apply w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white;
+    @apply text-red-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:hover:bg-white disabled:hover:border-slate-200 disabled:text-slate-400;
+  }
+
+  /* Data table styling - matches Salary Review look and feel */
+  .app-data-table-wrapper {
+    @apply min-w-0 overflow-auto max-h-[calc(100vh-14rem)];
+  }
+  .app-data-table {
+    @apply border-collapse w-full min-w-full;
+  }
+  .app-data-table thead {
+    @apply sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)];
+  }
+  .app-data-table thead tr {
+    @apply bg-neutral-50;
+  }
+  .app-data-table th {
+    @apply px-2 py-2.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none;
+  }
+  .app-data-table th.sortable {
+    @apply cursor-pointer hover:bg-neutral-100 transition-colors;
+  }
+  .app-data-table tbody {
+    @apply bg-white divide-y divide-slate-100;
+  }
+  .app-data-table tbody tr {
+    @apply hover:bg-indigo-50/30 transition-colors;
+  }
+  .app-data-table td {
+    @apply px-2 py-1.5 text-sm text-slate-800 whitespace-nowrap overflow-hidden;
+  }
+  .app-data-table td.text-right {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .app-data-table-pagination {
+    @apply shrink-0 border-t border-slate-200 px-4 py-2.5 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3;
   }
 }

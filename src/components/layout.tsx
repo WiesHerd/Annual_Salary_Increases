@@ -2,12 +2,14 @@ import { type ReactNode, useState } from 'react';
 import { useParametersState } from '../hooks/use-parameters-state';
 import { useSelectedCycle } from '../hooks/use-selected-cycle';
 
-export type AppView = 'import' | 'data-browser' | 'salary-review' | 'compare' | 'parameters';
+export type AppView = 'import' | 'data-browser' | 'specialty-map' | 'salary-review' | 'compare' | 'parameters';
 
 interface LayoutProps {
   children: ReactNode;
   currentView: AppView;
   onNavigate: (view: AppView) => void;
+  sidebarHidden?: boolean;
+  contentNoPadding?: boolean;
 }
 
 const navSections: {
@@ -24,6 +26,7 @@ const navSections: {
     items: [
       { label: 'Import data', id: 'import', icon: 'upload' },
       { label: 'Data browser', id: 'data-browser', icon: 'grid' },
+      { label: 'Specialty map', id: 'specialty-map', icon: 'map' },
     ],
   },
   {
@@ -32,7 +35,7 @@ const navSections: {
   },
   {
     label: 'CONFIGURATION',
-    items: [{ label: 'Control Panel', id: 'parameters', icon: 'settings' }],
+    items: [{ label: 'Controls', id: 'parameters', icon: 'settings' }],
   },
   {
     label: 'OUTPUT',
@@ -74,21 +77,28 @@ function NavIcon({ name }: { name: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       );
+    case 'map':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+      );
     default:
       return null;
   }
 }
 
-export function Layout({ children, currentView, onNavigate }: LayoutProps) {
+export function Layout({ children, currentView, onNavigate, sidebarHidden = false, contentNoPadding = false }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { cycles } = useParametersState();
   const [selectedCycleId, setSelectedCycleId] = useSelectedCycle(cycles);
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-[#f8fafc]">
+      {!sidebarHidden && (
       <aside
         className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
-          collapsed ? 'w-[72px]' : 'w-72'
+          collapsed ? 'w-[72px]' : 'w-64'
         }`}
       >
         {/* Header: logo + title */}
@@ -99,7 +109,7 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <h1 className="font-semibold text-slate-900 truncate">Annual Salary Increases</h1>
+                <h1 className="text-sm font-semibold text-slate-900 truncate">Annual Salary Increases</h1>
                 <p className="text-xs text-slate-500 truncate">Compensation planning</p>
               </div>
             )}
@@ -122,7 +132,7 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
                     key={item.label}
                     type="button"
                     onClick={() => item.id != null && onNavigate(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
                       isActive
                         ? 'bg-slate-100 text-slate-900 font-medium'
                         : 'text-slate-700 hover:bg-slate-50'
@@ -147,27 +157,29 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
           ))}
         </nav>
 
-        {/* Footer: budget cycle dropdown (when expanded and cycles exist) + collapse toggle + tagline */}
+        {/* Footer: budget cycle, collapse toggle + tagline */}
         <div className="shrink-0 border-t border-slate-100 flex flex-col">
-          {!collapsed && cycles.length > 0 && (
+          {!collapsed && (
             <div className="border-b border-slate-100 px-4 py-3">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                  Budget cycle
-                </span>
-                <select
-                  value={selectedCycleId || (cycles[0]?.id ?? '')}
-                  onChange={(e) => setSelectedCycleId(e.target.value)}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
-                  aria-label="Select budget cycle"
-                >
-                  {cycles.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {cycles.length > 0 && (
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    Budget cycle
+                  </span>
+                  <select
+                    value={selectedCycleId || (cycles[0]?.id ?? '')}
+                    onChange={(e) => setSelectedCycleId(e.target.value)}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                    aria-label="Select budget cycle"
+                  >
+                    {cycles.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
           )}
           <button
@@ -194,8 +206,9 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
           )}
         </div>
       </aside>
+      )}
 
-      <main className="flex-1 min-h-0 overflow-auto p-6">{children}</main>
+      <main className={`flex-1 min-h-0 flex flex-col overflow-auto ${contentNoPadding ? 'p-0' : 'p-6'}`}>{children}</main>
     </div>
   );
 }

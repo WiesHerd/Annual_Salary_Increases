@@ -1,6 +1,6 @@
 /**
  * Parameters/configuration state: cycles, merit matrix, experience bands,
- * PCP tiers, PCP APP rules, plan assignment, APP benchmark mapping, budget.
+ * PCP tiers, PCP APP rules, plan assignment, budget.
  * Load from localStorage on mount; persist on change.
  */
 
@@ -11,8 +11,8 @@ import type { ExperienceBand } from '../types/experience-band';
 import type { PcpPhysicianTierRow } from '../types/pcp-tier';
 import type { PcpAppRuleRow } from '../types/pcp-app-rules';
 import type { PlanAssignmentRuleRow } from '../types/plan-assignment-row';
-import type { AppBenchmarkMappingRow } from '../types/app-benchmark-mapping';
 import type { BudgetSettingsRow } from '../types/budget-settings';
+import type { CfBySpecialtyRow } from '../types/cf-by-specialty';
 import {
   loadCycles,
   saveCycles,
@@ -26,10 +26,10 @@ import {
   savePcpAppRules,
   loadPlanAssignmentRules,
   savePlanAssignmentRules,
-  loadAppBenchmarkMapping,
-  saveAppBenchmarkMapping,
   loadBudgetSettings,
   saveBudgetSettings,
+  loadCfBySpecialty,
+  saveCfBySpecialty,
 } from '../lib/parameters-storage';
 
 export function useParametersState() {
@@ -39,8 +39,8 @@ export function useParametersState() {
   const [pcpTierSettings, setPcpTierSettings] = useState<PcpPhysicianTierRow[]>([]);
   const [pcpAppRules, setPcpAppRules] = useState<PcpAppRuleRow[]>([]);
   const [planAssignmentRules, setPlanAssignmentRules] = useState<PlanAssignmentRuleRow[]>([]);
-  const [appBenchmarkMapping, setAppBenchmarkMapping] = useState<AppBenchmarkMappingRow[]>([]);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettingsRow[]>([]);
+  const [cfBySpecialty, setCfBySpecialty] = useState<CfBySpecialtyRow[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -50,8 +50,8 @@ export function useParametersState() {
     setPcpTierSettings(loadPcpTierSettings());
     setPcpAppRules(loadPcpAppRules());
     setPlanAssignmentRules(loadPlanAssignmentRules());
-    setAppBenchmarkMapping(loadAppBenchmarkMapping());
     setBudgetSettings(loadBudgetSettings());
+    setCfBySpecialty(loadCfBySpecialty());
     setLoaded(true);
   }, []);
 
@@ -74,11 +74,11 @@ export function useParametersState() {
     if (loaded) savePlanAssignmentRules(planAssignmentRules);
   }, [planAssignmentRules, loaded]);
   useEffect(() => {
-    if (loaded) saveAppBenchmarkMapping(appBenchmarkMapping);
-  }, [appBenchmarkMapping, loaded]);
-  useEffect(() => {
     if (loaded) saveBudgetSettings(budgetSettings);
   }, [budgetSettings, loaded]);
+  useEffect(() => {
+    if (loaded) saveCfBySpecialty(cfBySpecialty);
+  }, [cfBySpecialty, loaded]);
 
   return {
     cycles,
@@ -93,10 +93,10 @@ export function useParametersState() {
     setPcpAppRules,
     planAssignmentRules,
     setPlanAssignmentRules,
-    appBenchmarkMapping,
-    setAppBenchmarkMapping,
     budgetSettings,
     setBudgetSettings,
+    cfBySpecialty,
+    setCfBySpecialty,
     loaded,
   };
 }

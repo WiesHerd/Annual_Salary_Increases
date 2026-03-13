@@ -580,6 +580,10 @@ export function getSeedReviewRecords(): ProviderRecord[] {
   return getSeedProviderRecords();
 }
 
+export function getSeedMarketSurveys(): Record<string, MarketRow[]> {
+  return { physicians: getSeedMarketData() };
+}
+
 export function getSeedMarketData(): MarketRow[] {
   return [
     { specialty: 'Cardiology', tccPercentiles: { 25: 380000, 50: 450000, 75: 520000, 90: 600000 }, wrvuPercentiles: { 25: 5500, 50: 6500, 75: 7500, 90: 9000 }, cfPercentiles: { 25: 58, 50: 62, 75: 65, 90: 70 } },
@@ -646,12 +650,15 @@ export function getSeedPayments(): ParsedPaymentRow[] {
 export function getDemoData(): {
   providerRecords: ProviderRecord[];
   marketRows: MarketRow[];
+  marketSurveys: Record<string, MarketRow[]>;
   payments: ParsedPaymentRow[];
   evaluationRows: EvaluationJoinRow[];
 } {
+  const marketRows = getSeedMarketData();
   return {
     providerRecords: getSeedProviderRecords(),
-    marketRows: getSeedMarketData(),
+    marketRows,
+    marketSurveys: { physicians: marketRows },
     payments: getSeedPayments(),
     evaluationRows: getSeedEvaluationRows(),
   };

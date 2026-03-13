@@ -13,4 +13,8 @@ export interface MarketRow {
   cfPercentiles?: Record<number, number>;
   /** Optional label/source. */
   label?: string;
+  /** Number of incumbents (Sullivan Cotter, Gallagher "Physicians", MGMA). */
+  incumbents?: number;
+  /** Number of organizations (Sullivan Cotter "Orgs", Gallagher "Practices"). */
+  orgCount?: number;
 }

@@ -42,6 +42,57 @@ export enum ReviewStatus {
   Deferred = 'deferred',
 }
 
+/** Display labels for review status (used in table and filters). Simplified to two states: In progress | Complete. */
+export const REVIEW_STATUS_LABELS: Record<string, string> = {
+  [ReviewStatus.Draft]: 'In progress',
+  [ReviewStatus.InReview]: 'In progress',
+  [ReviewStatus.Approved]: 'Complete',
+  [ReviewStatus.Effective]: 'Complete',
+  [ReviewStatus.Deferred]: 'In progress',
+  '': 'In progress',
+};
+
+/** Status values that count as "In progress" (not yet complete). */
+export const REVIEW_STATUS_IN_PROGRESS = [
+  ReviewStatus.Draft,
+  ReviewStatus.InReview,
+  ReviewStatus.Deferred,
+  '',
+] as const;
+
+/** Status values that count as "Complete". */
+export const REVIEW_STATUS_COMPLETE = [ReviewStatus.Approved, ReviewStatus.Effective] as const;
+
+/** Map raw Review_Status to filter bucket. Used for Status filter dropdown. */
+export function getReviewStatusBucket(value: string | undefined): 'In progress' | 'Complete' {
+  const key = (value ?? '').trim();
+  return REVIEW_STATUS_COMPLETE.includes(key as (typeof REVIEW_STATUS_COMPLETE)[number])
+    ? 'Complete'
+    : 'In progress';
+}
+
+/** Short labels for compact table UI (Silicon Valley–style density). */
+export const REVIEW_STATUS_SHORT_LABELS: Record<string, string> = {
+  [ReviewStatus.Draft]: 'New',
+  [ReviewStatus.InReview]: 'In progress',
+  [ReviewStatus.Approved]: 'Done',
+  [ReviewStatus.Effective]: 'Done',
+  [ReviewStatus.Deferred]: 'Later',
+  '': 'New',
+};
+
+/** Human-readable label for a stored Review_Status value (In progress | Complete). */
+export function getReviewStatusLabel(value: string | undefined): string {
+  const key = (value ?? '').trim();
+  return REVIEW_STATUS_LABELS[key] ?? (key ? 'In progress' : 'In progress');
+}
+
+/** Short label for compact UI (table, narrow columns). */
+export function getReviewStatusShortLabel(value: string | undefined): string {
+  const key = (value ?? '').trim();
+  return REVIEW_STATUS_SHORT_LABELS[key] ?? (key || 'New');
+}
+
 /** Source of benchmark data (survey or internal). */
 export enum BenchmarkSource {
   Survey = 'survey',

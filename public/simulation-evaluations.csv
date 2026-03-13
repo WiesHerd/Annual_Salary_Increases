@@ -1,0 +1,10 @@
+Employee_ID,Evaluation_Score,Performance_Category,Default_Increase_Percent
+EXT001,4.5,Exceeds,4.5
+EXT002,4,Strongly Meets,3.75
+EXT003,3,Meets,3
+EXT004,5,Exceeds,4.5
+EXT005,3,Meets,3
+EXT006,5,Exceeds,4.5
+EXT007,4,Strongly Meets,3.75
+EXT008,2,Partially Meets,2
+EXT009,1,Below,0.5

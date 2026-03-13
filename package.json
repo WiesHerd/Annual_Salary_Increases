@@ -14,9 +14,12 @@
   "dependencies": {
     "echarts": "^5.5.0",
     "echarts-for-react": "^3.0.2",
+    "fuzzball": "^2.2.3",
+    "json-logic-js": "^2.0.5",
     "papaparse": "^5.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-querybuilder": "^6.5.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

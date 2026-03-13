@@ -23,7 +23,7 @@ const MAX_SAVED_CUSTOM_VIEWS = 10;
 const COLUMN_WIDTH_MIN = 80;
 const COLUMN_WIDTH_MAX = 400;
 
-const VALID_PRESET_IDS = new Set<ReviewViewPresetId | 'custom'>(['meeting', 'full', 'comp', 'custom']);
+const VALID_PRESET_IDS = new Set<ReviewViewPresetId | 'custom'>(['meeting', 'full', 'comp', 'policy', 'custom']);
 const VALID_COLUMN_IDS = new Set<ReviewTableColumnId>(
   REVIEW_TABLE_COLUMNS.map((c) => c.id)
 );

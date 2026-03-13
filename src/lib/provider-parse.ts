@@ -5,6 +5,10 @@
 
 import type { RawRow, ProviderColumnMapping } from '../types';
 import type { ProviderRecord } from '../types/provider';
+import {
+  loadLearnedProviderMapping,
+  applyLearnedProviderMapping,
+} from './column-mapping-storage';
 
 function getCell(row: RawRow, col: string | undefined): string | number | undefined {
   if (col == null || col === '') return undefined;
@@ -124,6 +128,9 @@ export function buildDefaultProviderMapping(headers: string[]): ProviderColumnMa
     else if (l.includes('clinical fte') && !m.Clinical_FTE) m.Clinical_FTE = h;
     else if (l.includes('current base salary') && !m.Current_Base_Salary) m.Current_Base_Salary = h;
     else if (l.includes('current tcc') && !l.includes('percentile') && !l.includes('at_1fte') && !m.Current_TCC) m.Current_TCC = h;
+    else if ((l.includes('current cf') || l.includes('current conversion factor') || (l.includes('conversion factor') && !l.includes('proposed'))) && !m.Current_CF) m.Current_CF = h;
+    else if ((l.includes('proposed cf') || l.includes('proposed conversion factor')) && !m.Proposed_CF) m.Proposed_CF = h;
+    else if ((l === 'cf' || l === 'conversion factor') && !m.Current_CF) m.Current_CF = h;
     else if (l.includes('current target wrvu') && !m.Current_Target_WRVUs) m.Current_Target_WRVUs = h;
     else if (l.includes('current tcc percentile') && !m.Current_TCC_Percentile) m.Current_TCC_Percentile = h;
     else if (l.includes('proposed base salary') && !m.Proposed_Base_Salary) m.Proposed_Base_Salary = h;
@@ -152,5 +159,7 @@ export function buildDefaultProviderMapping(headers: string[]): ProviderColumnMa
     const key = h.trim().replace(/\s+/g, '_') as keyof ProviderRecord;
     if (PROVIDER_RECORD_KEYS.includes(key) && m[key] === undefined) m[key] = h;
   }
-  return m;
+  // Apply learned mappings (user's past choices) when source header exists in file
+  const learned = loadLearnedProviderMapping();
+  return applyLearnedProviderMapping(m, headers, learned) as ProviderColumnMapping;
 }

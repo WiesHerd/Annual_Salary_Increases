@@ -20,6 +20,14 @@ import type {
 } from '../types';
 import type { MarketRow } from '../types/market';
 import { parseProviderRow, buildDefaultProviderMapping as buildProviderMapping } from './provider-parse';
+import {
+  loadLearnedMarketMapping,
+  applyLearnedMarketMapping,
+  loadLearnedEvaluationMapping,
+  applyLearnedEvaluationMapping,
+  loadLearnedPaymentsMapping,
+  applyLearnedPaymentsMapping,
+} from './column-mapping-storage';
 
 const DEFAULT_CYCLE_ID = 'FY2025';
 
@@ -95,23 +103,73 @@ export function getXlsxHeaders(buffer: ArrayBuffer): string[] {
 
 const PERCENTILES = [25, 50, 75, 90];
 
+function matchesTccCol(l: string): boolean {
+  return (
+    l.includes('tcc') ||
+    l.includes('total cash') ||
+    l.includes('total comp') ||
+    l.includes('cash comp') ||
+    (l.includes('compensation') && !l.includes('base'))
+  );
+}
+
+function matchesWrvuCol(l: string): boolean {
+  return (
+    l.includes('wrvu') ||
+    l.includes('work rvu') ||
+    (l.includes(' rvu') && !l.includes('total') && !l.includes('asa')) ||
+    (l.includes('wrvu') && l.includes('work'))
+  );
+}
+
+function matchesCfCol(l: string): boolean {
+  return l.includes('cf') || l.includes('conversion');
+}
+
+function matchesPercentile(l: string, p: number): boolean {
+  const s = String(p);
+  return (
+    l.includes(s) ||
+    l.includes('p' + s) ||
+    l.includes(s + 'th') ||
+    l.includes('percentile ' + s)
+  );
+}
+
 /** Build default market mapping: specialty + TCC_25..TCC_90, WRVU_25..WRVU_90, CF_25..CF_90. */
 export function buildDefaultMarketMapping(headers: string[]): MarketColumnMapping {
   const m: MarketColumnMapping = { specialty: '' };
   const lower = (h: string) => h.trim().toLowerCase();
   for (const h of headers) {
     const l = lower(h);
-    if ((l.includes('specialty') || l.includes('spec')) && !m.specialty) m.specialty = h;
+    if (
+      ((l.includes('specialty') || l.includes('spec') || l.includes('job')) && !l.includes('job code') && !m.specialty)
+    )
+      m.specialty = h;
     else if (l.includes('label') && !m.label) m.label = h;
+    else if (
+      (l.includes('incumbent') || l === 'physicians') &&
+      !l.includes('percentile') &&
+      !m.incumbents
+    )
+      m.incumbents = h;
+    else if (
+      (l.includes('org') || l.includes('organization') || l === 'practices') &&
+      !l.includes('percentile') &&
+      !l.includes('organizational') &&
+      !m.orgCount
+    )
+      m.orgCount = h;
     else {
       for (const p of PERCENTILES) {
-        if (l.includes('tcc') && l.includes(String(p)) && !m[`TCC_${p}`]) m[`TCC_${p}`] = h;
-        if (l.includes('wrvu') && l.includes(String(p)) && !m[`WRVU_${p}`]) m[`WRVU_${p}`] = h;
-        if ((l.includes('cf') || l.includes('conversion')) && l.includes(String(p)) && !m[`CF_${p}`]) m[`CF_${p}`] = h;
+        if (matchesTccCol(l) && matchesPercentile(l, p) && !m[`TCC_${p}`]) m[`TCC_${p}`] = h;
+        if (matchesWrvuCol(l) && matchesPercentile(l, p) && !m[`WRVU_${p}`]) m[`WRVU_${p}`] = h;
+        if (matchesCfCol(l) && matchesPercentile(l, p) && !m[`CF_${p}`]) m[`CF_${p}`] = h;
       }
     }
   }
-  return m;
+  const learned = loadLearnedMarketMapping();
+  return applyLearnedMarketMapping(m, headers, learned) as MarketColumnMapping;
 }
 
 function parseMarketRow(
@@ -137,12 +195,18 @@ function parseMarketRow(
     if (cfCol != null) cfPercentiles[p] = num(getCell(row, cfCol));
   }
   const label = mapping.label ? str(getCell(row, mapping.label)) : undefined;
+  const incumbentsCol = mapping.incumbents;
+  const orgCountCol = mapping.orgCount;
+  const incumbents = incumbentsCol != null ? num(getCell(row, incumbentsCol)) : undefined;
+  const orgCount = orgCountCol != null ? num(getCell(row, orgCountCol)) : undefined;
   return {
     specialty,
     tccPercentiles,
     wrvuPercentiles,
     cfPercentiles: Object.keys(cfPercentiles).length > 0 ? cfPercentiles : undefined,
     label: label || undefined,
+    incumbents: incumbents != null && Number.isFinite(incumbents) ? incumbents : undefined,
+    orgCount: orgCount != null && Number.isFinite(orgCount) ? orgCount : undefined,
   };
 }
 
@@ -188,7 +252,8 @@ export function buildDefaultPaymentMapping(headers: string[]): PaymentColumnMapp
     else if ((l.includes('category') || l.includes('type')) && !m.category) m.category = h;
     else if (l.includes('cycle') && !m.cycleId) m.cycleId = h;
   }
-  return m;
+  const learned = loadLearnedPaymentsMapping();
+  return applyLearnedPaymentsMapping(m, headers, learned) as PaymentColumnMapping;
 }
 
 function parsePaymentRow(
@@ -247,7 +312,8 @@ export function buildDefaultEvaluationMapping(headers: string[]): EvaluationColu
     else if (l.includes('performance') || l.includes('category') || l === 'perf_cat') m.Performance_Category = m.Performance_Category || h;
     else if (l.includes('default') && l.includes('increase')) m.Default_Increase_Percent = m.Default_Increase_Percent || h;
   }
-  return m;
+  const learned = loadLearnedEvaluationMapping();
+  return applyLearnedEvaluationMapping(m, headers, learned) as EvaluationColumnMapping;
 }
 
 function parseEvaluationRow(

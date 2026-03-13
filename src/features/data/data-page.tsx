@@ -1,17 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
-import type { ProviderUploadResult, MarketUploadResult, PaymentUploadResult, EvaluationUploadResult } from '../../types';
-import { UploadAndMapping } from './upload-and-mapping';
+import { SURVEY_LABELS, getSurveyLabel } from '../../types/market-survey-config';
+import { ImportCards } from './import-cards';
 import { ProviderTable } from './provider-table';
-import { MarketUpload } from './market-upload';
 import { MarketTable } from './market-table';
-import { PaymentsUpload } from './payments-upload';
 import { PaymentsTable } from './payments-table';
-import { EvaluationUpload } from './evaluation-upload';
 import { EvaluationTable } from './evaluation-table';
 import { SpecialtyMap } from './specialty-map';
 
-type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments';
+export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments';
+export type DataPageFocus = 'import' | 'browse';
 
 const TABS: { id: DataTab; label: string }[] = [
   { id: 'provider', label: 'Provider data' },
@@ -21,52 +19,41 @@ const TABS: { id: DataTab; label: string }[] = [
   { id: 'payments', label: 'Payments' },
 ];
 
-export function DataPage() {
-  const [activeTab, setActiveTab] = useState<DataTab>('provider');
+interface DataPageProps {
+  focus?: DataPageFocus;
+  onNavigateToBrowser?: (tab?: DataTab) => void;
+  initialTab?: DataTab;
+  /** When set, render only this tab without the tab bar (e.g. standalone Specialty Map from nav). */
+  standaloneTab?: DataTab;
+}
+
+export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, standaloneTab }: DataPageProps) {
+  const [activeTab, setActiveTab] = useState<DataTab>(standaloneTab ?? initialTab ?? 'provider');
   const {
     records,
     setRecords,
-    addFromUpload,
-    replaceFromUpload,
+    updateProviderRecord,
     removeRecord,
     clearAll,
+    marketSurveys,
     marketData,
-    addMarketFromUpload,
-    replaceMarketFromUpload,
+    surveyMetadata,
     removeMarketRow,
     clearMarket,
     evaluationRows,
-    addEvaluationFromUpload,
-    replaceEvaluationFromUpload,
     clearEvaluations,
     payments,
-    addPaymentsFromUpload,
-    replacePaymentsFromUpload,
     clearPayments,
     loaded,
     loadDemoData,
   } = useAppState();
-  const [cycleId, setCycleId] = useState('FY2025');
+  const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('physicians');
 
-  const handleProviderUpload = (result: ProviderUploadResult, cycle: string, mode: 'replace' | 'add') => {
-    if (mode === 'replace') replaceFromUpload(result, cycle);
-    else addFromUpload(result, cycle);
-  };
-
-  const handleMarketUpload = (result: MarketUploadResult, mode: 'replace' | 'add') => {
-    if (mode === 'replace') replaceMarketFromUpload(result);
-    else addMarketFromUpload(result, mode);
-  };
-
-  const handleEvaluationUpload = (result: EvaluationUploadResult, mode: 'replace' | 'add') => {
-    if (mode === 'replace') replaceEvaluationFromUpload(result);
-    else addEvaluationFromUpload(result, mode);
-  };
-
-  const handlePaymentsUpload = (result: PaymentUploadResult, mode: 'replace' | 'add') => {
-    if (mode === 'replace') replacePaymentsFromUpload(result);
-    else addPaymentsFromUpload(result, mode);
-  };
+  const surveyIds = useMemo(() => {
+    const fromData = Object.keys(marketSurveys);
+    const fromLabels = Object.keys(SURVEY_LABELS);
+    return [...new Set([...fromLabels, ...fromData])];
+  }, [marketSurveys]);
 
   if (!loaded) {
     return (
@@ -76,69 +63,91 @@ export function DataPage() {
     );
   }
 
+  if (focus === 'import' && onNavigateToBrowser) {
+    return <ImportCards onNavigateToBrowser={onNavigateToBrowser} />;
+  }
+
+  const showTabBar = !standaloneTab;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === id
-                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {showTabBar && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === id
+                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={loadDemoData}
+            className="app-btn-secondary"
+            title="Replace all data with seed data for development and testing"
+          >
+            Load demo data
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={loadDemoData}
-          className="px-3 py-2 text-sm font-medium text-amber-800 bg-amber-100 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors"
-          title="Replace all data with seed data for development and testing"
-        >
-          Load demo data
-        </button>
-      </div>
+      )}
 
       {activeTab === 'provider' && (
-        <div className="space-y-4">
-          <UploadAndMapping
-            onUpload={handleProviderUpload}
-            cycleId={cycleId}
-            setCycleId={setCycleId}
-          />
-          <ProviderTable records={records} onRemove={removeRecord} onClear={clearAll} />
-        </div>
+        <ProviderTable
+          records={records}
+          marketSpecialties={marketData.map((r) => r.specialty)}
+          onUpdate={updateProviderRecord}
+          onRemove={removeRecord}
+          onClear={clearAll}
+        />
       )}
 
       {activeTab === 'market' && (
         <div className="space-y-4">
-          <MarketUpload onUpload={handleMarketUpload} />
-          <MarketTable rows={marketData} onRemove={removeMarketRow} onClear={clearMarket} />
+          <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200 w-fit">
+            {surveyIds.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSelectedMarketSurveyId(id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedMarketSurveyId === id
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                }`}
+              >
+                {getSurveyLabel(id, surveyMetadata)}
+              </button>
+            ))}
+          </div>
+          <MarketTable
+            surveyId={selectedMarketSurveyId}
+            surveyLabel={getSurveyLabel(selectedMarketSurveyId, surveyMetadata)}
+            rows={marketSurveys[selectedMarketSurveyId] ?? []}
+            onRemove={removeMarketRow}
+            onClear={clearMarket}
+          />
         </div>
       )}
 
       {activeTab === 'evaluation' && (
-        <div className="space-y-4">
-          <EvaluationUpload onUpload={handleEvaluationUpload} />
-          <EvaluationTable rows={evaluationRows} onClear={clearEvaluations} />
-        </div>
+        <EvaluationTable rows={evaluationRows} onClear={clearEvaluations} />
       )}
 
       {activeTab === 'specialty-map' && (
-        <SpecialtyMap records={records} marketData={marketData} setRecords={setRecords} />
+        <SpecialtyMap records={records} marketSurveys={marketSurveys} surveyMetadata={surveyMetadata} setRecords={setRecords} />
       )}
 
       {activeTab === 'payments' && (
-        <div className="space-y-4">
-          <PaymentsUpload onUpload={handlePaymentsUpload} />
-          <PaymentsTable rows={payments} onClear={clearPayments} />
-        </div>
+        <PaymentsTable rows={payments} onClear={clearPayments} />
       )}
     </div>
   );

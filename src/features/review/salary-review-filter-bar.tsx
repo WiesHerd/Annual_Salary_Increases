@@ -19,6 +19,7 @@ export interface SalaryReviewFilterBarProps {
     populations: string[];
     experienceBands: string[];
     bandAlignments: string[];
+    policySources: string[];
   };
   totalCount: number;
   filteredCount: number;
@@ -26,10 +27,8 @@ export interface SalaryReviewFilterBarProps {
 
 const PRESETS: { id: SalaryReviewPresetId; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'needs-review', label: 'Needs review' },
-  { id: 'draft', label: 'Draft' },
-  { id: 'in-review', label: 'In review' },
-  { id: 'approved', label: 'Approved' },
+  { id: 'needs-review', label: 'In progress' },
+  { id: 'approved', label: 'Complete' },
   { id: 'below-market', label: 'Below market' },
   { id: 'high-increase', label: 'High increase' },
 ];
@@ -44,6 +43,7 @@ const DIMENSION_KEYS = [
   { key: 'populations', label: 'Provider Type', optionsKey: 'populations' as const },
   { key: 'experienceBands', label: 'Experience Band', optionsKey: 'experienceBands' as const },
   { key: 'bandAlignments', label: 'Band alignment', optionsKey: 'bandAlignments' as const },
+  { key: 'policySources', label: 'Policy source', optionsKey: 'policySources' as const, dropdownClassName: 'w-64' },
 ] as const;
 
 function MultiSelectDropdown({
@@ -52,12 +52,14 @@ function MultiSelectDropdown({
   selected,
   onChange,
   dropdownClassName = 'w-56',
+  getOptionLabel,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (selected: string[]) => void;
   dropdownClassName?: string;
+  getOptionLabel?: (value: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -83,10 +85,18 @@ function MultiSelectDropdown({
   const filteredOptions =
     searchLower === ''
       ? options
-      : options.filter((opt) => opt.toLowerCase().includes(searchLower));
+      : options.filter(
+          (opt) =>
+            opt.toLowerCase().includes(searchLower) ||
+            (getOptionLabel?.(opt)?.toLowerCase().includes(searchLower) ?? false)
+        );
 
   const displayLabel =
-    selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} selected`;
+    selected.length === 0
+      ? 'All'
+      : selected.length === 1
+        ? (getOptionLabel?.(selected[0]) ?? selected[0])
+        : `${selected.length} selected`;
   const hasFilter = selected.length > 0;
 
   return (
@@ -140,7 +150,7 @@ function MultiSelectDropdown({
                         }}
                         className="rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span>{opt}</span>
+                      <span>{getOptionLabel ? getOptionLabel(opt) : opt}</span>
                     </label>
                   </li>
                 );
@@ -173,6 +183,7 @@ export function SalaryReviewFilterBar({
     filters.populations.length > 0 ||
     (filters.experienceBands?.length ?? 0) > 0 ||
     (filters.bandAlignments?.length ?? 0) > 0 ||
+    (filters.policySources?.length ?? 0) > 0 ||
     filters.approvedIncreasePercentMin != null ||
     filters.approvedIncreasePercentMax != null ||
     filters.tccPercentileMin != null ||
@@ -187,7 +198,8 @@ export function SalaryReviewFilterBar({
     (filters.planTypes.length > 0 ? 1 : 0) +
     (filters.populations.length > 0 ? 1 : 0) +
     ((filters.experienceBands?.length ?? 0) > 0 ? 1 : 0) +
-    ((filters.bandAlignments?.length ?? 0) > 0 ? 1 : 0);
+    ((filters.bandAlignments?.length ?? 0) > 0 ? 1 : 0) +
+    ((filters.policySources?.length ?? 0) > 0 ? 1 : 0);
   const [filtersExpanded, setFiltersExpanded] = useState(activeDimensionCount > 0);
 
   const setPreset = (presetId: SalaryReviewPresetId) => {
@@ -215,6 +227,7 @@ export function SalaryReviewFilterBar({
       populations: [],
       experienceBands: [],
       bandAlignments: [],
+      policySources: [],
       approvedIncreasePercentMin: undefined,
       approvedIncreasePercentMax: undefined,
       tccPercentileMin: undefined,
@@ -225,7 +238,7 @@ export function SalaryReviewFilterBar({
   const setDimension = (
     key: keyof Pick<
       SalaryReviewFilters,
-      'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands' | 'bandAlignments'
+      'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands' | 'bandAlignments' | 'policySources'
     >,
     value: string[]
   ) => {
@@ -233,7 +246,7 @@ export function SalaryReviewFilterBar({
   };
 
   return (
-    <div className="sticky top-0 z-30 py-4 border-b border-neutral-200/80 bg-white/98 backdrop-blur-sm">
+    <div className="sticky top-0 z-30 py-4 bg-white/98 backdrop-blur-sm">
       {/* Row 1: Search + result count + clear */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-0 flex-1 max-w-sm">
@@ -303,7 +316,7 @@ export function SalaryReviewFilterBar({
           </span>
           Filters
           {activeDimensionCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[1.125rem] h-4.5 px-1 rounded-full bg-neutral-200 text-neutral-600 text-[11px] font-medium">
+            <span className="inline-flex items-center justify-center min-w-[1.125rem] h-4.5 px-1 rounded bg-neutral-200 text-neutral-600 text-[11px] font-medium">
               {activeDimensionCount}
             </span>
           )}

@@ -1,6 +1,6 @@
-Employee_ID,Provider_Name,Specialty,Department,Population,Compensation_Plan,Cycle,Current_FTE,Current_TCC,Current_Target_WRVUs,Current_TCC_Percentile,Review_Status
-EXT001,Jane Smith,Cardiology,Medical,physician,wrvu,FY2025,1,450000,6500,50,draft
-EXT002,John Doe,Internal Medicine,Medical,physician,hybrid,FY2025,1,320000,4800,48,in_review
-EXT003,Maria Garcia,Family Medicine,Medical,physician,wrvu,FY2025,0.8,280000,4200,45,draft
-EXT004,Robert Lee,Orthopedics,Medical,physician,wrvu,FY2025,1,520000,7200,48,approved
-EXT005,Susan Chen,Pediatrics,Medical,app,salary,FY2025,1,310000,4600,52,draft
+Employee_ID,Provider_Name,Specialty,Benchmark_Group,Department,Population,Compensation_Plan,Cycle,Current_FTE,Current_TCC,Current_Target_WRVUs,Current_TCC_Percentile,Review_Status
+EXT001,Jane Smith,Cardiology,Cardiology,Medical,physician,wrvu,FY2025,1,450000,6500,50,draft
+EXT002,John Doe,Internal Medicine,Internal Medicine,Medical,physician,hybrid,FY2025,1,320000,4800,48,in_review
+EXT003,Maria Garcia,Family Medicine,Family Medicine,Medical,physician,wrvu,FY2025,0.8,280000,4200,45,draft
+EXT004,Robert Lee,Orthopedics,Orthopedics,Medical,physician,wrvu,FY2025,1,520000,7200,48,approved
+EXT005,Susan Chen,Pediatrics,Pediatrics,Medical,app,salary,FY2025,1,310000,4600,52,draft

@@ -7,6 +7,7 @@ import {
   getXlsxHeaders,
   DEFAULT_CYCLE_ID,
 } from '../../lib/parse-file';
+import { persistLearnedProviderMapping } from '../../lib/column-mapping-storage';
 import type { ProviderColumnMapping, ProviderUploadResult } from '../../types';
 import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
@@ -69,6 +70,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId }: UploadAndMap
         setLastResult(result);
         if (result.rows.length > 0) {
           onUpload(result, cycleId, mode);
+          persistLearnedProviderMapping(result.mapping);
         }
         if (result.errors.length > 0) {
           setError(result.errors.slice(0, 5).join('; '));
@@ -92,6 +94,8 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId }: UploadAndMap
     'Cycle',
     'Current_FTE',
     'Current_TCC',
+    'Current_CF',
+    'Proposed_CF',
     'Current_Target_WRVUs',
     'Prior_Year_WRVUs',
     'Evaluation_Score',
@@ -150,7 +154,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId }: UploadAndMap
         <div className="border-t border-slate-100 pt-4 mt-4">
           <p className="text-sm text-slate-600 mb-2">Column mapping (optional)</p>
           <p className="text-xs text-slate-500 mb-3">
-            Map <strong>Specialty</strong> or <strong>Benchmark_Group</strong> to the column that holds each provider’s specialty. Values must exactly match the specialty names in your market file (same spelling and casing). Use the <strong>Specialty map</strong> tab to set overrides when labels differ.
+            Map <strong>Specialty</strong> or <strong>Benchmark_Group</strong> to the column that holds each provider’s specialty. Values must exactly match the specialty names in your market file (same spelling and casing). Use the <strong>Specialty map</strong> tab to set overrides when labels differ. Your choices are saved and suggested for future uploads.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {mappingKeys.map((key) => (

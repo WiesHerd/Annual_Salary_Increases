@@ -6,6 +6,7 @@ import {
   getCsvHeaders,
   getXlsxHeaders,
 } from '../../lib/parse-file';
+import { persistLearnedEvaluationMapping } from '../../lib/column-mapping-storage';
 import type { EvaluationColumnMapping, EvaluationUploadResult } from '../../types';
 import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
@@ -64,7 +65,10 @@ export function EvaluationUpload({ onUpload }: EvaluationUploadProps) {
         else if (buf instanceof ArrayBuffer) result = parseEvaluationXlsx(buf, mapping);
         else return;
         setLastResult(result);
-        if (result.rows.length > 0) onUpload(result, mode);
+        if (result.rows.length > 0) {
+          onUpload(result, mode);
+          persistLearnedEvaluationMapping(result.mapping);
+        }
         if (result.errors.length > 0) setError(result.errors.slice(0, 5).join('; '));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Parse failed');
@@ -80,8 +84,9 @@ export function EvaluationUpload({ onUpload }: EvaluationUploadProps) {
     <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07),0_2px_4px_-2px_rgba(79,70,229,0.07)]">
       <h2 className="text-lg font-semibold text-slate-800 mb-2">Upload provider evaluations</h2>
       <p className="text-sm text-slate-600 mb-4">
-        One row per provider; matched to provider data by <strong>Employee ID</strong>. Evaluation score and performance
-        category (e.g. Exceeds, Meets, Needs Improvement) are used with the merit matrix to set default increase %.
+        One row per provider; matched to provider data by <strong>Employee ID</strong>. Use the same ID values as in your
+        Provider file. Evaluation score and performance category (e.g. Exceeds, Meets, Needs Improvement) are used with
+        the merit matrix to set default increase %.
       </p>
       <div className="flex flex-wrap gap-4 items-end mb-4">
         <div className="min-w-[200px]">
@@ -113,7 +118,7 @@ export function EvaluationUpload({ onUpload }: EvaluationUploadProps) {
       </div>
       {headers.length > 0 && (
         <div className="border-t border-slate-100 pt-4 mt-4">
-          <p className="text-sm text-slate-600 mb-2">Column mapping</p>
+          <p className="text-sm text-slate-600 mb-2">Column mapping — your choices are saved for future uploads</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {mappingKeys.map((key) => (
               <div key={key}>

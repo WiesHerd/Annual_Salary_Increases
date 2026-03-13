@@ -120,6 +120,24 @@ export interface ProviderRecord {
   Review_Date?: string;
   Notes?: string;
   Adjustment_Rationale?: string;
+
+  // ─── 13. Policy engine (row-level trace) ───────────────────────────────────
+  /** Whether policy engine applied (vs manual/default only). */
+  Policy_Applied?: boolean;
+  /** Name of policy/model that determined the increase. */
+  Policy_Source_Name?: string;
+  /** Policy type (e.g. general matrix, custom model, guardrail). */
+  Policy_Type?: string;
+  /** Short status (e.g. "Custom model applied", "Guardrail: 0%"). */
+  Policy_Logic_Status?: string;
+  /** One-line explanation for table/export. */
+  Policy_Explanation_Summary?: string;
+  /** Rule/policy id for drill-down link. */
+  Policy_Rule_Id?: string;
+  /** Tier assigned by custom model (e.g. "Tier 2"). */
+  Policy_Tier_Assigned?: string;
+  /** Manual review required by policy. */
+  Manual_Review_Flag?: boolean;
 }
 
 /** Column mapping keys for provider upload (logical field → source column name). */

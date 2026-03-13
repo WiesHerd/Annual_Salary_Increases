@@ -7,7 +7,10 @@
 import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 
-const SURVEY_SOURCE_FIXED = ['MGMA', 'AMGA'];
+const SURVEY_SOURCE_FIXED = ['MGMA', 'AMGA', 'SullivanCotter'];
+
+/** Fallback provider types when no data is loaded—used so policy target scope always has dropdown options (no free text). */
+export const DEFAULT_PROVIDER_TYPES = ['Physician', 'APP', 'NP', 'PA', 'Staff Physician', 'Division Chief', 'Mental Health Therapist'];
 
 function uniqueSorted(values: (string | undefined)[]): string[] {
   return [...new Set(values.filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim()))].sort();
@@ -31,7 +34,8 @@ export function buildParameterOptions(records: ProviderRecord[], marketRows: Mar
   const jobCodes = uniqueSorted(records.map((r) => r.Job_Code));
   const specialties = uniqueSorted(records.map((r) => r.Specialty));
   const benchmarkGroupsFromProviders = uniqueSorted(records.map((r) => r.Benchmark_Group));
-  const providerTypes = uniqueSorted(records.map((r) => r.Provider_Type));
+  const providerTypesFromData = uniqueSorted(records.map((r) => r.Provider_Type));
+  const providerTypes = providerTypesFromData.length > 0 ? providerTypesFromData : DEFAULT_PROVIDER_TYPES;
   const tierNames = uniqueSorted(
     records.flatMap((r) => [r.Current_Tier, r.Proposed_Tier, r.Tier_Override].filter(Boolean) as string[])
   );

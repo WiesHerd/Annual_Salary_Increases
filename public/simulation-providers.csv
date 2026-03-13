@@ -1,0 +1,10 @@
+Employee_ID,Provider_Name,Specialty,Benchmark_Group,Department,Population,Compensation_Plan,Cycle,Current_FTE,Current_TCC,Current_Target_WRVUs,Prior_Year_WRVUs,Current_TCC_Percentile,Review_Status
+EXT001,Jane Smith,Cardiology,Cardiology,Medical,physician,wrvu,FY2025,1,450000,6500,6500,50,draft
+EXT002,John Doe,Internal Medicine,Internal Medicine,Medical,physician,hybrid,FY2025,1,320000,4800,4800,48,in_review
+EXT003,Maria Garcia,Family Medicine,Family Medicine,Medical,physician,wrvu,FY2025,0.8,280000,4200,4200,45,draft
+EXT004,Robert Lee,Orthopedics,Orthopedics,Medical,physician,wrvu,FY2025,1,520000,7200,7200,48,approved
+EXT005,Susan Chen,Pediatrics,Pediatrics,Medical,app,salary,FY2025,1,310000,4600,4600,52,draft
+EXT006,David Park,Cardiology,Cardiology,Medical,physician,wrvu,FY2025,1,560000,7500,7500,80,draft
+EXT007,Emily Walsh,Cardiology,Cardiology,Medical,physician,wrvu,FY2025,1,460000,6500,8200,52,draft
+EXT008,Frank Moore,Internal Medicine,Internal Medicine,Medical,physician,wrvu,FY2025,1,300000,4500,4000,42,draft
+EXT009,Lisa Brown,Family Medicine,Family Medicine,Medical,physician,wrvu,FY2025,1,260000,4000,3500,38,draft

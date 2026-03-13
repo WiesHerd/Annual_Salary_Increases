@@ -5,21 +5,18 @@
 
 import React, { useState } from 'react';
 import type { ProviderRecord } from '../../types/provider';
-import type { MarketRow } from '../../types/market';
+import type { MarketResolver } from '../../types/market-survey-config';
 import type { ExperienceBand } from '../../types/experience-band';
 import { isLowFteForNormalization } from '../../lib/calculations/recalculate-provider-row';
+import { formatCurrency, formatFte } from '../../utils/format';
 
 interface ProviderCompareModalProps {
   providerIds: string[];
   records: ProviderRecord[];
-  marketBySpecialty: Map<string, MarketRow>;
+  marketResolver: MarketResolver;
   experienceBands: ExperienceBand[];
   onClose: () => void;
   onClearSelection?: () => void;
-}
-
-function formatDollar(n: number): string {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
 
 function getTccAt1Fte(p: ProviderRecord): number | undefined {
@@ -57,7 +54,7 @@ function buildCompareNarrative(providers: ProviderRecord[]): string {
     }
   }
   if (tccAt1[maxTccIdx] != null && tccAt1[minTccIdx] != null && maxTccIdx !== minTccIdx) {
-    parts.push(`${names[maxTccIdx]} ${formatDollar(tccAt1[maxTccIdx] as number)} vs ${names[minTccIdx]} ${formatDollar(tccAt1[minTccIdx] as number)}`);
+    parts.push(`${names[maxTccIdx]} ${formatCurrency(tccAt1[maxTccIdx] as number)} vs ${names[minTccIdx]} ${formatCurrency(tccAt1[minTccIdx] as number)}`);
   }
   if (supplementals.some((s, i) => i > 0 && s !== supplementals[0])) parts.push('different supp');
   if (ftes.some((f, i) => i > 0 && Math.abs((f ?? 1) - (ftes[0] ?? 1)) > 0.01)) parts.push('different FTE');
@@ -68,7 +65,7 @@ function buildCompareNarrative(providers: ProviderRecord[]): string {
 export function ProviderCompareModal({
   providerIds,
   records,
-  marketBySpecialty,
+  marketResolver,
   experienceBands: _experienceBands,
   onClose,
   onClearSelection,
@@ -127,7 +124,7 @@ export function ProviderCompareModal({
         )}
 
         <div className="flex-1 min-h-0 flex flex-col p-6 overflow-hidden">
-          <CompareTable providers={providers} marketBySpecialty={marketBySpecialty} />
+          <CompareTable providers={providers} marketResolver={marketResolver} />
         </div>
       </div>
     </div>
@@ -148,19 +145,19 @@ function getTccDriverLine(provider: ProviderRecord): string {
     (provider.Quality_Bonus ?? 0) +
     (provider.Other_Recurring_Comp ?? 0);
   const parts: string[] = [];
-  if (base > 0) parts.push(formatDollar(base));
-  if (prod > 0) parts.push(formatDollar(prod));
-  if (supp > 0) parts.push(formatDollar(supp));
+  if (base > 0) parts.push(formatCurrency(base));
+  if (prod > 0) parts.push(formatCurrency(prod));
+  if (supp > 0) parts.push(formatCurrency(supp));
   return parts.length ? parts.join(' + ') : '—';
 }
 
 interface CompareTableProps {
   providers: ProviderRecord[];
-  marketBySpecialty: Map<string, MarketRow>;
+  marketResolver: MarketResolver;
 }
 
 /** Side-by-side table: one row per metric, one column per provider. Same data on same line. */
-function CompareTable({ providers, marketBySpecialty }: CompareTableProps) {
+function CompareTable({ providers, marketResolver }: CompareTableProps) {
   const [showMore, setShowMore] = useState(false);
 
   type Row = { label: string; values: string[]; highlight?: boolean };
@@ -170,10 +167,10 @@ function CompareTable({ providers, marketBySpecialty }: CompareTableProps) {
   const wrvuPercentiles = providers.map((p) => p.WRVU_Percentile != null ? `${Number(p.WRVU_Percentile).toFixed(1)}%` : '—');
   const tccAt1Values = providers.map((p) => {
     const v = getTccAt1Fte(p);
-    return v != null ? formatDollar(v) : '—';
+    return v != null ? formatCurrency(v) : '—';
   });
-  const currentFte = providers.map((p) => p.Current_FTE != null ? String(p.Current_FTE) : '—');
-  const clinicalFte = providers.map((p) => p.Clinical_FTE != null ? String(p.Clinical_FTE) : '—');
+  const currentFte = providers.map((p) => p.Current_FTE != null ? formatFte(p.Current_FTE) : '—');
+  const clinicalFte = providers.map((p) => p.Clinical_FTE != null ? formatFte(p.Clinical_FTE) : '—');
 
   // Raw amounts and total TCC (for % of TCC and "what's contributing")
   const baseNum = providers.map((p) => p.Proposed_Base_Salary ?? p.Current_Base_Salary ?? 0);
@@ -192,10 +189,10 @@ function CompareTable({ providers, marketBySpecialty }: CompareTableProps) {
   );
   const rawTccNum = providers.map((_, i) => baseNum[i] + prodNum[i] + suppNum[i]);
 
-  const baseSalary = providers.map((_, i) => formatDollar(baseNum[i]));
-  const productivity = providers.map((_, i) => formatDollar(prodNum[i]));
-  const supplemental = providers.map((_, i) => formatDollar(suppNum[i]));
-  const rawTcc = providers.map((_, i) => formatDollar(rawTccNum[i]));
+  const baseSalary = providers.map((_, i) => formatCurrency(baseNum[i]));
+  const productivity = providers.map((_, i) => formatCurrency(prodNum[i]));
+  const supplemental = providers.map((_, i) => formatCurrency(suppNum[i]));
+  const rawTcc = providers.map((_, i) => formatCurrency(rawTccNum[i]));
   const lowFte = providers.map((p) => (isLowFteForNormalization(p) ? 'Caution (<0.7)' : '—'));
   const drivenBy = providers.map((p) => getTccDriverLine(p));
 
@@ -221,9 +218,9 @@ function CompareTable({ providers, marketBySpecialty }: CompareTableProps) {
       const dSupp = suppNum[i] - suppNum[minIdx];
       const dProd = prodNum[i] - prodNum[minIdx];
       const bits: string[] = [];
-      if (dBase !== 0) bits.push(`base ${dBase > 0 ? '+' : ''}${formatDollar(dBase)}`);
-      if (dSupp !== 0) bits.push(`supp ${dSupp > 0 ? '+' : ''}${formatDollar(dSupp)}`);
-      if (dProd !== 0) bits.push(`prod ${dProd > 0 ? '+' : ''}${formatDollar(dProd)}`);
+      if (dBase !== 0) bits.push(`base ${dBase > 0 ? '+' : ''}${formatCurrency(dBase)}`);
+      if (dSupp !== 0) bits.push(`supp ${dSupp > 0 ? '+' : ''}${formatCurrency(dSupp)}`);
+      if (dProd !== 0) bits.push(`prod ${dProd > 0 ? '+' : ''}${formatCurrency(dProd)}`);
       if (bits.length === 0) bits.push('same');
       parts.push(`${name} vs ${refName}: ${bits.join(', ')}`);
     }
@@ -252,15 +249,15 @@ function CompareTable({ providers, marketBySpecialty }: CompareTableProps) {
       label: 'Market TCC (25/50/75/90)',
       values: providers.map((p) => {
         const key = (p.Market_Specialty_Override ?? p.Specialty ?? p.Benchmark_Group ?? '').trim();
-        const m = key ? marketBySpecialty.get(key) : undefined;
-        return m ? [25, 50, 75, 90].map((x) => formatDollar(m.tccPercentiles?.[x] ?? 0)).join(' / ') : '—';
+        const m = key ? marketResolver(p, key) : undefined;
+        return m ? [25, 50, 75, 90].map((x) => formatCurrency(m.tccPercentiles?.[x] ?? 0)).join(' / ') : '—';
       }),
     });
     extraRows.push({
       label: 'Market wRVU (25/50/75/90)',
       values: providers.map((p) => {
         const key = (p.Market_Specialty_Override ?? p.Specialty ?? p.Benchmark_Group ?? '').trim();
-        const m = key ? marketBySpecialty.get(key) : undefined;
+        const m = key ? marketResolver(p, key) : undefined;
         return m ? [25, 50, 75, 90].map((x) => (m.wrvuPercentiles?.[x] ?? 0).toLocaleString()).join(' / ') : '—';
       }),
     });

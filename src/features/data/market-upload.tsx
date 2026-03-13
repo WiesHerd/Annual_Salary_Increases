@@ -6,6 +6,7 @@ import {
   getCsvHeaders,
   getXlsxHeaders,
 } from '../../lib/parse-file';
+import { persistLearnedMarketMapping } from '../../lib/column-mapping-storage';
 import type { MarketColumnMapping, MarketUploadResult } from '../../types';
 import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
@@ -13,10 +14,12 @@ import { SearchableSelect } from '../../components/searchable-select';
 type UploadMode = 'replace' | 'add';
 
 interface MarketUploadProps {
-  onUpload: (result: MarketUploadResult, mode: UploadMode) => void;
+  surveyId: string;
+  surveyLabel: string;
+  onUpload: (result: MarketUploadResult, surveyId: string, mode: UploadMode) => void;
 }
 
-export function MarketUpload({ onUpload }: MarketUploadProps) {
+export function MarketUpload({ surveyId, surveyLabel, onUpload }: MarketUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [mapping, setMapping] = useState<MarketColumnMapping>({ specialty: '' });
   const [headers, setHeaders] = useState<string[]>([]);
@@ -64,7 +67,10 @@ export function MarketUpload({ onUpload }: MarketUploadProps) {
         else if (buf instanceof ArrayBuffer) result = parseMarketXlsx(buf, mapping);
         else return;
         setLastResult(result);
-        if (result.rows.length > 0) onUpload(result, mode);
+        if (result.rows.length > 0) {
+          onUpload(result, surveyId, mode);
+          persistLearnedMarketMapping(result.mapping);
+        }
         if (result.errors.length > 0) setError(result.errors.slice(0, 5).join('; '));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Parse failed');
@@ -75,12 +81,24 @@ export function MarketUpload({ onUpload }: MarketUploadProps) {
   }, [file, mapping, mode, onUpload]);
 
   const percentileKeys = [25, 50, 75, 90];
-  const mappingKeys = ['specialty', 'label', ...percentileKeys.flatMap((p) => [`TCC_${p}`, `WRVU_${p}`, `CF_${p}`])];
+  const mappingKeys = [
+    'specialty',
+    'label',
+    'incumbents',
+    'orgCount',
+    ...percentileKeys.flatMap((p) => [`TCC_${p}`, `WRVU_${p}`, `CF_${p}`]),
+  ];
+  const mappingLabels: Record<string, string> = {
+    specialty: 'Specialty',
+    label: 'Label',
+    incumbents: 'Incumbents',
+    orgCount: 'Number of Orgs',
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07),0_2px_4px_-2px_rgba(79,70,229,0.07)]">
-      <h2 className="text-lg font-semibold text-slate-800 mb-2">Upload market survey data</h2>
-      <p className="text-sm text-slate-600 mb-4">One row per specialty; columns for TCC, wRVU, and CF percentiles (e.g. TCC_25, WRVU_50, CF_50).</p>
+      <h2 className="text-lg font-semibold text-slate-800 mb-2">Upload {surveyLabel}</h2>
+      <p className="text-sm text-slate-600 mb-4">One row per specialty; columns for TCC, wRVU, and CF percentiles (e.g. TCC_25, WRVU_50, CF_50). Replace or add to this survey.</p>
       <div className="flex flex-wrap gap-4 items-end mb-4">
         <div className="min-w-[200px]">
           <FileDropzone
@@ -111,12 +129,12 @@ export function MarketUpload({ onUpload }: MarketUploadProps) {
       </div>
       {headers.length > 0 && (
         <div className="border-t border-slate-100 pt-4 mt-4">
-          <p className="text-sm text-slate-600 mb-2">Column mapping</p>
+          <p className="text-sm text-slate-600 mb-2">Column mapping — your choices are saved for future uploads</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {mappingKeys.map((key) => (
               <div key={key}>
                 <SearchableSelect
-                  label={key}
+                  label={mappingLabels[key] ?? key}
                   value={mapping[key] ?? ''}
                   options={headers}
                   onChange={(v) => setMapping((m) => ({ ...m, [key]: v || undefined }))}

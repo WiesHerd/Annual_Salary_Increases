@@ -4,12 +4,16 @@
 
 import type { ProviderRecord } from '../../types/provider';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { PolicyEvaluationResult } from '../../types/compensation-policy';
+import type { CfBySpecialtyRow } from '../../types/cf-by-specialty';
+import { getEffectiveCfForProvider } from '../../lib/cf-resolver';
 import {
   getExperienceBandAlignment,
   getExperienceBandLabel,
   getTargetTccRange,
 } from '../../lib/calculations/recalculate-provider-row';
 import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
+import { getReviewStatusLabel } from '../../types/enums';
 
 export type ReviewTableColumnId =
   | 'compareCheckbox'
@@ -45,13 +49,17 @@ export type ReviewTableColumnId =
   | 'currentTier'
   | 'proposedTier'
   | 'reviewStatus'
-  | 'notesIndicator';
+  | 'notesIndicator'
+  | 'policySource'
+  | 'policyOutcome'
+  | 'tierAssigned'
+  | 'manualReviewFlag';
 
 export interface ReviewTableColumnDef {
   id: ReviewTableColumnId;
   label: string;
   align: 'left' | 'right';
-  format: 'text' | 'number' | 'currency' | 'percent';
+  format: 'text' | 'number' | 'currency' | 'percent' | 'fte';
   editable?: boolean;
 }
 
@@ -64,8 +72,8 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
   { id: 'planType', label: 'Plan Type', align: 'left', format: 'text' },
   { id: 'yoe', label: 'YOE', align: 'right', format: 'number' },
   { id: 'experienceBand', label: 'Experience Band', align: 'left', format: 'text' },
-  { id: 'currentFte', label: 'Current FTE', align: 'right', format: 'number' },
-  { id: 'clinicalFte', label: 'Clinical FTE', align: 'right', format: 'number' },
+  { id: 'currentFte', label: 'Current FTE', align: 'right', format: 'fte' },
+  { id: 'clinicalFte', label: 'Clinical FTE', align: 'right', format: 'fte' },
   { id: 'evaluationScore', label: 'Evaluation Score', align: 'right', format: 'number' },
   { id: 'defaultIncreasePercent', label: 'Default Increase %', align: 'right', format: 'percent' },
   { id: 'approvedIncreasePercent', label: 'Approved Increase %', align: 'right', format: 'percent', editable: true },
@@ -88,17 +96,22 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
   { id: 'proposedCf', label: 'Proposed CF', align: 'right', format: 'currency', editable: true },
   { id: 'currentTier', label: 'Current Tier', align: 'left', format: 'text' },
   { id: 'proposedTier', label: 'Proposed Tier', align: 'left', format: 'text', editable: true },
-  { id: 'reviewStatus', label: 'Review Status', align: 'left', format: 'text', editable: true },
+  { id: 'reviewStatus', label: 'Status', align: 'left', format: 'text', editable: true },
   { id: 'notesIndicator', label: 'Notes', align: 'left', format: 'text', editable: true },
+  { id: 'policySource', label: 'Policy', align: 'left', format: 'text' },
+  { id: 'policyOutcome', label: 'Outcome', align: 'left', format: 'text' },
+  { id: 'tierAssigned', label: 'Tier assigned', align: 'left', format: 'text' },
+  { id: 'manualReviewFlag', label: 'Manual review', align: 'left', format: 'text' },
 ];
 
 const DEFAULT_VISIBLE_IDS = REVIEW_TABLE_COLUMNS.map((c) => c.id);
 
-/** Default column width in pixels. Long-label columns get more room so headers don't truncate. */
-const DEFAULT_WIDTH_COMPARE_CHECKBOX = 44;
-const DEFAULT_WIDTH_PROVIDER_NAME = 192;
-const DEFAULT_WIDTH_OTHER = 128;
-/** Columns with longer labels or content get a wider default so the full header/content fits. */
+/** Default column width in pixels. Tighter defaults for dense, Silicon Valley–style tables. */
+const DEFAULT_WIDTH_COMPARE_CHECKBOX = 40;
+const DEFAULT_WIDTH_PROVIDER_NAME = 160;
+const DEFAULT_WIDTH_OTHER = 100;
+const DEFAULT_WIDTH_STATUS = 88;
+/** Columns with longer labels or content get a bit more room. */
 const WIDER_DEFAULT_IDS: ReviewTableColumnId[] = [
   'division',
   'specialty',
@@ -112,12 +125,25 @@ const WIDER_DEFAULT_IDS: ReviewTableColumnId[] = [
   'targetTccRange',
   'bandAlignment',
   'equityRecommendation',
-  'reviewStatus',
   'experienceBand',
   'evaluationScore',
   'defaultIncreasePercent',
 ];
-const DEFAULT_WIDTH_WIDER = 160;
+const DEFAULT_WIDTH_WIDER = 120;
+/** Extra-wide for columns with long labels (e.g. "Proposed Base Salary (1.0 FTE)"). */
+const DEFAULT_WIDTH_EXTRA_WIDE = 140;
+const EXTRA_WIDE_LABEL_IDS: ReviewTableColumnId[] = [
+  'proposedBaseSalaryAt1Fte',
+  'experienceBand',
+  'evaluationScore',
+  'targetTccRange',
+];
+/** Policy columns need more room for names like "High TCC guardrail", "Default merit matrix". */
+const DEFAULT_WIDTH_POLICY = 160;
+const POLICY_COLUMN_IDS: ReviewTableColumnId[] = [
+  'policySource',
+  'policyOutcome',
+];
 
 export function getDefaultVisibleColumnIds(): ReviewTableColumnId[] {
   return [...DEFAULT_VISIBLE_IDS];
@@ -129,14 +155,56 @@ export function getDefaultColumnWidths(): Record<ReviewTableColumnId, number> {
   for (const c of REVIEW_TABLE_COLUMNS) {
     if (c.id === 'compareCheckbox') out[c.id] = DEFAULT_WIDTH_COMPARE_CHECKBOX;
     else if (c.id === 'providerName') out[c.id] = DEFAULT_WIDTH_PROVIDER_NAME;
+    else if (c.id === 'reviewStatus') out[c.id] = DEFAULT_WIDTH_STATUS;
+    else if (POLICY_COLUMN_IDS.includes(c.id)) out[c.id] = DEFAULT_WIDTH_POLICY;
+    else if (EXTRA_WIDE_LABEL_IDS.includes(c.id)) out[c.id] = DEFAULT_WIDTH_EXTRA_WIDE;
     else if (WIDER_DEFAULT_IDS.includes(c.id)) out[c.id] = DEFAULT_WIDTH_WIDER;
     else out[c.id] = DEFAULT_WIDTH_OTHER;
   }
   return out;
 }
 
+const COLUMN_WIDTH_MIN = 80;
+const COLUMN_WIDTH_MAX = 400;
+
+/**
+ * Column widths scaled to fill a target width. Uses default widths as proportions;
+ * visible columns are scaled so their total equals targetWidthPx.
+ */
+export function getColumnWidthsToFillArea(
+  visibleColumnIds: ReviewTableColumnId[],
+  targetWidthPx: number
+): Record<ReviewTableColumnId, number> {
+  const defaults = getDefaultColumnWidths();
+  const visibleDefaults = visibleColumnIds.map((id) => ({ id, width: defaults[id] ?? 128 }));
+  const defaultTotal = visibleDefaults.reduce((sum, { width }) => sum + width, 0);
+  if (defaultTotal <= 0 || targetWidthPx <= 0) return defaults;
+
+  const scale = targetWidthPx / defaultTotal;
+  const widths: Record<ReviewTableColumnId, number> = { ...defaults };
+  let allocated = 0;
+  const rounded: { id: ReviewTableColumnId; w: number }[] = [];
+
+  for (const { id, width } of visibleDefaults) {
+    const raw = width * scale;
+    const clamped = Math.max(COLUMN_WIDTH_MIN, Math.min(COLUMN_WIDTH_MAX, Math.round(raw)));
+    rounded.push({ id, w: clamped });
+    allocated += clamped;
+    widths[id] = clamped;
+  }
+
+  const diff = targetWidthPx - allocated;
+  if (diff !== 0 && rounded.length > 0) {
+    const last = rounded[rounded.length - 1];
+    const adjusted = Math.max(COLUMN_WIDTH_MIN, Math.min(COLUMN_WIDTH_MAX, widths[last.id] + diff));
+    widths[last.id] = adjusted;
+  }
+
+  return widths;
+}
+
 /** Preset view IDs for one-click column sets. */
-export type ReviewViewPresetId = 'meeting' | 'full' | 'comp';
+export type ReviewViewPresetId = 'meeting' | 'full' | 'comp' | 'policy';
 
 /** User-saved custom column view. */
 export interface SavedCustomView {
@@ -184,13 +252,32 @@ export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId
     'reviewStatus',
     'notesIndicator',
   ],
+  policy: [
+    'compareCheckbox',
+    'providerName',
+    'specialty',
+    'population',
+    'planType',
+    'evaluationScore',
+    'defaultIncreasePercent',
+    'approvedIncreasePercent',
+    'currentTccPercentile',
+    'wrvuPercentile',
+    'policySource',
+    'policyOutcome',
+    'tierAssigned',
+    'manualReviewFlag',
+    'reviewStatus',
+  ],
 };
 
-/** Get display value for a cell (read-only display). */
+/** Get display value for a cell (read-only display). Optional policyResult for policy columns when record not yet merged. Optional cfBySpecialty for Current CF / Proposed CF when record lacks values. */
 export function getReviewCellValue(
   record: ProviderRecord,
   columnId: ReviewTableColumnId,
-  experienceBands: ExperienceBand[] = []
+  experienceBands: ExperienceBand[] = [],
+  policyResult?: PolicyEvaluationResult,
+  cfBySpecialty?: CfBySpecialtyRow[]
 ): string | number | undefined {
   const r = record;
   const yoe = r.Years_of_Experience ?? r.Total_YOE;
@@ -218,7 +305,7 @@ export function getReviewCellValue(
     case 'evaluationScore':
       return r.Evaluation_Score ?? '—';
     case 'defaultIncreasePercent':
-      return r.Default_Increase_Percent ?? '—';
+      return policyResult?.finalRecommendedIncreasePercent ?? r.Default_Increase_Percent ?? '—';
     case 'approvedIncreasePercent': {
       if (r.Approved_Increase_Percent != null && Number.isFinite(r.Approved_Increase_Percent)) return r.Approved_Increase_Percent;
       const curPct = r.Current_Base_Salary ?? 0;
@@ -281,18 +368,43 @@ export function getReviewCellValue(
       return r.WRVU_Percentile ?? '—';
     case 'tccWrvuGap':
       return r.TCC_WRVU_Gap ?? '—';
-    case 'currentCf':
-      return r.Current_CF ?? '—';
-    case 'proposedCf':
-      return r.Proposed_CF ?? '—';
+    case 'currentCf': {
+      if (r.Current_CF != null && Number.isFinite(r.Current_CF)) return r.Current_CF;
+      if (cfBySpecialty?.length) {
+        const { currentCf } = getEffectiveCfForProvider(r, cfBySpecialty);
+        return currentCf;
+      }
+      return '—';
+    }
+    case 'proposedCf': {
+      if (r.Proposed_CF != null && Number.isFinite(r.Proposed_CF)) return r.Proposed_CF;
+      if (cfBySpecialty?.length) {
+        const { proposedCf } = getEffectiveCfForProvider(r, cfBySpecialty);
+        return proposedCf;
+      }
+      return '—';
+    }
     case 'currentTier':
       return r.Current_Tier ?? '—';
     case 'proposedTier':
       return r.Proposed_Tier ?? '—';
     case 'reviewStatus':
-      return r.Review_Status ?? '—';
+      return getReviewStatusLabel(r.Review_Status);
     case 'notesIndicator':
       return r.Notes != null && String(r.Notes).trim() !== '' ? '📝' : '';
+    case 'policySource':
+      return r.Policy_Source_Name ?? policyResult?.finalPolicySource ?? '—';
+    case 'policyOutcome': {
+      const blocked = policyResult?.blocked || r.Policy_Logic_Status === 'Blocked';
+      const applied = policyResult != null || r.Policy_Applied === true;
+      if (blocked) return 'Blocked';
+      if (applied) return 'Applied';
+      return '—';
+    }
+    case 'tierAssigned':
+      return r.Policy_Tier_Assigned ?? policyResult?.tierAssigned ?? '—';
+    case 'manualReviewFlag':
+      return r.Manual_Review_Flag ?? policyResult?.manualReview ? 'Yes' : '—';
     default:
       return '—';
   }
@@ -326,7 +438,7 @@ export function parsePercentInput(str: string): number | undefined {
 
 export function formatReviewCellValue(
   value: string | number | undefined,
-  format: 'text' | 'number' | 'currency' | 'percent'
+  format: 'text' | 'number' | 'currency' | 'percent' | 'fte'
 ): string {
   if (value == null || value === '') return '—';
   if (format === 'currency' && typeof value === 'number') {
@@ -334,6 +446,9 @@ export function formatReviewCellValue(
   }
   if (format === 'percent' && typeof value === 'number') {
     return `${value.toFixed(2)}%`;
+  }
+  if (format === 'fte' && typeof value === 'number') {
+    return value.toFixed(2);
   }
   if (format === 'number' && typeof value === 'number') {
     return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -349,15 +464,17 @@ function getBandAlignmentSortOrder(alignment: string): number {
   return 3;
 }
 
-/** Raw value for sorting (number or string). */
+/** Raw value for sorting (number or string). Optional policyResult for policy columns. Optional cfBySpecialty for CF columns. */
 export function getReviewCellSortValue(
   record: ProviderRecord,
   columnId: ReviewTableColumnId,
-  experienceBands: ExperienceBand[] = []
+  experienceBands: ExperienceBand[] = [],
+  policyResult?: PolicyEvaluationResult,
+  cfBySpecialty?: CfBySpecialtyRow[]
 ): number | string {
   if (columnId === 'compareCheckbox') return '';
   if (columnId === 'bandAlignment') {
-    const v = getReviewCellValue(record, columnId, experienceBands);
+    const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty);
     return getBandAlignmentSortOrder(String(v ?? ''));
   }
   if (columnId === 'equityRecommendation') {
@@ -369,7 +486,7 @@ export function getReviewCellSortValue(
     if (alignment === 'above') return 2;
     return 3;
   }
-  const v = getReviewCellValue(record, columnId, experienceBands);
+  const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty);
   if (typeof v === 'number') return v;
   return String(v ?? '');
 }

@@ -1,11 +1,13 @@
 /**
  * Provider detail panel for Salary Review Workspace.
- * Shows TCC breakdown, productivity, normalization, supplemental pay, market benchmarks, TCC driver.
+ * Shows TCC breakdown, productivity, normalization, supplemental pay, market benchmarks, TCC driver, and policy explanation.
  */
 
 import type { ProviderRecord } from '../../types/provider';
 import type { TccComponent } from '../../types/provider-review-record';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { PolicyEvaluationResult } from '../../types/compensation-policy';
+import { POLICY_STAGE_LABELS } from '../../types/compensation-policy';
 import {
   getExperienceBandAlignment,
   getExperienceBandLabel,
@@ -14,6 +16,7 @@ import {
   FTE_NORMALIZATION_CAUTION_THRESHOLD,
 } from '../../lib/calculations/recalculate-provider-row';
 import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
+import { formatCurrency, formatFte } from '../../utils/format';
 
 export interface ProviderDetailEnrichment {
   currentTccBreakdown?: TccComponent[];
@@ -25,6 +28,7 @@ interface ProviderDetailPanelProps {
   provider: ProviderRecord | null;
   enrichment?: ProviderDetailEnrichment | null;
   experienceBands?: ExperienceBand[];
+  policyResult?: PolicyEvaluationResult | null;
   onClose?: () => void;
   onSelectPrev?: () => void;
   onSelectNext?: () => void;
@@ -36,6 +40,7 @@ export function ProviderDetailPanel({
   provider,
   enrichment,
   experienceBands = [],
+  policyResult,
   onClose,
   onSelectPrev,
   onSelectNext,
@@ -133,14 +138,14 @@ export function ProviderDetailPanel({
                 {enrichment.currentTccBreakdown.map((c, i) => (
                   <div key={i} className="flex justify-between">
                     <span className="text-slate-600">{c.label}</span>
-                    <span className="tabular-nums">{c.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                    <span className="tabular-nums">{formatCurrency(c.amount)}</span>
                   </div>
                 ))}
                 <p className="font-medium text-slate-700 mt-2">Proposed</p>
                 {enrichment.proposedTccBreakdown?.map((c, i) => (
                   <div key={i} className="flex justify-between">
                     <span className="text-slate-600">{c.label}</span>
-                    <span className="tabular-nums">{c.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                    <span className="tabular-nums">{formatCurrency(c.amount)}</span>
                   </div>
                 ))}
               </>
@@ -148,16 +153,16 @@ export function ProviderDetailPanel({
               <>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Current TCC</span>
-                  <span className="tabular-nums">{currentTcc.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span className="tabular-nums">{formatCurrency(currentTcc)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Proposed TCC</span>
-                  <span className="tabular-nums">{proposedTcc.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span className="tabular-nums">{formatCurrency(proposedTcc)}</span>
                 </div>
                 {supplemental > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Supplemental</span>
-                    <span className="tabular-nums">{supplemental.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                    <span className="tabular-nums">{formatCurrency(supplemental)}</span>
                   </div>
                 )}
               </>
@@ -236,7 +241,7 @@ export function ProviderDetailPanel({
                 )}
                 {rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte) && (
                   <p className="text-slate-700">
-                    Consider moving toward ~{rec.suggestedTccAt1Fte.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} at 1.0 FTE.
+                    Consider moving toward ~{formatCurrency(rec.suggestedTccAt1Fte)} at 1.0 FTE.
                   </p>
                 )}
                 <p className="text-xs text-slate-500 mt-1">Comparisons use compensation at 1.0 FTE.</p>
@@ -255,11 +260,11 @@ export function ProviderDetailPanel({
             </div>
             <div className="flex justify-between">
               <span>Clinical FTE</span>
-              <span className="tabular-nums">{provider.Clinical_FTE ?? '—'}</span>
+              <span className="tabular-nums">{provider.Clinical_FTE != null ? formatFte(provider.Clinical_FTE) : '—'}</span>
             </div>
             <div className="flex justify-between">
               <span>Administrative FTE</span>
-              <span className="tabular-nums">{provider.Administrative_FTE ?? '—'}</span>
+              <span className="tabular-nums">{provider.Administrative_FTE != null ? formatFte(provider.Administrative_FTE) : '—'}</span>
             </div>
             {isLowFteForNormalization(provider) && (
               <div className="mt-2 px-2 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-xs border border-amber-200">
@@ -284,13 +289,55 @@ export function ProviderDetailPanel({
               (val != null && Number(val) !== 0) ? (
                 <div key={String(label)} className="flex justify-between">
                   <span>{label}</span>
-                  <span className="tabular-nums">{Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span className="tabular-nums">{formatCurrency(Number(val))}</span>
                 </div>
               ) : null
             )}
             {supplemental === 0 && <p className="text-slate-500">None</p>}
           </div>
         </section>
+
+        {/* Policy explanation — evaluation path and final recommendation */}
+        {policyResult && (
+          <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Policy explanation</h4>
+            <div className="space-y-2 text-sm">
+              <p className="font-medium text-slate-700">Evaluation path</p>
+              {policyResult.appliedPolicies.length > 0 ? (
+                <ul className="space-y-1.5 text-slate-700">
+                  {policyResult.appliedPolicies.map((p) => (
+                    <li key={p.id} className="flex flex-col gap-0.5">
+                      <span className="font-medium text-slate-800">{p.name}</span>
+                      <span className="text-slate-600 text-xs">{POLICY_STAGE_LABELS[p.stage]}</span>
+                      {policyResult.explanation
+                        .filter((line) => line.startsWith(p.name + ':') || line.includes(p.name))
+                        .map((line, i) => (
+                          <span key={i} className="text-slate-600">
+                            {line}
+                          </span>
+                        ))}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-slate-600">
+                  Default merit matrix or custom model applied (no overriding policy matched).
+                </p>
+              )}
+              {policyResult.appliedPolicies.length > 0 && policyResult.explanation.some((e) => e.includes('Default merit matrix') || e.includes('Skipped')) && (
+                <p className="text-slate-600 italic">
+                  Default merit matrix skipped because a higher-priority policy took precedence.
+                </p>
+              )}
+              <p className="font-medium text-slate-800 pt-1 border-t border-slate-200 mt-2">
+                Final increase recommendation: {policyResult.finalRecommendedIncreasePercent.toFixed(2)}%
+              </p>
+              {policyResult.manualReview && (
+                <p className="text-amber-700 font-medium">Manual review required</p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Next steps — workflow guidance */}
         <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
@@ -330,10 +377,10 @@ export function ProviderDetailPanel({
                 )}
               </div>
               <div className="flex justify-between text-xs text-slate-500">
-                <span className="tabular-nums">${(provider.Market_TCC_25 ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                <span className="tabular-nums">${(provider.Market_TCC_50 ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                <span className="tabular-nums">${(provider.Market_TCC_75 ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                <span className="tabular-nums">${(provider.Market_TCC_90 ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                <span className="tabular-nums">{formatCurrency(provider.Market_TCC_25 ?? 0)}</span>
+                <span className="tabular-nums">{formatCurrency(provider.Market_TCC_50 ?? 0)}</span>
+                <span className="tabular-nums">{formatCurrency(provider.Market_TCC_75 ?? 0)}</span>
+                <span className="tabular-nums">{formatCurrency(provider.Market_TCC_90 ?? 0)}</span>
               </div>
             </div>
           </section>
@@ -345,19 +392,19 @@ export function ProviderDetailPanel({
           <div className="space-y-1.5 text-sm text-slate-700">
             <div className="flex justify-between">
               <span>TCC 25th</span>
-              <span className="tabular-nums">{provider.Market_TCC_25 != null ? provider.Market_TCC_25.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</span>
+              <span className="tabular-nums">{provider.Market_TCC_25 != null ? formatCurrency(provider.Market_TCC_25) : '—'}</span>
             </div>
             <div className="flex justify-between">
               <span>TCC 50th</span>
-              <span className="tabular-nums">{provider.Market_TCC_50 != null ? provider.Market_TCC_50.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</span>
+              <span className="tabular-nums">{provider.Market_TCC_50 != null ? formatCurrency(provider.Market_TCC_50) : '—'}</span>
             </div>
             <div className="flex justify-between">
               <span>TCC 75th</span>
-              <span className="tabular-nums">{provider.Market_TCC_75 != null ? provider.Market_TCC_75.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</span>
+              <span className="tabular-nums">{provider.Market_TCC_75 != null ? formatCurrency(provider.Market_TCC_75) : '—'}</span>
             </div>
             <div className="flex justify-between">
               <span>TCC 90th</span>
-              <span className="tabular-nums">{provider.Market_TCC_90 != null ? provider.Market_TCC_90.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}</span>
+              <span className="tabular-nums">{provider.Market_TCC_90 != null ? formatCurrency(provider.Market_TCC_90) : '—'}</span>
             </div>
           </div>
         </section>
@@ -367,7 +414,7 @@ export function ProviderDetailPanel({
           <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">What's driving TCC</h4>
           <p className="text-sm text-slate-700">
             {enrichment?.driverSummary ??
-              `Base salary ${provider.Proposed_Base_Salary != null ? `$${provider.Proposed_Base_Salary.toLocaleString()}` : '—'} plus productivity (CF × wRVU) and supplemental pay.`}
+              `Base salary ${provider.Proposed_Base_Salary != null ? formatCurrency(provider.Proposed_Base_Salary) : '—'} plus productivity (CF × wRVU) and supplemental pay.`}
           </p>
         </section>
       </div>

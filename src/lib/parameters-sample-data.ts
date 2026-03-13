@@ -9,8 +9,9 @@ import type { ExperienceBand } from '../types/experience-band';
 import type { PcpPhysicianTierRow } from '../types/pcp-tier';
 import type { PcpAppRuleRow } from '../types/pcp-app-rules';
 import type { PlanAssignmentRuleRow } from '../types/plan-assignment-row';
-import type { AppBenchmarkMappingRow } from '../types/app-benchmark-mapping';
+import type { AppCombinedGroupRow } from '../types/app-combined-group';
 import type { BudgetSettingsRow } from '../types/budget-settings';
+import type { CfBySpecialtyRow } from '../types/cf-by-specialty';
 import { CompensationPlanType } from '../types/enums';
 
 export const SAMPLE_CYCLES: Cycle[] = [
@@ -55,11 +56,29 @@ export const SAMPLE_PLAN_ASSIGNMENT_RULES: PlanAssignmentRuleRow[] = [
   { id: 'plan-5', jobCode: 'HOURLY-*', assignedPlanType: CompensationPlanType.Hourly, priority: 100 },
 ];
 
-export const SAMPLE_APP_BENCHMARK_MAPPING: AppBenchmarkMappingRow[] = [
-  { id: 'bench-1', division: 'Primary Care', specialtyOrGroup: 'Family Medicine APP', benchmarkGroup: 'APP Primary Care', surveySource: 'MGMA' },
-  { id: 'bench-2', division: 'Primary Care', specialtyOrGroup: 'Internal Medicine APP', benchmarkGroup: 'APP Primary Care', surveySource: 'MGMA' },
-  { id: 'bench-3', division: 'Pediatrics', specialtyOrGroup: 'Pediatric APP', benchmarkGroup: 'APP Pediatrics', surveySource: 'AMGA' },
-  { id: 'bench-4', specialtyOrGroup: 'Urgent Care APP', benchmarkGroup: 'APP Urgent Care', surveySource: 'MGMA' },
+/** APP combined groups: blend multiple survey specialties into one benchmark (many-to-one). */
+export const SAMPLE_APP_COMBINED_GROUPS: AppCombinedGroupRow[] = [
+  {
+    id: 'cg-1',
+    combinedGroupName: 'Medical Specialty Combined',
+    surveySpecialties: ['Medical Inpatient', 'Medical Outpatient', 'Medical Specialty'],
+  },
+  { id: 'cg-2', combinedGroupName: 'NP:PA Combined Psychiatry', surveySpecialties: ['Psychiatry'] },
+];
+
+/** Provider_Type → survey ID mapping. */
+export const SAMPLE_PROVIDER_TYPE_TO_SURVEY: Record<string, string> = {
+  Physician: 'physicians',
+  APP: 'physicians',
+  'Mental Health Therapist': 'mental-health-therapists',
+};
+
+export const SAMPLE_CF_BY_SPECIALTY: CfBySpecialtyRow[] = [
+  { id: 'cf-1', specialty: 'Cardiology', currentCf: 65, proposedCf: 68 },
+  { id: 'cf-2', specialty: 'Orthopedics', currentCf: 72, proposedCf: 75 },
+  { id: 'cf-3', specialty: 'Primary Care', currentCf: 58, proposedCf: 60 },
+  { id: 'cf-4', specialty: 'Pediatrics', currentCf: 55, proposedCf: 57 },
+  { id: 'cf-5', specialty: 'General Surgery', currentCf: 70, proposedCf: 73 },
 ];
 
 export const SAMPLE_BUDGET_SETTINGS: BudgetSettingsRow[] = [

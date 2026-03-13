@@ -6,6 +6,7 @@ import {
   getCsvHeaders,
   getXlsxHeaders,
 } from '../../lib/parse-file';
+import { persistLearnedPaymentsMapping } from '../../lib/column-mapping-storage';
 import type { PaymentColumnMapping, PaymentUploadResult } from '../../types';
 import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
@@ -64,7 +65,10 @@ export function PaymentsUpload({ onUpload }: PaymentsUploadProps) {
         else if (buf instanceof ArrayBuffer) result = parsePaymentXlsx(buf, mapping);
         else return;
         setLastResult(result);
-        if (result.rows.length > 0) onUpload(result, mode);
+        if (result.rows.length > 0) {
+          onUpload(result, mode);
+          persistLearnedPaymentsMapping(result.mapping);
+        }
         if (result.errors.length > 0) setError(result.errors.slice(0, 5).join('; '));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Parse failed');
@@ -79,7 +83,10 @@ export function PaymentsUpload({ onUpload }: PaymentsUploadProps) {
   return (
     <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07),0_2px_4px_-2px_rgba(79,70,229,0.07)]">
       <h2 className="text-lg font-semibold text-slate-800 mb-2">Upload payments</h2>
-      <p className="text-sm text-slate-600 mb-4">Provider key/id, amount, date; optional category and cycle.</p>
+      <p className="text-sm text-slate-600 mb-4">
+        Map the provider key column to match <strong>Employee_ID</strong> from your Provider file. Payments are rolled up
+        by provider to compute Current TCC. Amount and date required; optional category and cycle.
+      </p>
       <div className="flex flex-wrap gap-4 items-end mb-4">
         <div className="min-w-[200px]">
           <FileDropzone
@@ -110,7 +117,10 @@ export function PaymentsUpload({ onUpload }: PaymentsUploadProps) {
       </div>
       {headers.length > 0 && (
         <div className="border-t border-slate-100 pt-4 mt-4">
-          <p className="text-sm text-slate-600 mb-2">Column mapping</p>
+          <p className="text-sm text-slate-600 mb-2">
+            Column mapping — map Provider key to the column holding Employee_ID (same as Provider file). Your choices are
+            saved for future uploads.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {mappingKeys.map((key) => (
               <div key={key}>
@@ -128,7 +138,9 @@ export function PaymentsUpload({ onUpload }: PaymentsUploadProps) {
       )}
       {error && <p className="text-sm text-amber-700 mt-3">{error}</p>}
       {lastResult && lastResult.rows.length > 0 && (
-        <p className="text-sm text-emerald-700 mt-3">Imported {lastResult.rows.length} payment row(s).</p>
+        <p className="text-sm text-emerald-700 mt-3">
+          Imported {lastResult.rows.length} payment row(s). TCC will be computed from rolled-up amounts by provider.
+        </p>
       )}
     </div>
   );

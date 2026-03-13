@@ -5,11 +5,11 @@
 
 import type { ProviderRecord } from '../types/provider';
 import type { ExperienceBand } from '../types/experience-band';
-import { ReviewStatus } from '../types/enums';
 import {
   getExperienceBandAlignment,
   getExperienceBandLabel,
 } from './calculations/recalculate-provider-row';
+import { getReviewStatusBucket } from '../types/enums';
 
 /** Filter state for the Salary Review screen. */
 export interface SalaryReviewFilters {
@@ -23,6 +23,7 @@ export interface SalaryReviewFilters {
   populations: string[];
   experienceBands: string[];
   bandAlignments: string[];
+  policySources: string[];
   approvedIncreasePercentMin?: number;
   approvedIncreasePercentMax?: number;
   tccPercentileMin?: number;
@@ -40,6 +41,7 @@ export const DEFAULT_SALARY_REVIEW_FILTERS: SalaryReviewFilters = {
   populations: [],
   experienceBands: [],
   bandAlignments: [],
+  policySources: [],
 };
 
 const SEARCH_FIELDS: (keyof ProviderRecord)[] = [
@@ -79,11 +81,13 @@ function getYoe(record: ProviderRecord): number | undefined {
 /**
  * Apply filters to a list of provider records. Returns a new array (does not mutate).
  * Pass experienceBandsConfig when filtering by experience band (band labels are derived from YOE + config).
+ * Pass policySourceByEmployeeId when filtering by policy source (from live evaluation results).
  */
 export function applyFilters(
   records: ProviderRecord[],
   filters: SalaryReviewFilters,
-  experienceBandsConfig?: ExperienceBand[]
+  experienceBandsConfig?: ExperienceBand[],
+  policySourceByEmployeeId?: Map<string, string>
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
 
@@ -94,11 +98,8 @@ export function applyFilters(
       return false;
 
     if (filters.reviewStatuses.length > 0) {
-      const status = (r.Review_Status ?? '').trim();
-      const blankKey = '—';
-      const statusMatch =
-        status === '' ? filters.reviewStatuses.includes(blankKey) : filters.reviewStatuses.includes(status);
-      if (!statusMatch) return false;
+      const bucket = getReviewStatusBucket(r.Review_Status);
+      if (!filters.reviewStatuses.includes(bucket)) return false;
     }
 
     if (filters.specialties.length > 0 && !selectedSetMatches(r.Specialty, filters.specialties)) return false;
@@ -131,6 +132,12 @@ export function applyFilters(
               ? 'Above target'
               : '—';
       if (!selectedSetMatches(display, filters.bandAlignments)) return false;
+    }
+
+    if (filters.policySources.length > 0) {
+      const policySource =
+        policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name ?? '—';
+      if (!selectedSetMatches(policySource, filters.policySources)) return false;
     }
 
     const incPct = r.Approved_Increase_Percent;
@@ -168,7 +175,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
       return { ...DEFAULT_SALARY_REVIEW_FILTERS };
     case 'needs-review':
       return {
-        reviewStatuses: [ReviewStatus.Draft, ReviewStatus.InReview],
+        reviewStatuses: ['In progress'],
         providerNames: [],
         specialties: [],
         divisions: [],
@@ -177,6 +184,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
         approvedIncreasePercentMin: undefined,
         approvedIncreasePercentMax: undefined,
         tccPercentileMin: undefined,
@@ -184,7 +192,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
       };
     case 'draft':
       return {
-        reviewStatuses: [ReviewStatus.Draft],
+        reviewStatuses: ['In progress'],
         providerNames: [],
         specialties: [],
         divisions: [],
@@ -193,10 +201,11 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
       };
     case 'in-review':
       return {
-        reviewStatuses: [ReviewStatus.InReview],
+        reviewStatuses: ['In progress'],
         providerNames: [],
         specialties: [],
         divisions: [],
@@ -205,10 +214,11 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
       };
     case 'approved':
       return {
-        reviewStatuses: [ReviewStatus.Approved],
+        reviewStatuses: ['Complete'],
         providerNames: [],
         specialties: [],
         divisions: [],
@@ -217,6 +227,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
       };
     case 'below-market':
       return {
@@ -229,6 +240,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
         tccPercentileMin: undefined,
         tccPercentileMax: 50,
       };
@@ -243,6 +255,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         populations: [],
         experienceBands: [],
         bandAlignments: [],
+        policySources: [],
         approvedIncreasePercentMin: HIGH_INCREASE_PERCENT_THRESHOLD,
         approvedIncreasePercentMax: undefined,
       };
@@ -263,7 +276,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
     filters.planTypes.length > 0 ||
     filters.populations.length > 0 ||
     (filters.experienceBands?.length ?? 0) > 0 ||
-    (filters.bandAlignments?.length ?? 0) > 0;
+    (filters.bandAlignments?.length ?? 0) > 0 ||
+    (filters.policySources?.length ?? 0) > 0;
 
   if (!hasSearch && !hasDimension) {
     if (
@@ -283,32 +297,18 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
       filters.planTypes.length === 0 &&
       filters.populations.length === 0 &&
       (filters.experienceBands?.length ?? 0) === 0 &&
-      (filters.bandAlignments?.length ?? 0) === 0;
+      (filters.bandAlignments?.length ?? 0) === 0 &&
+      (filters.policySources?.length ?? 0) === 0;
     if (
-      filters.reviewStatuses.length === 2 &&
-      filters.reviewStatuses.includes(ReviewStatus.Draft) &&
-      filters.reviewStatuses.includes(ReviewStatus.InReview) &&
+      filters.reviewStatuses.length === 1 &&
+      filters.reviewStatuses[0] === 'In progress' &&
       noDimension
     ) {
       return 'needs-review';
     }
     if (
       filters.reviewStatuses.length === 1 &&
-      filters.reviewStatuses[0] === ReviewStatus.Draft &&
-      noDimension
-    ) {
-      return 'draft';
-    }
-    if (
-      filters.reviewStatuses.length === 1 &&
-      filters.reviewStatuses[0] === ReviewStatus.InReview &&
-      noDimension
-    ) {
-      return 'in-review';
-    }
-    if (
-      filters.reviewStatuses.length === 1 &&
-      filters.reviewStatuses[0] === ReviewStatus.Approved &&
+      filters.reviewStatuses[0] === 'Complete' &&
       noDimension
     ) {
       return 'approved';
@@ -340,7 +340,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
 /** Derive unique dimension values from records for filter dropdowns (from full list, not filtered). */
 export function deriveFilterOptions(
   records: ProviderRecord[],
-  experienceBandsConfig?: ExperienceBand[]
+  experienceBandsConfig?: ExperienceBand[],
+  policySourceByEmployeeId?: Map<string, string>
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -351,6 +352,7 @@ export function deriveFilterOptions(
   populations: string[];
   experienceBands: string[];
   bandAlignments: string[];
+  policySources: string[];
 } {
   const blank = '—';
   const add = (set: Set<string>, val: string | undefined) => {
@@ -366,15 +368,18 @@ export function deriveFilterOptions(
   const populations = new Set<string>();
   const experienceBands = new Set<string>();
   const bandAlignments = new Set<string>();
+  const policySources = new Set<string>();
 
   for (const r of records) {
     add(providerNames, r.Provider_Name);
-    add(reviewStatuses, r.Review_Status);
+    reviewStatuses.add(getReviewStatusBucket(r.Review_Status));
     add(specialties, r.Specialty);
     add(divisions, r.Primary_Division);
     add(departments, r.Department);
     add(planTypes, r.Compensation_Plan);
     add(populations, r.Population);
+    const policySource = policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name;
+    add(policySources, policySource);
     if (experienceBandsConfig?.length) {
       add(experienceBands, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
       const alignment = getExperienceBandAlignment(
@@ -395,9 +400,11 @@ export function deriveFilterOptions(
   }
 
   const sort = (a: string, b: string) => (a === blank ? -1 : b === blank ? 1 : a.localeCompare(b));
+  const statusSort = (a: string, b: string) =>
+    a === 'In progress' ? -1 : b === 'In progress' ? 1 : a.localeCompare(b);
   return {
     providerNames: Array.from(providerNames).sort(sort),
-    reviewStatuses: Array.from(reviewStatuses).sort(sort),
+    reviewStatuses: Array.from(reviewStatuses).sort(statusSort),
     specialties: Array.from(specialties).sort(sort),
     divisions: Array.from(divisions).sort(sort),
     departments: Array.from(departments).sort(sort),
@@ -405,17 +412,26 @@ export function deriveFilterOptions(
     populations: Array.from(populations).sort(sort),
     experienceBands: Array.from(experienceBands).sort(sort),
     bandAlignments: Array.from(bandAlignments).sort(sort),
+    policySources: Array.from(policySources).sort(sort),
   };
 }
 
 type DimensionKey = keyof Pick<
   SalaryReviewFilters,
-  'providerNames' | 'reviewStatuses' | 'specialties' | 'divisions' | 'departments' | 'planTypes' | 'populations' | 'experienceBands' | 'bandAlignments'
+  | 'providerNames'
+  | 'reviewStatuses'
+  | 'specialties'
+  | 'divisions'
+  | 'departments'
+  | 'planTypes'
+  | 'populations'
+  | 'experienceBands'
+  | 'bandAlignments'
+  | 'policySources'
 >;
 
-const DIMENSION_FIELDS: { key: Exclude<DimensionKey, 'experienceBands'>; field: keyof ProviderRecord }[] = [
+const DIMENSION_FIELDS: { key: Exclude<DimensionKey, 'experienceBands' | 'bandAlignments' | 'policySources' | 'reviewStatuses'>; field: keyof ProviderRecord }[] = [
   { key: 'providerNames', field: 'Provider_Name' },
-  { key: 'reviewStatuses', field: 'Review_Status' },
   { key: 'specialties', field: 'Specialty' },
   { key: 'divisions', field: 'Primary_Division' },
   { key: 'departments', field: 'Department' },
@@ -431,7 +447,8 @@ function applyFiltersExceptDimension(
   records: ProviderRecord[],
   filters: SalaryReviewFilters,
   excludeDimension: DimensionKey,
-  experienceBandsConfig?: ExperienceBand[]
+  experienceBandsConfig?: ExperienceBand[],
+  policySourceByEmployeeId?: Map<string, string>
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
   return records.filter((r) => {
@@ -439,9 +456,8 @@ function applyFiltersExceptDimension(
     if (excludeDimension !== 'providerNames' && filters.providerNames.length > 0 && !selectedSetMatches(r.Provider_Name, filters.providerNames))
       return false;
     if (excludeDimension !== 'reviewStatuses' && filters.reviewStatuses.length > 0) {
-      const status = (r.Review_Status ?? '').trim();
-      const statusMatch = status === '' ? filters.reviewStatuses.includes('—') : filters.reviewStatuses.includes(status);
-      if (!statusMatch) return false;
+      const bucket = getReviewStatusBucket(r.Review_Status);
+      if (!filters.reviewStatuses.includes(bucket)) return false;
     }
     if (excludeDimension !== 'specialties' && filters.specialties.length > 0 && !selectedSetMatches(r.Specialty, filters.specialties))
       return false;
@@ -469,6 +485,10 @@ function applyFiltersExceptDimension(
               : '—';
       if (!selectedSetMatches(display, filters.bandAlignments)) return false;
     }
+    if (excludeDimension !== 'policySources' && filters.policySources.length > 0) {
+      const policySource = policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name ?? '—';
+      if (!selectedSetMatches(policySource, filters.policySources)) return false;
+    }
     const incPct = r.Approved_Increase_Percent;
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
@@ -485,11 +505,13 @@ function applyFiltersExceptDimension(
  * Derive filter options with cascading: each dimension's options are built from records that match all *other* filters.
  * So e.g. after selecting a specialty, the Provider Name list only shows providers in that specialty.
  * Pass experienceBandsConfig to include Experience Band in options (derived from YOE + config).
+ * Pass policySourceByEmployeeId to include Policy source options (from live evaluation results).
  */
 export function deriveFilterOptionsCascading(
   records: ProviderRecord[],
   filters: SalaryReviewFilters,
-  experienceBandsConfig?: ExperienceBand[]
+  experienceBandsConfig?: ExperienceBand[],
+  policySourceByEmployeeId?: Map<string, string>
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -500,6 +522,7 @@ export function deriveFilterOptionsCascading(
   populations: string[];
   experienceBands: string[];
   bandAlignments: string[];
+  policySources: string[];
 } {
   const blank = '—';
   const add = (set: Set<string>, val: string | undefined) => {
@@ -518,24 +541,32 @@ export function deriveFilterOptionsCascading(
     populations: [] as string[],
     experienceBands: [] as string[],
     bandAlignments: [] as string[],
+    policySources: [] as string[],
   };
 
   for (const { key, field } of DIMENSION_FIELDS) {
-    const subset = applyFiltersExceptDimension(records, filters, key, experienceBandsConfig);
+    const subset = applyFiltersExceptDimension(records, filters, key, experienceBandsConfig, policySourceByEmployeeId);
     const set = new Set<string>();
     for (const r of subset) add(set, r[field] as string | undefined);
     result[key] = Array.from(set).sort(sort);
   }
 
+  const statusSort = (a: string, b: string) =>
+    a === 'In progress' ? -1 : b === 'In progress' ? 1 : a.localeCompare(b);
+  const subsetStatus = applyFiltersExceptDimension(records, filters, 'reviewStatuses', experienceBandsConfig, policySourceByEmployeeId);
+  const statusSet = new Set<string>();
+  for (const r of subsetStatus) statusSet.add(getReviewStatusBucket(r.Review_Status));
+  result.reviewStatuses = Array.from(statusSet).sort(statusSort);
+
   if (experienceBandsConfig?.length) {
-    const subset = applyFiltersExceptDimension(records, filters, 'experienceBands', experienceBandsConfig);
+    const subset = applyFiltersExceptDimension(records, filters, 'experienceBands', experienceBandsConfig, policySourceByEmployeeId);
     const set = new Set<string>();
     for (const r of subset) add(set, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
     result.experienceBands = Array.from(set).sort(sort);
   }
 
   if (experienceBandsConfig?.length) {
-    const subset = applyFiltersExceptDimension(records, filters, 'bandAlignments', experienceBandsConfig);
+    const subset = applyFiltersExceptDimension(records, filters, 'bandAlignments', experienceBandsConfig, policySourceByEmployeeId);
     const set = new Set<string>();
     for (const r of subset) {
       const alignment = getExperienceBandAlignment(getYoe(r), r.Current_TCC_Percentile, experienceBandsConfig);
@@ -551,6 +582,13 @@ export function deriveFilterOptionsCascading(
     }
     result.bandAlignments = Array.from(set).sort(sort);
   }
+
+  const subsetPolicy = applyFiltersExceptDimension(records, filters, 'policySources', experienceBandsConfig, policySourceByEmployeeId);
+  const policySet = new Set<string>();
+  for (const r of subsetPolicy) {
+    add(policySet, policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name);
+  }
+  result.policySources = Array.from(policySet).sort(sort);
 
   return result;
 }
@@ -574,6 +612,7 @@ export function loadFiltersFromStorage(): SalaryReviewFilters {
       populations: Array.isArray(parsed.populations) ? parsed.populations : [],
       experienceBands: Array.isArray(parsed.experienceBands) ? parsed.experienceBands : [],
       bandAlignments: Array.isArray(parsed.bandAlignments) ? parsed.bandAlignments : [],
+      policySources: Array.isArray(parsed.policySources) ? parsed.policySources : [],
       approvedIncreasePercentMin:
         typeof parsed.approvedIncreasePercentMin === 'number' ? parsed.approvedIncreasePercentMin : undefined,
       approvedIncreasePercentMax:

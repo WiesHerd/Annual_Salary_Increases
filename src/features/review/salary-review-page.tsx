@@ -1,9 +1,13 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
+import { buildMarketResolver } from '../../lib/joins';
+import { loadSurveySpecialtyMappingSet, loadProviderTypeToSurveyMapping } from '../../lib/parameters-storage';
 import { useParametersState } from '../../hooks/use-parameters-state';
+import { usePolicyEngineState } from '../../hooks/use-policy-engine-state';
 import { useSelectedCycle } from '../../hooks/use-selected-cycle';
+import { evaluatePolicyForProvider } from '../../lib/policy-engine/evaluator';
+import type { PolicyEvaluationContext } from '../../lib/policy-engine/evaluator';
 import type { ProviderRecord } from '../../types/provider';
-import type { MarketRow } from '../../types/market';
 import { ReviewStatus } from '../../types/enums';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
 import {
@@ -51,11 +55,14 @@ type SortDir = 'asc' | 'desc';
 
 interface SalaryReviewPageProps {
   onNavigateToImport?: () => void;
+  fullScreen?: boolean;
+  onFullScreenChange?: (full: boolean) => void;
 }
 
-export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) {
-  const { records, setRecords, marketData, loaded } = useAppState();
-  const { experienceBands, meritMatrix, cycles, budgetSettings } = useParametersState();
+export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFullScreenChange }: SalaryReviewPageProps) {
+  const { records, setRecords, marketSurveys, loaded } = useAppState();
+  const { experienceBands, meritMatrix, cycles, budgetSettings, cfBySpecialty } = useParametersState();
+  const { policies, customModels, tierTables } = usePolicyEngineState();
   const [selectedCycleId] = useSelectedCycle(cycles);
   const [reviewTableState, setReviewTableState] = useState(loadReviewTableFromStorage);
   const visibleColumnIds = reviewTableState.visibleColumnIds;
@@ -72,6 +79,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   const [notesModalEmployeeId, setNotesModalEmployeeId] = useState<string | null>(null);
   const [customViewDropdownOpen, setCustomViewDropdownOpen] = useState(false);
   const [columnDropdownOpen, setColumnDropdownOpen] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState('');
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
@@ -85,6 +93,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   const [editBuffer, setEditBuffer] = useState('');
   const [resizingColumnIndex, setResizingColumnIndex] = useState<number | null>(null);
   const resizeRef = useRef<{ columnId: ReviewTableColumnId; startX: number; startWidth: number } | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [reviewViewMode, setReviewViewMode] = useState<'table' | 'trend'>('table');
   const [trendGroupBy, setTrendGroupBy] = useState<ExperienceSalaryGroupBy>('population');
 
@@ -129,11 +138,96 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     return () => clearTimeout(t);
   }, [selectedEmployeeId]);
 
-  const marketBySpecialty = useMemo(() => {
-    const m = new Map<string, MarketRow>();
-    for (const row of marketData) m.set(row.specialty.trim(), row);
-    return m;
-  }, [marketData]);
+  const marketResolver = useMemo(
+    () =>
+      buildMarketResolver(marketSurveys, loadSurveySpecialtyMappingSet(), loadProviderTypeToSurveyMapping()),
+    [marketSurveys]
+  );
+
+  const asOfDate = useMemo(() => {
+    const cycle = cycles.find((c) => c.id === selectedCycleId);
+    return cycle?.effectiveDate ?? undefined;
+  }, [cycles, selectedCycleId]);
+
+  const policyContext = useMemo(
+    (): PolicyEvaluationContext => ({
+      policies,
+      customModels,
+      tierTables,
+      meritMatrixRows: meritMatrix,
+      asOfDate,
+    }),
+    [policies, customModels, tierTables, meritMatrix, asOfDate]
+  );
+
+  const evaluationResults = useMemo(() => {
+    const map = new Map<string, import('../../types/compensation-policy').PolicyEvaluationResult>();
+    for (const r of records) {
+      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
+      const result = evaluatePolicyForProvider(r, { ...policyContext, marketRow });
+      map.set(r.Employee_ID, result);
+    }
+    return map;
+  }, [records, policyContext, marketResolver]);
+
+  // Apply policy engine results to records (e.g. PCP tier base salary) when policies or records change
+  useEffect(() => {
+    if (records.length === 0) return;
+    const ctx: PolicyEvaluationContext = {
+      policies,
+      customModels,
+      tierTables,
+      meritMatrixRows: meritMatrix,
+      asOfDate: cycles.find((c) => c.id === selectedCycleId)?.effectiveDate,
+    };
+    let hasChange = false;
+    const nextRecords = records.map((r) => {
+      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
+      const policyResult = evaluatePolicyForProvider(r, { ...ctx, marketRow });
+      const recalculated = recalculateProviderRow({
+        record: r,
+        marketRow,
+        experienceBands,
+        meritMatrixRows: meritMatrix,
+        policyResult,
+        cfBySpecialty,
+      });
+      if (
+        recalculated.Proposed_Base_Salary !== r.Proposed_Base_Salary ||
+        recalculated.Approved_Increase_Percent !== r.Approved_Increase_Percent ||
+        recalculated.Approved_Increase_Amount !== r.Approved_Increase_Amount ||
+        recalculated.Policy_Tier_Assigned !== r.Policy_Tier_Assigned ||
+        recalculated.Proposed_Tier !== r.Proposed_Tier
+      ) {
+        hasChange = true;
+      }
+      return recalculated;
+    });
+    if (hasChange) setRecords(nextRecords);
+  }, [
+    records,
+    policies,
+    customModels,
+    tierTables,
+    meritMatrix,
+    experienceBands,
+    cfBySpecialty,
+    marketResolver,
+    cycles,
+    selectedCycleId,
+    setRecords,
+  ]);
+
+  const policySourceByEmployeeId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of records) {
+      const source = evaluationResults.get(r.Employee_ID)?.finalPolicySource ?? r.Policy_Source_Name ?? '—';
+      map.set(r.Employee_ID, source);
+    }
+    return map;
+  }, [records, evaluationResults]);
 
   const orderedColumnIds = useMemo((): ReviewTableColumnId[] => {
     const frozenOrdered = frozenColumnIds.filter((id) => visibleColumnIds.includes(id));
@@ -228,6 +322,24 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [customViewDropdownOpen, closeCustomDropdown]);
 
+  useEffect(() => {
+    if (!exportDropdownOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportDropdownOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [exportDropdownOpen]);
+
+  useEffect(() => {
+    if (!fullScreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onFullScreenChange?.(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fullScreen, onFullScreenChange]);
+
   const applyPreset = useCallback((presetId: ReviewViewPresetId) => {
     setReviewTableState((prev) => ({
       ...prev,
@@ -284,12 +396,12 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   }, []);
 
   const filteredRecords = useMemo(
-    () => applyFilters(records, filters, experienceBands),
-    [records, filters, experienceBands]
+    () => applyFilters(records, filters, experienceBands, policySourceByEmployeeId),
+    [records, filters, experienceBands, policySourceByEmployeeId]
   );
   const filterOptions = useMemo(
-    () => deriveFilterOptionsCascading(records, filters, experienceBands),
-    [records, filters, experienceBands]
+    () => deriveFilterOptionsCascading(records, filters, experienceBands, policySourceByEmployeeId),
+    [records, filters, experienceBands, policySourceByEmployeeId]
   );
 
   const summaryTotals = useMemo(() => computeSummary(filteredRecords), [filteredRecords]);
@@ -314,14 +426,14 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
 
   const sortedRecords = useMemo(() => {
     return [...filteredRecords].sort((a, b) => {
-      const aVal = getReviewCellSortValue(a, sortKey, experienceBands);
-      const bVal = getReviewCellSortValue(b, sortKey, experienceBands);
+      const aVal = getReviewCellSortValue(a, sortKey, experienceBands, evaluationResults.get(a.Employee_ID), cfBySpecialty);
+      const bVal = getReviewCellSortValue(b, sortKey, experienceBands, evaluationResults.get(b.Employee_ID), cfBySpecialty);
       let cmp = 0;
       if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
       else cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filteredRecords, sortKey, sortDir, experienceBands]);
+  }, [filteredRecords, sortKey, sortDir, experienceBands, evaluationResults, cfBySpecialty]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -430,20 +542,23 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
       if (!record) return;
       const merged = { ...record, ...updates };
       const matchKey = (merged.Market_Specialty_Override ?? merged.Specialty ?? merged.Benchmark_Group ?? '').trim();
-      const marketRow = matchKey ? marketBySpecialty.get(matchKey) : undefined;
+      const marketRow = matchKey ? marketResolver(merged, matchKey) : undefined;
+      const policyResult = evaluationResults.get(employeeId);
       const next = recalculateProviderRow({
         record: merged,
         marketRow,
         experienceBands,
         meritMatrixRows: meritMatrix,
+        policyResult,
+        cfBySpecialty,
       });
       setRecords(records.map((r) => (r.Employee_ID === employeeId ? next : r)));
     },
-    [records, setRecords, marketBySpecialty, experienceBands, meritMatrix]
+    [records, setRecords, marketResolver, experienceBands, meritMatrix, evaluationResults]
   );
 
   const handleExportCsv = () => {
-    const csv = exportToCsv(records);
+    const csv = exportToCsv(records, evaluationResults);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -454,7 +569,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   };
 
   const handleExportXlsx = async () => {
-    const buffer = exportToXlsx(records);
+    const buffer = exportToXlsx(records, evaluationResults);
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -599,11 +714,30 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
   }
 
   return (
-    <div className="flex flex-col min-w-0">
+    <div className={`flex flex-col min-w-0 ${fullScreen ? 'p-3' : ''}`}>
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+            {onFullScreenChange && (
+              <button
+                type="button"
+                onClick={() => onFullScreenChange(!fullScreen)}
+                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                title={fullScreen ? 'Exit full screen (Esc)' : 'Expand to full screen'}
+                aria-label={fullScreen ? 'Exit full screen' : 'Expand to full screen'}
+              >
+                {fullScreen ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                  </svg>
+                )}
+              </button>
+            )}
             <div className="flex rounded-xl border border-slate-300 bg-slate-50">
               {(['table', 'trend'] as const).map((mode) => (
                 <button
@@ -626,7 +760,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
               <>
             <span className="text-sm text-slate-600 mr-1">View:</span>
             <div className="flex rounded-xl border border-slate-300 bg-slate-50">
-              {(['meeting', 'full', 'comp'] as const).map((presetId, idx) => (
+              {(['meeting', 'full', 'comp', 'policy'] as const).map((presetId, idx) => (
                 <button
                   key={presetId}
                   type="button"
@@ -637,7 +771,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                       : 'text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  {presetId}
+                  {presetId === 'policy' ? 'Policy' : presetId.charAt(0).toUpperCase() + presetId.slice(1)}
                 </button>
               ))}
               <div className="relative">
@@ -847,20 +981,52 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             >
               Compare {selectedForCompare.length > 0 ? `(${selectedForCompare.length})` : ''}
             </button>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={handleExportXlsx}
-              className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              Export XLSX
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExportDropdownOpen((o) => !o)}
+                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700 inline-flex items-center gap-1.5"
+                aria-expanded={exportDropdownOpen}
+                aria-haspopup="menu"
+                title="Export table"
+              >
+                Export
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {exportDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    aria-hidden
+                    onClick={() => setExportDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[10rem] py-1 bg-white border border-slate-200 rounded-xl shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportCsv();
+                        setExportDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-t-xl"
+                    >
+                      Export as CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportXlsx();
+                        setExportDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-b-xl"
+                    >
+                      Export as XLSX
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
               </>
             )}
           </div>
@@ -915,10 +1081,16 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
             </div>
           ) : (
           <>
-          <div className="min-w-0 overflow-auto max-h-[calc(100vh-12rem)]">
+          <div
+              ref={tableScrollRef}
+              className={`min-w-0 overflow-auto border-t border-neutral-200/80 ${fullScreen ? 'max-h-[calc(100vh-10rem)]' : 'max-h-[calc(100vh-12rem)]'}`}
+            >
             <table
               className="border-collapse table-fixed"
-              style={{ width: totalTableWidthPx, minWidth: totalTableWidthPx }}
+              style={{
+                width: totalTableWidthPx,
+                minWidth: `max(100%, ${totalTableWidthPx}px)`,
+              }}
             >
               <colgroup>
                 {visibleColumns.map((col) => (
@@ -947,7 +1119,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                           maxWidth: widthPx,
                           ...(frozen && left !== undefined ? { position: 'sticky', left, zIndex: 21 } : {}),
                         }}
-                        className={`relative px-3 py-2.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors whitespace-normal overflow-hidden ${
+                        className={`relative px-2 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors whitespace-normal overflow-hidden ${
                           col.id === 'compareCheckbox' ? 'cursor-default' : 'cursor-pointer'
                         } ${frozen ? 'shadow-[2px_0_4px_rgba(0,0,0,0.06)]' : ''} ${col.align === 'right' ? 'text-right' : 'text-left'} ${draggingColumnIndex === index ? 'opacity-50' : ''} ${
                           dragOverColumnIndex === index ? 'bg-indigo-100 ring-1 ring-indigo-300' : ''
@@ -969,7 +1141,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                             />
                           </label>
                         ) : (
-                        <span className={`flex items-center gap-1 min-w-0 ${col.align === 'right' ? 'justify-end' : ''}`}>
+                        <span className={`flex items-start gap-1 min-w-0 ${col.align === 'right' ? 'justify-end' : ''}`}>
                           <span
                             className="shrink-0 w-3 cursor-grab active:cursor-grabbing text-neutral-400"
                             aria-hidden
@@ -978,7 +1150,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                           >
                             ⋮⋮
                           </span>
-                          <span className={`min-w-0 truncate block ${col.align === 'right' ? 'text-right' : 'text-left'}`} title={col.label}>
+                          <span className={`min-w-0 break-words leading-tight ${col.align === 'right' ? 'text-right' : 'text-left'}`} title={col.label}>
                             {col.label}
                           </span>
                           {sortKey === col.id && (
@@ -991,8 +1163,8 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                         <span
                           role="separator"
                           aria-label={`Resize column ${col.label}`}
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 touch-none hover:bg-blue-300/40 active:bg-blue-400/40"
-                          style={{ marginRight: '-3px' }}
+                          className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 touch-none z-30 hover:bg-blue-300/50 active:bg-blue-400/50"
+                          style={{ marginRight: '-4px' }}
                           onMouseDown={handleResizeStart(index)}
                         />
                       </th>
@@ -1018,7 +1190,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                     } ${rowAlignmentClass}`}
                   >
                     {visibleColumns.map((col, colIndex) => {
-                      const value = getReviewCellValue(r, col.id, experienceBands);
+                      const value = getReviewCellValue(r, col.id, experienceBands, evaluationResults.get(r.Employee_ID), cfBySpecialty);
                       const display = formatReviewCellValue(value, col.format);
                       const isEditable = col.editable && col.id !== 'notesIndicator';
                       const isNotes = col.id === 'notesIndicator';
@@ -1052,7 +1224,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                             maxWidth: widthPx,
                             ...(frozen && left !== undefined ? { position: 'sticky', left } : {}),
                           }}
-                          className={`px-3 py-2 text-sm text-slate-800 whitespace-nowrap overflow-hidden ${stickyCellClass} ${alignmentCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
+                          className={`px-2 py-1.5 text-sm text-slate-800 whitespace-nowrap overflow-hidden ${stickyCellClass} ${alignmentCellClass} ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
                           onClick={(e) => isNotes && e.stopPropagation()}
                         >
                           {col.id === 'compareCheckbox' ? (
@@ -1067,18 +1239,48 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                               />
                             </label>
                           ) : col.id === 'reviewStatus' && col.editable ? (
-                            <select
-                              value={r.Review_Status ?? ''}
-                              onChange={(e) => updateRecord(r.Employee_ID, { Review_Status: e.target.value as ReviewStatus })}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            >
-                              {Object.values(ReviewStatus).map((s) => (
-                                <option key={s} value={s}>
-                                  {s.replace('_', ' ')}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()} role="group" aria-label="Set status">
+                              {[
+                                { status: ReviewStatus.InReview, icon: 'progress', label: 'In progress' },
+                                { status: ReviewStatus.Approved, icon: 'done', label: 'Complete' },
+                              ].map(({ status, icon, label }) => {
+                                const current = (r.Review_Status ?? '').trim();
+                                const isEffectiveAsComplete = current === ReviewStatus.Effective;
+                                const isInProgress =
+                                  current === ReviewStatus.InReview ||
+                                  current === '' ||
+                                  current === ReviewStatus.Draft ||
+                                  current === ReviewStatus.Deferred;
+                                const isActive =
+                                  current === status ||
+                                  (status === ReviewStatus.Approved && isEffectiveAsComplete) ||
+                                  (status === ReviewStatus.InReview && isInProgress);
+                                const activeClass =
+                                  isActive && status === ReviewStatus.Approved
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : isActive
+                                      ? 'bg-indigo-100 text-indigo-700'
+                                      : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600';
+                                return (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => updateRecord(r.Employee_ID, { Review_Status: status })}
+                                    className={`p-1 rounded transition-colors ${activeClass}`}
+                                    title={label}
+                                    aria-label={label}
+                                    aria-pressed={isActive}
+                                  >
+                                    {icon === 'progress' && (
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    )}
+                                    {icon === 'done' && (
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           ) : isNotes && col.editable ? (
                             <button
                               type="button"
@@ -1174,6 +1376,25 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
                               onClick={(e) => e.stopPropagation()}
                               className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                             />
+                          ) : col.id === 'policySource' && (r.Policy_Rule_Id || evaluationResults.get(r.Employee_ID)?.appliedPolicies?.[0]?.id) ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const ruleId = r.Policy_Rule_Id ?? evaluationResults.get(r.Employee_ID)?.appliedPolicies?.[0]?.id ?? '';
+                                if (ruleId) {
+                                  const search = `?tab=policy-engine&sub=rules&ruleId=${encodeURIComponent(ruleId)}`;
+                                  const hash = '#parameters';
+                                  const url = `${window.location.pathname}${search}${hash}`;
+                                  history.replaceState(null, '', url);
+                                  window.dispatchEvent(new HashChangeEvent('hashchange'));
+                                }
+                              }}
+                              className="text-left w-full min-w-0 truncate block text-indigo-600 hover:text-indigo-800 hover:underline focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded px-0.5 -mx-0.5"
+                              title="Open rule in Policy Engine"
+                            >
+                              {display}
+                            </button>
                           ) : (
                             <span className="block truncate min-w-0" title={String(display)}>
                               {display}
@@ -1305,6 +1526,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
               provider={selectedRecord}
               enrichment={selectedEnrichment}
               experienceBands={experienceBands}
+              policyResult={selectedEmployeeId ? evaluationResults.get(selectedEmployeeId) ?? null : null}
               onClose={handleCloseDrawer}
               onSelectPrev={handleSelectPrev}
               onSelectNext={handleSelectNext}
@@ -1320,7 +1542,7 @@ export function SalaryReviewPage({ onNavigateToImport }: SalaryReviewPageProps) 
         <ProviderCompareModal
           providerIds={selectedForCompare}
           records={records}
-          marketBySpecialty={marketBySpecialty}
+          marketResolver={marketResolver}
           experienceBands={experienceBands}
           onClose={() => setCompareModalOpen(false)}
           onClearSelection={clearCompareSelection}
