@@ -6,7 +6,6 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
-import { clearAllTccData } from '../../lib/storage';
 import type {
   ProviderUploadResult,
   MarketUploadResult,
@@ -182,7 +181,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     replacePaymentsFromUpload,
     clearPayments,
     loaded,
-    loadDemoData,
   } = useAppState();
 
   const surveyIds = useMemo(() => {
@@ -235,12 +233,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     a.click();
   };
 
-  const handleResetAllData = () => {
-    if (!window.confirm('Reset all data? This will clear providers, market, evaluations, payments, parameters, and policy engine. The page will reload.')) return;
-    clearAllTccData();
-    window.location.reload();
-  };
-
   if (!loaded) {
     return (
       <div className="flex items-center justify-center min-h-[200px] text-slate-500 font-medium">
@@ -273,24 +265,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-slate-900">Import Data</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={loadDemoData}
-            className="app-btn-secondary"
-            title="Replace all data with seed data for development and testing"
-          >
-            Load demo data
-          </button>
-          <button
-            type="button"
-            onClick={handleResetAllData}
-            className="app-btn-secondary text-amber-700 hover:bg-amber-50 border-amber-300"
-            title="Clear all TCC data and reload for a fresh start"
-          >
-            Reset all data
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 grid-rows-2 gap-6">

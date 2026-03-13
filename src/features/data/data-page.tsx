@@ -45,7 +45,6 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
     payments,
     clearPayments,
     loaded,
-    loadDemoData,
   } = useAppState();
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('physicians');
 
@@ -89,14 +88,6 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={loadDemoData}
-            className="app-btn-secondary"
-            title="Replace all data with seed data for development and testing"
-          >
-            Load demo data
-          </button>
         </div>
       )}
 
