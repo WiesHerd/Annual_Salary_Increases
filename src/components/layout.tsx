@@ -115,7 +115,7 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 shrink-0 flex items-center justify-center">
               <img
-                src="/GrokImage.jpg"
+                src="/app-icon.png"
                 alt="Meritly"
                 className="max-w-full max-h-full w-full h-full object-contain"
               />
