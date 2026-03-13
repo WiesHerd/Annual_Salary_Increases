@@ -65,6 +65,11 @@ export function useAppState() {
     if (recs.length === 0) {
       recs = getSeedProviderRecords();
       saveProviderRecords(recs);
+      try {
+        window.localStorage.setItem('asi-demo-mode', 'true');
+      } catch {
+        // ignore
+      }
     }
     let surveys = loadMarketSurveys();
     if (Object.keys(surveys).length === 0 || (surveys[DEFAULT_SURVEY_ID]?.length === 0)) {
@@ -106,6 +111,11 @@ export function useAppState() {
   }, [payments, loaded]);
 
   const addFromUpload = useCallback((result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
+    try {
+      window.localStorage.setItem('asi-demo-mode', 'false');
+    } catch {
+      // ignore
+    }
     setRecords((prev) => {
       const existingIds = new Set(prev.map((r) => r.Employee_ID));
       const toAdd = result.rows.filter((r) => !existingIds.has(r.Employee_ID));
@@ -115,6 +125,11 @@ export function useAppState() {
   }, [marketSurveys, mergeAll]);
 
   const replaceFromUpload = useCallback((result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
+    try {
+      window.localStorage.setItem('asi-demo-mode', 'false');
+    } catch {
+      // ignore
+    }
     const merged = mergeAll(result.rows, marketSurveys);
     setRecords(merged);
     return merged.length;
@@ -251,6 +266,11 @@ export function useAppState() {
     setEvaluationRows(evaluationRows);
     setMarketSurveys(seedSurveys);
     setPayments(payments);
+    try {
+      window.localStorage.setItem('asi-demo-mode', 'true');
+    } catch {
+      // ignore
+    }
   }, [mergeAll]);
 
   return {

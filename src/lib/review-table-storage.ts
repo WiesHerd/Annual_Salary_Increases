@@ -5,6 +5,7 @@
 import {
   REVIEW_TABLE_COLUMNS,
   REVIEW_VIEW_PRESETS,
+  DEFAULT_PRESET_ORDER,
   type ReviewTableColumnId,
   type ReviewViewPresetId,
   type SavedCustomView,
@@ -18,6 +19,8 @@ const STORAGE_KEY_SAVED_VIEWS = 'salary-review-saved-custom-views';
 const STORAGE_KEY_ACTIVE_CUSTOM_VIEW = 'salary-review-active-custom-view-id';
 const STORAGE_KEY_COLUMN_WIDTHS = 'salary-review-column-widths';
 const STORAGE_KEY_FROZEN_COLUMNS = 'salary-review-frozen-columns';
+const STORAGE_KEY_PRESET_LABELS = 'salary-review-preset-labels';
+const STORAGE_KEY_PRESET_ORDER = 'salary-review-preset-order';
 
 const MAX_SAVED_CUSTOM_VIEWS = 10;
 const COLUMN_WIDTH_MIN = 80;
@@ -37,6 +40,10 @@ export interface ReviewTableStorage {
   activeCustomViewId: string | null;
   columnWidths: Record<ReviewTableColumnId, number>;
   frozenColumnIds: ReviewTableColumnId[];
+  /** Custom labels for preset buttons; only stored keys override defaults. */
+  presetLabels: Partial<Record<ReviewViewPresetId, string>>;
+  /** Order of preset buttons; must contain all four preset IDs. */
+  presetOrder: ReviewViewPresetId[];
 }
 
 function parseColumnIds(raw: unknown): ReviewTableColumnId[] | null {
@@ -86,6 +93,31 @@ function parseSavedCustomViews(raw: unknown): SavedCustomView[] {
   return views.slice(0, MAX_SAVED_CUSTOM_VIEWS);
 }
 
+function parsePresetLabels(raw: unknown): Partial<Record<ReviewViewPresetId, string>> {
+  if (raw == null || typeof raw !== 'object') return {};
+  const out: Partial<Record<ReviewViewPresetId, string>> = {};
+  const obj = raw as Record<string, unknown>;
+  for (const id of DEFAULT_PRESET_ORDER) {
+    const v = obj[id];
+    if (typeof v === 'string' && v.trim().length > 0) out[id] = v.trim();
+  }
+  return out;
+}
+
+function parsePresetOrder(raw: unknown): ReviewViewPresetId[] {
+  if (!Array.isArray(raw) || raw.length !== 4) return [...DEFAULT_PRESET_ORDER];
+  const ids = raw.filter((id): id is ReviewViewPresetId => typeof id === 'string' && (id === 'meeting' || id === 'full' || id === 'comp' || id === 'policy'));
+  const set = new Set(ids);
+  if (set.size !== 4) return [...DEFAULT_PRESET_ORDER];
+  for (const id of DEFAULT_PRESET_ORDER) {
+    if (!set.has(id)) return [...DEFAULT_PRESET_ORDER];
+  }
+  return ids;
+}
+
+const defaultPresetLabels: Partial<Record<ReviewViewPresetId, string>> = {};
+const defaultPresetOrder = [...DEFAULT_PRESET_ORDER];
+
 /** Load saved column visibility and preset from localStorage. Falls back to full preset if missing or invalid. */
 export function loadReviewTableFromStorage(): ReviewTableStorage {
   const defaultWidths = getDefaultColumnWidths();
@@ -96,11 +128,15 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
     const rawActiveViewId = localStorage.getItem(STORAGE_KEY_ACTIVE_CUSTOM_VIEW);
     const rawColumnWidths = localStorage.getItem(STORAGE_KEY_COLUMN_WIDTHS);
     const rawFrozenColumns = localStorage.getItem(STORAGE_KEY_FROZEN_COLUMNS);
+    const rawPresetLabels = localStorage.getItem(STORAGE_KEY_PRESET_LABELS);
+    const rawPresetOrder = localStorage.getItem(STORAGE_KEY_PRESET_ORDER);
     const columnIds = rawColumns ? parseColumnIds(JSON.parse(rawColumns)) : null;
     const preset = rawPreset ? parsePreset(JSON.parse(rawPreset)) : null;
     const savedCustomViews = rawSavedViews ? parseSavedCustomViews(JSON.parse(rawSavedViews)) : [];
     const columnWidths = rawColumnWidths ? parseColumnWidths(JSON.parse(rawColumnWidths)) ?? defaultWidths : defaultWidths;
     const frozenColumnIds = rawFrozenColumns ? parseFrozenColumnIds(JSON.parse(rawFrozenColumns)) : (['compareCheckbox', 'providerName'] as ReviewTableColumnId[]);
+    const presetLabels = rawPresetLabels ? parsePresetLabels(JSON.parse(rawPresetLabels)) : defaultPresetLabels;
+    const presetOrder = rawPresetOrder ? parsePresetOrder(JSON.parse(rawPresetOrder)) : defaultPresetOrder;
     let activeId: string | null = null;
     if (typeof rawActiveViewId === 'string' && rawActiveViewId) {
       try {
@@ -113,24 +149,19 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
       }
     }
 
+    const base = { savedCustomViews, activeCustomViewId: activeId, columnWidths, frozenColumnIds, presetLabels, presetOrder };
     if (columnIds && columnIds.length > 0) {
       return {
         visibleColumnIds: columnIds,
         preset: preset ?? 'custom',
-        savedCustomViews,
-        activeCustomViewId: activeId,
-        columnWidths,
-        frozenColumnIds,
+        ...base,
       };
     }
     const presetId = preset && preset !== 'custom' ? preset : 'full';
     return {
       visibleColumnIds: [...REVIEW_VIEW_PRESETS[presetId]],
       preset: presetId,
-      savedCustomViews,
-      activeCustomViewId: activeId,
-      columnWidths,
-      frozenColumnIds,
+      ...base,
     };
   } catch {
     return {
@@ -140,6 +171,8 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
       activeCustomViewId: null,
       columnWidths: defaultWidths,
       frozenColumnIds: ['compareCheckbox', 'providerName'] as ReviewTableColumnId[],
+      presetLabels: defaultPresetLabels,
+      presetOrder: defaultPresetOrder,
     };
   }
 }
@@ -149,6 +182,8 @@ export function saveReviewTableToStorage(state: ReviewTableStorage): void {
   try {
     const columnWidths = state.columnWidths ?? getDefaultColumnWidths();
     const frozenColumnIds = state.frozenColumnIds ?? ['providerName'];
+    const presetLabels = state.presetLabels ?? defaultPresetLabels;
+    const presetOrder = state.presetOrder ?? defaultPresetOrder;
     localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(state.visibleColumnIds));
     localStorage.setItem(STORAGE_KEY_PRESET, JSON.stringify(state.preset));
     localStorage.setItem(STORAGE_KEY_SAVED_VIEWS, JSON.stringify(state.savedCustomViews));
@@ -158,6 +193,8 @@ export function saveReviewTableToStorage(state: ReviewTableStorage): void {
     );
     localStorage.setItem(STORAGE_KEY_COLUMN_WIDTHS, JSON.stringify(columnWidths));
     localStorage.setItem(STORAGE_KEY_FROZEN_COLUMNS, JSON.stringify(frozenColumnIds));
+    localStorage.setItem(STORAGE_KEY_PRESET_LABELS, JSON.stringify(presetLabels));
+    localStorage.setItem(STORAGE_KEY_PRESET_ORDER, JSON.stringify(presetOrder));
   } catch {
     // ignore
   }

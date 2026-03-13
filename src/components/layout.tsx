@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { useParametersState } from '../hooks/use-parameters-state';
 import { useSelectedCycle } from '../hooks/use-selected-cycle';
 
-export type AppView = 'import' | 'data-browser' | 'specialty-map' | 'salary-review' | 'compare' | 'parameters';
+export type AppView = 'import' | 'data-browser' | 'specialty-map' | 'salary-review' | 'compare' | 'parameters' | 'help';
 
 interface LayoutProps {
   children: ReactNode;
@@ -35,7 +35,10 @@ const navSections: {
   },
   {
     label: 'CONFIGURATION',
-    items: [{ label: 'Controls', id: 'parameters', icon: 'settings' }],
+    items: [
+      { label: 'Controls', id: 'parameters', icon: 'settings' },
+      { label: 'Policy help', id: 'help', icon: 'help' },
+    ],
   },
   {
     label: 'OUTPUT',
@@ -83,6 +86,12 @@ function NavIcon({ name }: { name: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
         </svg>
       );
+    case 'help':
+      return (
+        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -96,11 +105,11 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
   return (
     <div className="min-h-screen flex bg-[#f8fafc]">
       {!sidebarHidden && (
-      <aside
-        className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
-          collapsed ? 'w-[72px]' : 'w-64'
-        }`}
-      >
+        <aside
+          className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
+            collapsed ? 'w-[72px]' : 'w-64'
+          }`}
+        >
         {/* Header: logo + title */}
         <div className="p-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
@@ -201,7 +210,7 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           </button>
           {!collapsed && (
             <div className="px-4 pb-3">
-              <p className="text-xs text-slate-400 text-center">Salary & compensation review</p>
+              <p className="text-xs text-slate-400 text-center">Annual salary increase modeler</p>
             </div>
           )}
         </div>

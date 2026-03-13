@@ -99,11 +99,6 @@ const TEMPLATES: Record<string, string> = {
   evaluation: '/sample-evaluations.csv',
 };
 
-const SIMULATION_TEMPLATES: Record<string, string> = {
-  provider: '/simulation-providers.csv',
-  evaluation: '/simulation-evaluations.csv',
-};
-
 /** Shared icon container - light green to match reference */
 const ICON_WRAPPER = 'rounded-lg bg-emerald-100 p-2.5 text-emerald-700 shrink-0';
 const ICON_SIZE = 'w-7 h-7';
@@ -231,8 +226,8 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     setModalOpen(null);
   };
 
-  const handleDownloadTemplate = (type: UploadCardType, simulation?: boolean) => {
-    const url = simulation ? SIMULATION_TEMPLATES[type] : TEMPLATES[type];
+  const handleDownloadTemplate = (type: UploadCardType) => {
+    const url = TEMPLATES[type];
     if (!url) return;
     const a = document.createElement('a');
     a.href = url;
@@ -291,7 +286,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
             type="button"
             onClick={handleResetAllData}
             className="app-btn-secondary text-amber-700 hover:bg-amber-50 border-amber-300"
-            title="Clear all TCC data and reload for fresh simulation testing"
+            title="Clear all TCC data and reload for a fresh start"
           >
             Reset all data
           </button>
@@ -318,9 +313,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('provider')} className="app-action-btn" title="Download sample template" aria-label="Download template">
               <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => handleDownloadTemplate('provider', true)} className="app-action-btn text-sm px-1.5" title="Download simulation dataset (policy testing: guardrail, modifier, merit matrix)" aria-label="Download simulation">
-              Sim
             </button>
             <button type="button" onClick={() => onNavigateToBrowser('provider')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
               <ViewDataIcon />
@@ -444,9 +436,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('evaluation')} className="app-action-btn" title="Download sample template" aria-label="Download template">
               <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => handleDownloadTemplate('evaluation', true)} className="app-action-btn text-sm px-1.5" title="Download simulation evaluations (covers merit matrix: Exceeds, Meets, Partially Meets, Below)" aria-label="Download simulation">
-              Sim
             </button>
             <button type="button" onClick={() => onNavigateToBrowser('evaluation')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
               <ViewDataIcon />

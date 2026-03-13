@@ -35,6 +35,7 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'cycle-budget',
     label: 'Cycle & budget',
+    subtitle: 'Cycles and budget targets used in Salary review',
     tabs: [
       { id: 'cycle', label: 'Cycle settings' },
       { id: 'budget', label: 'Budget settings' },
@@ -43,6 +44,7 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'base-increases',
     label: 'Base increases',
+    subtitle: 'Merit matrix and conversion factors for base recommendations',
     tabs: [
       { id: 'merit', label: 'Merit matrix' },
       { id: 'conversion-factor', label: 'Conversion factor by specialty' },
@@ -51,11 +53,13 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'mappings',
     label: 'Mappings',
+    subtitle: 'Provider type and survey mappings',
     tabs: [{ id: 'provider-type-survey', label: 'Provider type → Market survey' }],
   },
   {
     id: 'guardrails',
     label: 'Guardrails',
+    subtitle: 'Experience-based target ranges and review guardrails',
     tabs: [{ id: 'experience-bands', label: 'Experience band targets (review)' }],
   },
   {
@@ -93,7 +97,12 @@ function getInitialTabFromUrl(): ParametersTabId {
   return 'cycle';
 }
 
-export function ParametersPage() {
+export interface ParametersPageProps {
+  /** When provided, Policy Engine tabs show a link to open the Policy Help screen. */
+  onNavigateToHelp?: () => void;
+}
+
+export function ParametersPage({ onNavigateToHelp }: ParametersPageProps = {} as ParametersPageProps) {
   const [activeTab, setActiveTab] = useState<ParametersTabId>(getInitialTabFromUrl);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [createPolicyWizardOpen, setCreatePolicyWizardOpen] = useState(false);
@@ -143,8 +152,11 @@ export function ParametersPage() {
       <div className="shrink-0 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-slate-800">Control Panel</h2>
-            <p className="text-sm text-slate-600 mt-0.5">Compensation inputs and policy configuration. Manage cycles, budgets, merit matrix, and the Compensation Policy Engine.</p>
+            <h2 className="text-xl font-semibold text-slate-800">Controls</h2>
+            <p className="text-sm text-slate-600 mt-0.5">
+              Set cycles, budgets, merit matrix, guardrails, mappings, and Compensation Policy Engine rules that drive
+              annual salary increase recommendations.
+            </p>
           </div>
         </div>
 
@@ -246,6 +258,7 @@ export function ParametersPage() {
               meritMatrix={params.meritMatrix}
               policyState={policyState}
               onStartCreatePolicy={() => setCreatePolicyWizardOpen(true)}
+              onNavigateToHelp={onNavigateToHelp}
             />
           )}
           {activeTab === 'policy-engine-rules' && (
@@ -256,6 +269,7 @@ export function ParametersPage() {
               selectedRuleId={selectedRuleId}
               onSelectRuleId={setSelectedRuleId}
               onStartCreatePolicy={() => setCreatePolicyWizardOpen(true)}
+              onNavigateToHelp={onNavigateToHelp}
             />
           )}
           {activeTab === 'policy-engine-simulator' && (

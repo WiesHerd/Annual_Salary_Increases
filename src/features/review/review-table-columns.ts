@@ -206,6 +206,17 @@ export function getColumnWidthsToFillArea(
 /** Preset view IDs for one-click column sets. */
 export type ReviewViewPresetId = 'meeting' | 'full' | 'comp' | 'policy';
 
+/** Default display labels for preset view buttons. Can be overridden in storage. */
+export const DEFAULT_PRESET_LABELS: Record<ReviewViewPresetId, string> = {
+  meeting: 'Meeting',
+  full: 'Full',
+  comp: 'Comp',
+  policy: 'Policy',
+};
+
+/** Default order of preset buttons. Can be overridden in storage. */
+export const DEFAULT_PRESET_ORDER: ReviewViewPresetId[] = ['meeting', 'full', 'comp', 'policy'];
+
 /** User-saved custom column view. */
 export interface SavedCustomView {
   id: string;

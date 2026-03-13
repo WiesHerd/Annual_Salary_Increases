@@ -5,8 +5,6 @@
 
 import type { AnnualIncreasePolicy, CustomCompensationModel, PolicyModelConfig } from '../types/compensation-policy';
 import type { TierTable } from '../types/tier-table';
-import { POLICY_TEMPLATES, instantiateTemplate } from './policy-templates';
-
 const KEY_POLICIES = 'tcc-policy-engine-policies';
 const KEY_CUSTOM_MODELS = 'tcc-policy-engine-custom-models';
 const KEY_TIER_TABLES = 'tcc-policy-engine-tier-tables';
@@ -178,59 +176,6 @@ export function loadActiveMatrixId(): string | null {
 export function saveActiveMatrixId(id: string | null): void {
   if (id == null) localStorage.removeItem(KEY_ACTIVE_MATRIX_ID);
   else localStorage.setItem(KEY_ACTIVE_MATRIX_ID, id);
-}
-
-// ─── Template-based packs (used only when user clicks "Add from library" → Load pack) ───
-// No policies are created by the system on first load; all policies come from the policy system and can be deleted.
-
-const SAMPLE_TEMPLATE_KEYS = [
-  'guardrail-fmv-75th',
-  'fixed-pct-cardiology',
-  'tier-increase-pct-general-pediatrics',
-  'cap-max6',
-  'floor-min2',
-];
-
-/** Return a fresh copy of the sample policy pack (Add from library → "Load sample policy pack"). User can edit/delete any. */
-export function getSamplePolicyPack(): AnnualIncreasePolicy[] {
-  return SAMPLE_TEMPLATE_KEYS.map((k, i) => {
-    const t = POLICY_TEMPLATES.find((x) => x.templateKey === k);
-    return t ? instantiateTemplate(t.policy, `sample-${i}`) : null;
-  }).filter((p): p is AnnualIncreasePolicy => p != null);
-}
-
-/** Minimal pack with no guardrails — for testing tier policies (PCP base salary by YOE, etc.). */
-const MINIMAL_TEMPLATE_KEYS = [
-  'modifier-wrvu60',
-  'modifier-exceeds',
-  'cap-max6',
-  'floor-min2',
-];
-
-export function getMinimalPolicyPack(): AnnualIncreasePolicy[] {
-  return MINIMAL_TEMPLATE_KEYS.map((k) => {
-    const t = POLICY_TEMPLATES.find((x) => x.templateKey === k);
-    return t ? instantiateTemplate(t.policy, `minimal-${Date.now()}`) : null;
-  }).filter((p): p is AnnualIncreasePolicy => p != null);
-}
-
-/**
- * Targeted scenarios pack: FMV 75th guardrail (runs first), Cardiology 4%, General Pediatrics YOE tiers, then cap/floor.
- * Use this to verify policies do not step over each other and surgically target their intention.
- */
-const TARGETED_SCENARIOS_TEMPLATE_KEYS = [
-  'guardrail-fmv-75th', // FMV: TCC > 75th → 0% (takes precedence)
-  'fixed-pct-cardiology', // Cardiology: 4% fixed
-  'tier-increase-pct-general-pediatrics', // General Pediatrics / Pediatrics only: YOE tiers
-  'cap-max6',
-  'floor-min2',
-];
-
-export function getTargetedScenariosPolicyPack(): AnnualIncreasePolicy[] {
-  return TARGETED_SCENARIOS_TEMPLATE_KEYS.map((k) => {
-    const t = POLICY_TEMPLATES.find((x) => x.templateKey === k);
-    return t ? instantiateTemplate(t.policy, `targeted-${Date.now()}`) : null;
-  }).filter((p): p is AnnualIncreasePolicy => p != null);
 }
 
 const SAMPLE_CUSTOM_MODELS: CustomCompensationModel[] = [

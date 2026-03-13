@@ -1,13 +1,69 @@
 /**
  * Compare table: Provider | Specialty | Scenario A % | Scenario A $ | Scenario B % | Scenario B $ | Delta % | Delta $ | Policy source A | Policy source B
- * Matches Salary Review / provider-table layout with pagination.
+ * Matches Salary Review look and feel with resizable columns.
  */
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { CompareScenarioRow } from '../../lib/compare-scenarios-filters';
 import { formatCurrencyTwoDecimals } from '../review/review-table-columns';
 
 const PAGE_SIZES = [10, 25, 50, 100, 200] as const;
+
+const STORAGE_KEY_WIDTHS = 'compare-scenarios-column-widths';
+const COL_MIN = 60;
+const COL_MAX = 400;
+
+export type CompareTableColumnId =
+  | 'compareCheckbox'
+  | 'providerName'
+  | 'specialty'
+  | 'scenarioAPercent'
+  | 'scenarioADollars'
+  | 'scenarioBPercent'
+  | 'scenarioBDollars'
+  | 'deltaPercent'
+  | 'deltaDollars'
+  | 'policySourceA'
+  | 'policySourceB';
+
+const DEFAULT_WIDTHS: Record<CompareTableColumnId, number> = {
+  compareCheckbox: 44,
+  providerName: 160,
+  specialty: 100,
+  scenarioAPercent: 96,
+  scenarioADollars: 100,
+  scenarioBPercent: 96,
+  scenarioBDollars: 100,
+  deltaPercent: 80,
+  deltaDollars: 100,
+  policySourceA: 120,
+  policySourceB: 120,
+};
+
+function loadColumnWidths(): Record<CompareTableColumnId, number> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WIDTHS);
+    if (!raw) return { ...DEFAULT_WIDTHS };
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    const out = { ...DEFAULT_WIDTHS };
+    for (const key of Object.keys(DEFAULT_WIDTHS) as CompareTableColumnId[]) {
+      if (Number.isFinite(parsed[key])) {
+        out[key] = Math.max(COL_MIN, Math.min(COL_MAX, parsed[key]));
+      }
+    }
+    return out;
+  } catch {
+    return { ...DEFAULT_WIDTHS };
+  }
+}
+
+function saveColumnWidths(widths: Record<CompareTableColumnId, number>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_WIDTHS, JSON.stringify(widths));
+  } catch {
+    // ignore
+  }
+}
 
 export interface CompareScenariosTableProps {
   rows: CompareScenarioRow[];
@@ -35,6 +91,75 @@ export function CompareScenariosTable({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [goToPageInput, setGoToPageInput] = useState('');
+  const [columnWidths, setColumnWidths] = useState<Record<CompareTableColumnId, number>>(loadColumnWidths);
+  const [resizingColumnIndex, setResizingColumnIndex] = useState<number | null>(null);
+  const resizeRef = useRef<{ columnId: CompareTableColumnId; startX: number; startWidth: number } | null>(null);
+
+  const orderedColumnIds = useMemo((): CompareTableColumnId[] => {
+    const base = [
+      'providerName',
+      'specialty',
+      'scenarioAPercent',
+      'scenarioADollars',
+      'scenarioBPercent',
+      'scenarioBDollars',
+      'deltaPercent',
+      'deltaDollars',
+      'policySourceA',
+      'policySourceB',
+    ] as CompareTableColumnId[];
+    return onToggleCompare ? (['compareCheckbox', ...base] as CompareTableColumnId[]) : base;
+  }, [onToggleCompare]);
+
+  const setColumnWidth = useCallback((columnId: CompareTableColumnId, widthPx: number) => {
+    const clamped = Math.max(COL_MIN, Math.min(COL_MAX, widthPx));
+    setColumnWidths((prev) => {
+      const next = { ...prev, [columnId]: clamped };
+      saveColumnWidths(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (resizeRef.current == null) return;
+    const onMove = (e: MouseEvent) => {
+      const ref = resizeRef.current;
+      if (!ref) return;
+      const delta = e.clientX - ref.startX;
+      setColumnWidth(ref.columnId, ref.startWidth + delta);
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      setResizingColumnIndex(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [setColumnWidth]);
+
+  const handleResizeStart = useCallback(
+    (index: number) => (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const columnId = orderedColumnIds[index];
+      if (!columnId) return;
+      setResizingColumnIndex(index);
+      resizeRef.current = {
+        columnId,
+        startX: e.clientX,
+        startWidth: columnWidths[columnId] ?? DEFAULT_WIDTHS[columnId],
+      };
+    },
+    [orderedColumnIds, columnWidths]
+  );
+
+  const totalTableWidthPx = useMemo(
+    () => orderedColumnIds.reduce((sum, id) => sum + (columnWidths[id] ?? DEFAULT_WIDTHS[id]), 0),
+    [orderedColumnIds, columnWidths]
+  );
 
   const sortedRows = useMemo(() => {
     const sorted = [...rows];
@@ -139,104 +264,169 @@ export function CompareScenariosTable({
     );
   }
 
+  const getHeaderContent = (colId: CompareTableColumnId) => {
+    switch (colId) {
+      case 'compareCheckbox':
+        return (
+          <label className="flex items-center justify-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={paginatedRows.length > 0 && paginatedRows.every((r) => selectedForCompare.includes(r.record.Employee_ID))}
+              ref={(el) => {
+                if (el)
+                  el.indeterminate =
+                    paginatedRows.length > 0 &&
+                    paginatedRows.some((r) => selectedForCompare.includes(r.record.Employee_ID)) &&
+                    !paginatedRows.every((r) => selectedForCompare.includes(r.record.Employee_ID));
+              }}
+              onChange={selectAllOnPage}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              aria-label="Select all on page for compare"
+            />
+          </label>
+        );
+      case 'providerName':
+        return <>Provider <SortIcon col="providerName" /></>;
+      case 'specialty':
+        return <>Specialty <SortIcon col="specialty" /></>;
+      case 'scenarioAPercent':
+        return <>{scenarioALabel} % <SortIcon col="scenarioAPercent" /></>;
+      case 'scenarioADollars':
+        return <>{scenarioALabel} $</>;
+      case 'scenarioBPercent':
+        return <>{scenarioBLabel} % <SortIcon col="scenarioBPercent" /></>;
+      case 'scenarioBDollars':
+        return <>{scenarioBLabel} $</>;
+      case 'deltaPercent':
+        return <>Delta % <SortIcon col="deltaPercent" /></>;
+      case 'deltaDollars':
+        return <>Delta $ <SortIcon col="deltaDollars" /></>;
+      case 'policySourceA':
+        return 'Policy source A';
+      case 'policySourceB':
+        return 'Policy source B';
+      default:
+        return null;
+    }
+  };
+
+  const getCellContent = (colId: CompareTableColumnId, row: CompareScenarioRow) => {
+    switch (colId) {
+      case 'compareCheckbox':
+        return (
+          <label className="flex items-center justify-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedForCompare.includes(row.record.Employee_ID)}
+              onChange={() => toggleSelect(row.record.Employee_ID)}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              aria-label={`Select ${row.record.Provider_Name ?? row.record.Employee_ID} for compare`}
+            />
+          </label>
+        );
+      case 'providerName':
+        return row.record.Provider_Name ?? row.record.Employee_ID;
+      case 'specialty':
+        return row.record.Specialty ?? '—';
+      case 'scenarioAPercent':
+        return `${row.pctA.toFixed(2)}%`;
+      case 'scenarioADollars':
+        return formatCurrencyTwoDecimals(row.dollarA);
+      case 'scenarioBPercent':
+        return `${row.pctB.toFixed(2)}%`;
+      case 'scenarioBDollars':
+        return formatCurrencyTwoDecimals(row.dollarB);
+      case 'deltaPercent':
+        return `${row.deltaPct > 0 ? '+' : ''}${row.deltaPct.toFixed(2)}%`;
+      case 'deltaDollars':
+        return `${row.deltaDollars > 0 ? '+' : ''}${formatCurrencyTwoDecimals(row.deltaDollars)}`;
+      case 'policySourceA':
+        return row.sourceA;
+      case 'policySourceB':
+        return row.sourceB;
+      default:
+        return null;
+    }
+  };
+
+  const isRightAlign = (colId: CompareTableColumnId) =>
+    ['scenarioAPercent', 'scenarioADollars', 'scenarioBPercent', 'scenarioBDollars', 'deltaPercent', 'deltaDollars'].includes(colId);
+
+  const isSortable = (colId: CompareTableColumnId): colId is SortKey =>
+    ['providerName', 'specialty', 'scenarioAPercent', 'scenarioBPercent', 'deltaPercent', 'deltaDollars'].includes(colId);
+
   return (
     <div className="flex flex-col min-w-0 flex-1 border-t border-neutral-200/80">
       <div className="app-data-table-wrapper">
-        <table className="app-data-table">
-          <thead>
-            <tr>
-              {onToggleCompare && (
-                <th className="w-10 text-left cursor-default" title="Select for compare">
-                  <label className="flex items-center justify-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={paginatedRows.length > 0 && paginatedRows.every((r) => selectedForCompare.includes(r.record.Employee_ID))}
-                      ref={(el) => {
-                        if (el)
-                          el.indeterminate =
-                            paginatedRows.length > 0 &&
-                            paginatedRows.some((r) => selectedForCompare.includes(r.record.Employee_ID)) &&
-                            !paginatedRows.every((r) => selectedForCompare.includes(r.record.Employee_ID));
+        <table
+          className="app-data-table border-collapse table-fixed"
+          style={{
+            width: totalTableWidthPx,
+            minWidth: `max(100%, ${totalTableWidthPx}px)`,
+          }}
+        >
+          <colgroup>
+            {orderedColumnIds.map((id) => (
+              <col key={id} style={{ width: columnWidths[id] ?? DEFAULT_WIDTHS[id], minWidth: columnWidths[id] ?? DEFAULT_WIDTHS[id] }} />
+            ))}
+          </colgroup>
+          <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
+            <tr className="bg-neutral-50">
+              {orderedColumnIds.map((colId, index) => {
+                const widthPx = columnWidths[colId] ?? DEFAULT_WIDTHS[colId];
+                const sortable = isSortable(colId);
+                const rightAlign = isRightAlign(colId);
+                return (
+                  <th
+                    key={colId}
+                    style={{ width: widthPx, minWidth: widthPx, maxWidth: widthPx }}
+                    className={`relative px-2 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors overflow-hidden whitespace-nowrap ${
+                      colId === 'compareCheckbox' ? 'cursor-default text-left' : sortable ? 'cursor-pointer' : ''
+                    } ${rightAlign ? 'text-right' : 'text-left'} ${resizingColumnIndex === index ? 'select-none' : ''}`}
+                    onClick={colId === 'compareCheckbox' ? undefined : sortable ? () => handleSort(colId) : undefined}
+                    title={colId === 'compareCheckbox' ? 'Select 2–4 providers to compare in detail' : undefined}
+                  >
+                    <span className={`flex items-center gap-1 min-w-0 ${rightAlign ? 'justify-end' : ''}`}>
+                      {getHeaderContent(colId)}
+                    </span>
+                    <span
+                      role="separator"
+                      aria-label={`Resize column`}
+                      className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 touch-none z-30 hover:bg-blue-300/50 active:bg-blue-400/50"
+                      style={{ marginRight: '-4px' }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        handleResizeStart(index)(e);
                       }}
-                      onChange={selectAllOnPage}
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      aria-label="Select all on page for compare"
                     />
-                  </label>
-                </th>
-              )}
-              <th className="sortable text-left" onClick={() => handleSort('providerName')}>
-                Provider
-                <SortIcon col="providerName" />
-              </th>
-              <th className="sortable text-left" onClick={() => handleSort('specialty')}>
-                Specialty
-                <SortIcon col="specialty" />
-              </th>
-              <th className="sortable text-right" onClick={() => handleSort('scenarioAPercent')}>
-                {scenarioALabel} %
-                <SortIcon col="scenarioAPercent" />
-              </th>
-              <th className="text-right">{scenarioALabel} $</th>
-              <th className="sortable text-right" onClick={() => handleSort('scenarioBPercent')}>
-                {scenarioBLabel} %
-                <SortIcon col="scenarioBPercent" />
-              </th>
-              <th className="text-right">{scenarioBLabel} $</th>
-              <th className="sortable text-right" onClick={() => handleSort('deltaPercent')}>
-                Delta %
-                <SortIcon col="deltaPercent" />
-              </th>
-              <th className="sortable text-right" onClick={() => handleSort('deltaDollars')}>
-                Delta $
-                <SortIcon col="deltaDollars" />
-              </th>
-              <th className="text-left">Policy source A</th>
-              <th className="text-left">Policy source B</th>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white divide-y divide-slate-100">
             {paginatedRows.map((row) => (
-              <tr key={row.record.Employee_ID}>
-                {onToggleCompare && (
-                  <td>
-                    <label className="flex items-center justify-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedForCompare.includes(row.record.Employee_ID)}
-                        onChange={() => toggleSelect(row.record.Employee_ID)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        aria-label={`Select ${row.record.Provider_Name ?? row.record.Employee_ID} for compare`}
-                      />
-                    </label>
-                  </td>
-                )}
-                <td className="text-slate-900">{row.record.Provider_Name ?? row.record.Employee_ID}</td>
-                <td>{row.record.Specialty ?? '—'}</td>
-                <td className="text-right tabular-nums">{row.pctA.toFixed(2)}%</td>
-                <td className="text-right tabular-nums">{formatCurrencyTwoDecimals(row.dollarA)}</td>
-                <td className="text-right tabular-nums">{row.pctB.toFixed(2)}%</td>
-                <td className="text-right tabular-nums">{formatCurrencyTwoDecimals(row.dollarB)}</td>
-                <td
-                  className={`text-right tabular-nums ${
-                    row.deltaPct > 0 ? 'text-emerald-600' : row.deltaPct < 0 ? 'text-amber-600' : ''
-                  }`}
-                >
-                  {row.deltaPct > 0 ? '+' : ''}
-                  {row.deltaPct.toFixed(2)}%
-                </td>
-                <td
-                  className={`text-right tabular-nums ${
-                    row.deltaDollars > 0 ? 'text-emerald-600' : row.deltaDollars < 0 ? 'text-amber-600' : ''
-                  }`}
-                >
-                  {row.deltaDollars > 0 ? '+' : ''}
-                  {formatCurrencyTwoDecimals(row.deltaDollars)}
-                </td>
-                <td className="text-slate-600 text-xs">{row.sourceA}</td>
-                <td className="text-slate-600 text-xs">{row.sourceB}</td>
+              <tr key={row.record.Employee_ID} className="hover:bg-indigo-50/30 transition-colors">
+                {orderedColumnIds.map((colId) => {
+                  const rightAlign = isRightAlign(colId);
+                  const content = getCellContent(colId, row);
+                  const isDeltaPct = colId === 'deltaPercent';
+                  const isDeltaDollars = colId === 'deltaDollars';
+                  const deltaClass =
+                    isDeltaPct || isDeltaDollars
+                      ? (row.deltaPct > 0 || row.deltaDollars > 0 ? 'text-emerald-600' : row.deltaPct < 0 || row.deltaDollars < 0 ? 'text-amber-600' : '')
+                      : '';
+                  return (
+                    <td
+                      key={colId}
+                      className={`px-2 py-1.5 text-sm text-slate-800 whitespace-nowrap overflow-hidden ${colId === 'providerName' ? 'text-slate-900 font-medium' : ''} ${rightAlign ? 'text-right tabular-nums' : ''} ${colId === 'policySourceA' || colId === 'policySourceB' ? 'text-slate-600 text-xs' : ''} ${deltaClass}`}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

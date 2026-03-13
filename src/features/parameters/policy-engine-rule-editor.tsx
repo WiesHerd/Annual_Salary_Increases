@@ -27,6 +27,8 @@ interface PolicyRuleEditorProps {
   onUpdate: (updates: Partial<AnnualIncreasePolicy>) => void;
   onClose: () => void;
   parameterOptions: ParameterOptions;
+  /** When provided, shows "Save as template" to add current policy to the user template library. */
+  onSaveAsTemplate?: (policy: AnnualIncreasePolicy) => void;
 }
 
 const STAGES: PolicyStage[] = ['EXCLUSION_GUARDRAIL', 'CUSTOM_MODEL', 'MODIFIER', 'GENERAL_MATRIX', 'CAP_FLOOR'];
@@ -73,7 +75,7 @@ const EDIT_STEPS = [
 
 const SAVED_INDICATOR_DURATION_MS = 2500;
 
-export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions }: PolicyRuleEditorProps) {
+export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, onSaveAsTemplate }: PolicyRuleEditorProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
   const initialPolicyRef = useRef<AnnualIncreasePolicy>(JSON.parse(JSON.stringify(policy)));
@@ -328,6 +330,15 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions }
             </svg>
             Revert
           </button>
+          {onSaveAsTemplate && (
+            <button
+              type="button"
+              onClick={() => onSaveAsTemplate(policy)}
+              className="text-indigo-600 hover:text-indigo-800 text-sm px-2 py-1 font-medium"
+            >
+              Save as template
+            </button>
+          )}
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-700 text-sm px-2 py-1">
             Close
           </button>

@@ -166,7 +166,11 @@ export function PolicyEngineSimulatorTab({
           <div>
             <h2 className="text-xl font-semibold text-slate-800">Policy impact simulator</h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              Run the current policy set on provider records. Shows recommended increase % and budget impact.
+              Run the current policy set on a slice of provider records. Shows recommended increase %, manual review flags, and budget impact.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Step 1: choose how many providers to include. Step 2: adjust policies in the Policy library. Step 3: return
+              here and rerun to see the impact.
             </p>
           </div>
           <div className="flex items-center gap-2">

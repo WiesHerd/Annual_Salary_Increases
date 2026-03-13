@@ -65,7 +65,7 @@ To avoid policies stepping over each other, use **stage order** and **surgical t
 3. **Caps and floors last (CAP_FLOOR)**  
    Apply max/min (e.g. cap 6%, floor 2%) after the base increase is set.
 
-**Load targeted scenarios pack:** In Parameters → Policy engine → Rules, use **Add from library** → **Load targeted scenarios (FMV + Cardiology + Peds YOE)**. That loads: FMV 75th guardrail, Cardiology 4% fixed, General Pediatrics YOE tiers, cap 6%, floor 2%. Run Salary Review to see who gets which policy; FMV will zero out anyone above 75th before any other policy applies.
+Add these policies via **Parameters → Policy engine → Rules** → **Add from library** (individual templates: FMV 75th guardrail, Cardiology 4% fixed, General Pediatrics YOE tiers, cap/floor). Run Salary Review to see who gets which policy; FMV will zero out anyone above 75th before any other policy applies.
 
 ## Adding a new policy type or action
 

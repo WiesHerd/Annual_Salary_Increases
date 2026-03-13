@@ -4,8 +4,9 @@ import { DataPage, type DataTab } from './features/data/data-page';
 import { SalaryReviewPage } from './features/review/salary-review-page';
 import { CompareScenariosPage } from './features/compare/compare-scenarios-page';
 import { ParametersPage } from './features/parameters/parameters-page';
+import { PolicyHelpPage } from './features/help';
 
-const VIEWS: AppView[] = ['import', 'data-browser', 'specialty-map', 'salary-review', 'compare', 'parameters'];
+const VIEWS: AppView[] = ['import', 'data-browser', 'specialty-map', 'salary-review', 'compare', 'parameters', 'help'];
 
 function getInitialView(): AppView {
   const hash = window.location.hash.slice(1);
@@ -56,7 +57,8 @@ function App() {
           onFullScreenChange={setSalaryReviewFullScreen}
         />
       )}
-      {view === 'parameters' && <ParametersPage />}
+      {view === 'parameters' && <ParametersPage onNavigateToHelp={() => setView('help')} />}
+      {view === 'help' && <PolicyHelpPage onNavigateToParameters={() => setView('parameters')} />}
       {view === 'compare' && <CompareScenariosPage />}
     </Layout>
   );

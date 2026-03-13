@@ -7,12 +7,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AnnualIncreasePolicy, PolicyTargetScope } from '../../../types/compensation-policy';
+import { POLICY_STAGE_ORDER, POLICY_STAGE_LABELS } from '../../../types/compensation-policy';
 import type { ProviderRecord } from '../../../types/provider';
 import type { usePolicyEngineState } from '../../../hooks/use-policy-engine-state';
 import { PolicyRuleEditor } from '../policy-engine-rule-editor';
 import { POLICY_TEMPLATES, instantiateTemplate } from '../../../lib/policy-templates';
-import { getSamplePolicyPack, getMinimalPolicyPack, getTargetedScenariosPolicyPack } from '../../../lib/policy-engine-storage';
 import { sortPoliciesByStageAndPriority } from '../../../lib/policy-engine/stages';
+import { loadSavedPacks, createSavedPack, getPackById } from '../../../lib/policy-pack-storage';
+import {
+  loadUserTemplates,
+  instantiateUserTemplate,
+  createUserTemplate,
+  createUserTemplateFromPolicy,
+  updateUserTemplate,
+  deleteUserTemplate,
+  type UserPolicyTemplate,
+} from '../../../lib/policy-library-storage';
 
 const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[] = [
   { value: 0, label: '1st (Highest)', isFallback: false },
@@ -21,19 +31,6 @@ const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[]
   { value: 75, label: '4th (Low)', isFallback: false },
   { value: 100, label: 'Last (Fallback)', isFallback: true },
 ];
-
-const PRIORITY_LABELS: Record<number, string> = {
-  0: 'Highest',
-  25: 'High',
-  50: 'Medium',
-  75: 'Low',
-  100: 'Fallback',
-};
-
-function formatPriority(policy: AnnualIncreasePolicy): string {
-  if (policy.isFallback) return 'Fallback';
-  return PRIORITY_LABELS[policy.priority] ?? `Priority ${policy.priority}`;
-}
 
 function formatTargetScopeSummary(scope: PolicyTargetScope): string {
   const parts: string[] = [];
@@ -54,6 +51,7 @@ interface PolicyEngineRulesTabProps {
   selectedRuleId: string | null;
   onSelectRuleId: (id: string | null) => void;
   onStartCreatePolicy?: () => void;
+  onNavigateToHelp?: () => void;
 }
 
 function newId() {
@@ -67,8 +65,34 @@ export function PolicyEngineRulesTab({
   selectedRuleId,
   onSelectRuleId,
   onStartCreatePolicy,
+  onNavigateToHelp,
 }: PolicyEngineRulesTabProps) {
-  const { policies, setPolicies, persistNow } = policyState;
+  const { policies, setPolicies, tierTables, setTierTables, customModels, setCustomModels, persistNow } = policyState;
+  const [savePackOpen, setSavePackOpen] = useState(false);
+  const [savePackName, setSavePackName] = useState('');
+  const [savePackDescription, setSavePackDescription] = useState('');
+  const [loadPackConfirmId, setLoadPackConfirmId] = useState<string | null>(null);
+  const [savedPacksRefresh, setSavedPacksRefresh] = useState(0);
+  const [userTemplatesRefresh, setUserTemplatesRefresh] = useState(0);
+  const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState('');
+  const [editTemplateDescription, setEditTemplateDescription] = useState('');
+  const [editTemplateStage, setEditTemplateStage] = useState<AnnualIncreasePolicy['stage']>('MODIFIER');
+  const savedPacksList = useMemo(() => loadSavedPacks(), [savedPacksRefresh]);
+  const userTemplatesList = useMemo(() => loadUserTemplates(), [userTemplatesRefresh]);
+  const editingTemplate = useMemo(
+    () => (editingTemplateId ? userTemplatesList.find((t) => t.id === editingTemplateId) : null),
+    [editingTemplateId, userTemplatesList]
+  );
+
+  useEffect(() => {
+    if (editingTemplate) {
+      setEditTemplateName(editingTemplate.name);
+      setEditTemplateDescription(editingTemplate.description);
+      setEditTemplateStage(editingTemplate.stage);
+    }
+  }, [editingTemplate]);
 
   const addPolicy = useCallback(() => {
     const id = newId();
@@ -175,23 +199,45 @@ export function PolicyEngineRulesTab({
     [setPolicies, onSelectRuleId]
   );
 
-  const loadSamplePack = useCallback(() => {
-    setPolicies(getSamplePolicyPack());
-    setLibraryOpen(false);
-    onSelectRuleId(null);
-  }, [setPolicies, onSelectRuleId]);
+  const addFromUserTemplate = useCallback(
+    (template: UserPolicyTemplate) => {
+      const policy = instantiateUserTemplate(template);
+      setPolicies((prev) => [...prev, policy]);
+      onSelectRuleId(policy.id);
+      setLibraryOpen(false);
+    },
+    [setPolicies, onSelectRuleId]
+  );
 
-  const loadMinimalPack = useCallback(() => {
-    setPolicies(getMinimalPolicyPack());
-    setLibraryOpen(false);
-    onSelectRuleId(null);
-  }, [setPolicies, onSelectRuleId]);
+  const handleSavePack = useCallback(() => {
+    const name = savePackName.trim();
+    if (!name) return;
+    createSavedPack(name, policies, {
+      description: savePackDescription.trim() || undefined,
+      tierTables,
+      customModels,
+    });
+    setSavePackOpen(false);
+    setSavePackName('');
+    setSavePackDescription('');
+    setSavedPacksRefresh((n) => n + 1);
+    setShowSavedToast(true);
+  }, [policies, tierTables, customModels, savePackName, savePackDescription]);
 
-  const loadTargetedScenariosPack = useCallback(() => {
-    setPolicies(getTargetedScenariosPolicyPack());
-    setLibraryOpen(false);
-    onSelectRuleId(null);
-  }, [setPolicies, onSelectRuleId]);
+  const handleLoadPackConfirm = useCallback(
+    (packId: string) => {
+      const pack = getPackById(packId);
+      if (!pack) return;
+      setPolicies(pack.policies);
+      if (pack.tierTables != null) setTierTables(pack.tierTables);
+      if (pack.customModels != null) setCustomModels(pack.customModels);
+      setLoadPackConfirmId(null);
+      onSelectRuleId(null);
+    },
+    [setPolicies, setTierTables, setCustomModels, onSelectRuleId]
+  );
+
+  const packToLoad = loadPackConfirmId ? getPackById(loadPackConfirmId) : null;
 
   return (
     <div className={`flex flex-col min-h-0 w-full ${selectedPolicy ? 'min-h-fit' : 'h-full'}`}>
@@ -202,21 +248,64 @@ export function PolicyEngineRulesTab({
           </h3>
           <p className="text-sm text-slate-600 mt-0.5">
             {policies.length > 0
-              ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit.`
-              : 'Add from library or create new.'}
+              ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit or duplicate.`
+              : 'Start with a recipe from “Add from library” or create a new policy.'}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Common recipes include FMV caps, YOE tier models, and targeted modifiers. Use Priority to control which rules
+            run first within each stage.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSavePackOpen(true)}
+            className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+            title="Save current as pack (use next year or share)"
+            aria-label="Save current as pack"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          </button>
+          {onNavigateToHelp && (
+            <button
+              type="button"
+              onClick={onNavigateToHelp}
+              className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+              title="How to build policies"
+              aria-label="How to build policies"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setManageTemplatesOpen(true)}
+            className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+            title="Manage templates"
+            aria-label="Manage templates"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+          </button>
           <div className="relative">
             <button
               ref={addFromLibraryButtonRef}
               type="button"
               onClick={() => setLibraryOpen((o) => !o)}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+              title="Add from library"
+              aria-label="Add from library"
               aria-expanded={libraryOpen}
               aria-haspopup="true"
             >
-              Add from library
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.256A8.967 8.967 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.256A8.967 8.967 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              </svg>
             </button>
             {libraryOpen &&
               libraryDropdownRect &&
@@ -232,33 +321,42 @@ export function PolicyEngineRulesTab({
                     style={{ top: libraryDropdownRect.top, left: libraryDropdownRect.left }}
                     role="menu"
                   >
-                    <button
-                      type="button"
-                      onClick={loadSamplePack}
-                      className="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm font-medium text-indigo-600 border-b border-slate-100"
-                      role="menuitem"
-                    >
-                      Load sample policy pack
-                    </button>
-                    <button
-                      type="button"
-                      onClick={loadMinimalPack}
-                      className="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm font-medium text-indigo-600 border-b border-slate-100"
-                      title="No guardrails — use when testing PCP base salary by YOE tier or other custom models"
-                      role="menuitem"
-                    >
-                      Load minimal pack (no guardrails, for tier testing)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={loadTargetedScenariosPack}
-                      className="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm font-medium text-indigo-600 border-b border-slate-100"
-                      title="FMV 75th guardrail first, then Cardiology 4%, General Pediatrics YOE tiers, cap/floor."
-                      role="menuitem"
-                    >
-                      Load targeted scenarios (FMV + Cardiology + Peds YOE)
-                    </button>
-                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase">Or add individual templates</div>
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase">Start from a previous setup</div>
+                    {savedPacksList.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">No saved packs yet. Save current as pack to reuse next year.</div>
+                    ) : (
+                      savedPacksList.map((pack) => (
+                        <button
+                          key={pack.id}
+                          type="button"
+                          onClick={() => {
+                            setLibraryOpen(false);
+                            setLoadPackConfirmId(pack.id);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm font-medium text-indigo-600 border-b border-slate-100"
+                          role="menuitem"
+                        >
+                          <span className="block">{pack.name}</span>
+                          {pack.description && (
+                            <span className="text-xs text-slate-500 font-normal line-clamp-2">{pack.description}</span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase border-t border-slate-100 mt-1">Add from template</div>
+                    {userTemplatesList.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => addFromUserTemplate(t)}
+                        className="w-full px-3 py-2 text-left hover:bg-slate-50 text-sm"
+                        role="menuitem"
+                      >
+                        <span className="font-medium text-slate-800 block">{t.name}</span>
+                        <span className="text-slate-500 text-xs line-clamp-2">{t.description}</span>
+                        <span className="text-xs text-indigo-600 mt-0.5 inline-block">{t.stage}</span>
+                      </button>
+                    ))}
                     {POLICY_TEMPLATES.map((t) => (
                       <button
                         key={t.templateKey}
@@ -405,10 +503,279 @@ export function PolicyEngineRulesTab({
                 }}
                 onClose={handleCloseEditor}
                 parameterOptions={parameterOptions}
+                onSaveAsTemplate={(policy) => {
+                  createUserTemplateFromPolicy(policy);
+                  setUserTemplatesRefresh((n) => n + 1);
+                  setShowSavedToast(true);
+                }}
               />
           </div>
         )}
       </div>
+
+      {savePackOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30"
+            aria-modal="true"
+            role="dialog"
+            onClick={() => {
+              setSavePackOpen(false);
+              setSavePackName('');
+              setSavePackDescription('');
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="text-lg font-semibold text-slate-800">Save current as pack</h4>
+              <p className="text-sm text-slate-500 mt-0.5">Use next year or share. Saves policies, tier tables, and custom models.</p>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label htmlFor="pack-name" className="block text-sm font-medium text-slate-700">Pack name</label>
+                  <input
+                    id="pack-name"
+                    type="text"
+                    value={savePackName}
+                    onChange={(e) => setSavePackName(e.target.value)}
+                    placeholder="e.g. FY2025 Final"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="pack-desc" className="block text-sm font-medium text-slate-700">Description (optional)</label>
+                  <input
+                    id="pack-desc"
+                    type="text"
+                    value={savePackDescription}
+                    onChange={(e) => setSavePackDescription(e.target.value)}
+                    placeholder="Brief note for next year"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  />
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSavePackOpen(false);
+                    setSavePackName('');
+                    setSavePackDescription('');
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePack}
+                  disabled={!savePackName.trim()}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  Save pack
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {packToLoad &&
+        createPortal(
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30" aria-modal="true" role="dialog">
+            <div
+              className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="text-lg font-semibold text-slate-800">Load policy pack</h4>
+              <p className="text-sm text-slate-600 mt-2">
+                Replace current policies with <strong>{packToLoad.name}</strong>? This cannot be undone.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoadPackConfirmId(null)}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLoadPackConfirm(packToLoad.id)}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  Replace
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {manageTemplatesOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30 p-4"
+            aria-modal="true"
+            role="dialog"
+            onClick={() => {
+              setManageTemplatesOpen(false);
+              setEditingTemplateId(null);
+            }}
+          >
+            <div
+              className="w-full max-w-2xl max-h-[85vh] overflow-auto rounded-xl border border-slate-200 bg-white shadow-xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-slate-200">
+                <h4 className="text-lg font-semibold text-slate-800">Manage templates</h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManageTemplatesOpen(false);
+                    setEditingTemplateId(null);
+                  }}
+                  className="p-1 text-slate-500 hover:text-slate-700 rounded"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4 space-y-6">
+                <section>
+                  <h5 className="text-sm font-semibold text-slate-600 uppercase mb-2">Built-in templates</h5>
+                  <p className="text-sm text-slate-500 mb-3">Add a copy to your templates to edit and reuse.</p>
+                  <ul className="space-y-2">
+                    {POLICY_TEMPLATES.map((t) => (
+                      <li
+                        key={t.templateKey}
+                        className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-slate-50 border border-slate-100"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-medium text-slate-800 block">{t.name}</span>
+                          <span className="text-xs text-slate-500 line-clamp-1">{t.description}</span>
+                          <span className="text-xs text-indigo-600 mt-0.5 inline-block">{t.stage}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const { templateKey: _k, ...policyPayload } = t.policy as typeof t.policy & { templateKey: string };
+                            createUserTemplate(t.name, t.description, t.stage, t.policyType, policyPayload);
+                            setUserTemplatesRefresh((n) => n + 1);
+                          }}
+                          className="shrink-0 px-2 py-1 text-xs font-medium rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                        >
+                          Add to my templates
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section>
+                  <h5 className="text-sm font-semibold text-slate-600 uppercase mb-2">Your templates</h5>
+                  {editingTemplate && (
+                    <div className="mb-4 p-4 rounded-lg border border-indigo-200 bg-indigo-50/50 space-y-3">
+                      <p className="text-sm font-medium text-slate-700">Edit template</p>
+                      <input
+                        type="text"
+                        value={editTemplateName}
+                        onChange={(e) => setEditTemplateName(e.target.value)}
+                        placeholder="Name"
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={editTemplateDescription}
+                        onChange={(e) => setEditTemplateDescription(e.target.value)}
+                        placeholder="Description"
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                      <select
+                        value={editTemplateStage}
+                        onChange={(e) => setEditTemplateStage(e.target.value as AnnualIncreasePolicy['stage'])}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      >
+                        {POLICY_STAGE_ORDER.map((stage) => (
+                          <option key={stage} value={stage}>
+                            {POLICY_STAGE_LABELS[stage]}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateUserTemplate(editingTemplate.id, {
+                              name: editTemplateName.trim(),
+                              description: editTemplateDescription.trim(),
+                              stage: editTemplateStage,
+                            });
+                            setEditingTemplateId(null);
+                            setUserTemplatesRefresh((n) => n + 1);
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingTemplateId(null)}
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {userTemplatesList.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-2">No custom templates yet. Add a built-in above or save a policy as template from the editor.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {userTemplatesList.map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-slate-50 border border-slate-100"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-medium text-slate-800 block">{t.name}</span>
+                            <span className="text-xs text-slate-500 line-clamp-1">{t.description}</span>
+                            <span className="text-xs text-indigo-600 mt-0.5 inline-block">{t.stage}</span>
+                          </div>
+                          <div className="shrink-0 flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingTemplateId(t.id)}
+                              className="px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Delete template "${t.name}"?`)) {
+                                  deleteUserTemplate(t.id);
+                                  setUserTemplatesRefresh((n) => n + 1);
+                                  if (editingTemplateId === t.id) setEditingTemplateId(null);
+                                }
+                              }}
+                              className="px-2 py-1 text-xs font-medium rounded border border-red-200 text-red-700 hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {showSavedToast && (
         <div

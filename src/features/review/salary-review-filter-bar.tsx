@@ -2,6 +2,7 @@
  * Sticky filter bar for Salary Review: search, quick presets, collapsible dimension filters.
  */
 
+import type { ReactNode } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { SalaryReviewFilters, SalaryReviewPresetId } from '../../lib/review-filters';
 import { getActivePresetId, getPresetFilters } from '../../lib/review-filters';
@@ -9,6 +10,8 @@ import { getActivePresetId, getPresetFilters } from '../../lib/review-filters';
 export interface SalaryReviewFilterBarProps {
   filters: SalaryReviewFilters;
   onFiltersChange: (filters: SalaryReviewFilters) => void;
+  /** Optional node rendered at the far right of the search row (e.g. Full screen button). */
+  rightAction?: ReactNode;
   filterOptions: {
     providerNames: string[];
     reviewStatuses: string[];
@@ -166,6 +169,7 @@ function MultiSelectDropdown({
 export function SalaryReviewFilterBar({
   filters,
   onFiltersChange,
+  rightAction,
   filterOptions,
   totalCount,
   filteredCount,
@@ -247,29 +251,43 @@ export function SalaryReviewFilterBar({
 
   return (
     <div className="sticky top-0 z-30 py-4 bg-white/98 backdrop-blur-sm">
-      {/* Row 1: Search + result count + clear */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-0 flex-1 max-w-sm">
+      {/* Single row: Search | All / presets | count | Clear all | rightAction (Full screen) */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="relative min-w-0 w-40 sm:w-48 shrink-0">
           <input
             type="search"
             value={filters.searchText ?? ''}
             onChange={(e) => onFiltersChange({ ...filters, searchText: e.target.value })}
             onKeyDown={(e) => e.key === 'Escape' && (e.currentTarget.value = '')}
-            placeholder="Search by name, ID, specialty, division…"
-            className="w-full pl-3 pr-9 py-2 text-[13px] rounded-lg bg-neutral-50 border border-neutral-200/80 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300/50 focus:bg-white transition-colors placeholder:text-neutral-400"
+            placeholder="Search…"
+            className="w-full pl-2.5 pr-7 py-1.5 text-[13px] rounded-lg bg-neutral-50 border border-neutral-200/80 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300/50 focus:bg-white transition-colors placeholder:text-neutral-400"
             aria-label="Search providers"
           />
           {(filters.searchText ?? '').trim() !== '' && (
             <button
               type="button"
               onClick={() => onFiltersChange({ ...filters, searchText: '' })}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-neutral-200 text-neutral-500"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-neutral-200 text-neutral-500"
               aria-label="Clear search"
             >
               ×
             </button>
           )}
         </div>
+        {PRESETS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setPreset(id)}
+            className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors shrink-0 ${
+              activePreset === id
+                ? 'bg-neutral-900 text-white'
+                : 'text-neutral-600 bg-neutral-100 hover:bg-neutral-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
         <span className="text-[13px] text-neutral-500 shrink-0">
           <span className="font-medium text-neutral-700">{filteredCount}</span>
           <span className="text-neutral-400"> / {totalCount} providers</span>
@@ -283,24 +301,7 @@ export function SalaryReviewFilterBar({
             Clear all
           </button>
         )}
-      </div>
-
-      {/* Row 2: Quick presets — compact chips */}
-      <div className="flex flex-wrap items-center gap-1 mt-3">
-        {PRESETS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setPreset(id)}
-            className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
-              activePreset === id
-                ? 'bg-neutral-900 text-white'
-                : 'text-neutral-600 bg-neutral-100 hover:bg-neutral-200'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {rightAction != null && <div className="ml-auto shrink-0">{rightAction}</div>}
       </div>
 
       {/* Row 3: Collapsible dimension filters — compact chip row, Apple/Google style */}

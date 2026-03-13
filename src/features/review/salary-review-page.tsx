@@ -26,6 +26,8 @@ import {
 import {
   REVIEW_TABLE_COLUMNS,
   REVIEW_VIEW_PRESETS,
+  DEFAULT_PRESET_LABELS,
+  DEFAULT_PRESET_ORDER,
   getReviewCellValue,
   getReviewCellSortValue,
   formatReviewCellValue,
@@ -71,6 +73,8 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   const activeCustomViewId = reviewTableState.activeCustomViewId ?? null;
   const columnWidths = reviewTableState.columnWidths ?? getDefaultColumnWidths();
   const frozenColumnIds = reviewTableState.frozenColumnIds ?? ['compareCheckbox', 'providerName'];
+  const presetLabels = reviewTableState.presetLabels ?? {};
+  const presetOrder = reviewTableState.presetOrder ?? [...DEFAULT_PRESET_ORDER];
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
@@ -95,7 +99,12 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   const resizeRef = useRef<{ columnId: ReviewTableColumnId; startX: number; startWidth: number } | null>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [reviewViewMode, setReviewViewMode] = useState<'table' | 'trend'>('table');
+  const [presetLabelsModalOpen, setPresetLabelsModalOpen] = useState(false);
+  const [draftPresetLabels, setDraftPresetLabels] = useState<Record<ReviewViewPresetId, string>>({ ...DEFAULT_PRESET_LABELS });
+  const [draftPresetOrder, setDraftPresetOrder] = useState<ReviewViewPresetId[]>([...DEFAULT_PRESET_ORDER]);
   const [trendGroupBy, setTrendGroupBy] = useState<ExperienceSalaryGroupBy>('population');
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showLayoutOptions, setShowLayoutOptions] = useState(false);
 
   const DRAWER_MIN_WIDTH = 320;
   const DRAWER_MAX_WIDTH = 900;
@@ -340,6 +349,13 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [fullScreen, onFullScreenChange]);
 
+  useEffect(() => {
+    if (presetLabelsModalOpen) {
+      setDraftPresetLabels({ ...DEFAULT_PRESET_LABELS, ...(reviewTableState.presetLabels ?? {}) });
+      setDraftPresetOrder([...(reviewTableState.presetOrder ?? DEFAULT_PRESET_ORDER)]);
+    }
+  }, [presetLabelsModalOpen]);
+
   const applyPreset = useCallback((presetId: ReviewViewPresetId) => {
     setReviewTableState((prev) => ({
       ...prev,
@@ -423,6 +439,26 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     const row = budgetSettings.find((b) => b.cycleId === selectedCycleId);
     return row?.warningThresholdPercent;
   }, [selectedCycleId, budgetSettings]);
+
+  const activeCycleLabel = useMemo(
+    () => cycles.find((c) => c.id === selectedCycleId)?.label ?? cycles[0]?.label ?? '',
+    [cycles, selectedCycleId]
+  );
+
+  const friendlySummary = useMemo(() => {
+    const providerCount = summaryTotals.providerCount;
+    const budget = budgetAmount;
+    const totalIncrease = summaryTotals.totalIncreaseDollars;
+    let budgetPhrase = 'No budget set yet';
+    if (budget != null && budget > 0) {
+      const pct = (totalIncrease / budget) * 100;
+      budgetPhrase = `Using approximately ${pct.toFixed(1)}% of the budget`;
+    }
+    return {
+      providerCount,
+      budgetPhrase,
+    };
+  }, [summaryTotals, budgetAmount]);
 
   const sortedRecords = useMemo(() => {
     return [...filteredRecords].sort((a, b) => {
@@ -703,7 +739,9 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     return (
       <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <h2 className="text-lg font-semibold text-slate-800 mb-2">Salary review</h2>
-        <p className="text-slate-600 mb-4">No provider records yet. Import provider data from the Import data screen first.</p>
+        <p className="text-slate-600 mb-4">
+          No provider records yet. Import provider data from the Import data screen first.
+        </p>
         {onNavigateToImport && (
           <button type="button" onClick={onNavigateToImport} className="text-indigo-600 font-medium hover:underline">
             Go to Import data
@@ -718,26 +756,25 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
-            {onFullScreenChange && (
-              <button
-                type="button"
-                onClick={() => onFullScreenChange(!fullScreen)}
-                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                title={fullScreen ? 'Exit full screen (Esc)' : 'Expand to full screen'}
-                aria-label={fullScreen ? 'Exit full screen' : 'Expand to full screen'}
-              >
-                {fullScreen ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                  </svg>
-                )}
-              </button>
-            )}
+            <div className="flex flex-col gap-0.5">
+              <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+              <p className="text-xs text-slate-600">
+                Review recommended annual increases, flag exceptions, and finalize decisions for this budget cycle.
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Cycle:{' '}
+                <span className="font-medium text-slate-700">
+                  {activeCycleLabel || 'Not set'}
+                </span>{' '}
+                · Providers in view:{' '}
+                <span className="font-medium text-slate-700">
+                  {friendlySummary.providerCount}
+                </span>{' '}
+                · {friendlySummary.budgetPhrase}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
             <div className="flex rounded-xl border border-slate-300 bg-slate-50">
               {(['table', 'trend'] as const).map((mode) => (
                 <button
@@ -754,26 +791,36 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
             {reviewViewMode === 'table' && (
               <>
             <span className="text-sm text-slate-600 mr-1">View:</span>
             <div className="flex rounded-xl border border-slate-300 bg-slate-50">
-              {(['meeting', 'full', 'comp', 'policy'] as const).map((presetId, idx) => (
+              {presetOrder.map((presetId, idx) => (
                 <button
                   key={presetId}
                   type="button"
                   onClick={() => applyPreset(presetId)}
-                  className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${
                     activePreset === presetId
                       ? 'bg-indigo-600 text-white'
                       : 'text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  {presetId === 'policy' ? 'Policy' : presetId.charAt(0).toUpperCase() + presetId.slice(1)}
+                  {presetLabels[presetId] ?? DEFAULT_PRESET_LABELS[presetId]}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setPresetLabelsModalOpen(true)}
+                className="px-2 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200 border-l border-slate-300 transition-colors"
+                title="Customize view button labels and order"
+                aria-label="Customize view buttons"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
               <div className="relative">
                 <button
                   type="button"
@@ -906,67 +953,107 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               <button
                 type="button"
                 onClick={() => {
-                setCustomViewDropdownOpen(false);
-                setColumnDropdownOpen((o) => !o);
-              }}
-                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
-                aria-expanded={columnDropdownOpen}
+                  setShowLayoutOptions((o) => !o);
+                  if (!showLayoutOptions) {
+                    setColumnDropdownOpen(false);
+                    setCustomViewDropdownOpen(false);
+                  }
+                }}
+                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700 inline-flex items-center gap-1.5"
+                aria-expanded={showLayoutOptions}
                 aria-haspopup="menu"
               >
-                Columns
+                Layout options
+                <span className="text-xs text-slate-500">▾</span>
               </button>
-              {columnDropdownOpen && (
+              {showLayoutOptions && (
                 <>
                   <div
                     className="fixed inset-0 z-40"
                     aria-hidden
-                    onClick={() => setColumnDropdownOpen(false)}
+                    onClick={() => {
+                      setShowLayoutOptions(false);
+                      setColumnDropdownOpen(false);
+                      setCustomViewDropdownOpen(false);
+                    }}
                   />
-                  <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-[28rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
-                    <div className="px-3 py-2 border-b border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                        Show / Pin
+                  <div className="absolute right-0 top-full mt-1 z-50 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-3 space-y-3">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      Layout &amp; columns
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs text-slate-600">
+                        Use presets for common views, or customize which columns are visible and pinned.
                       </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setColumnDropdownOpen((o) => !o);
+                            setCustomViewDropdownOpen(false);
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
+                        >
+                          Choose columns
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customViewDropdownOpen) {
+                              setCustomViewDropdownOpen(false);
+                            } else {
+                              openCustomDropdown();
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
+                        >
+                          Saved views
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetColumnWidths}
+                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
+                        >
+                          Reset widths
+                        </button>
+                      </div>
                     </div>
-                    <div className="py-2 overflow-y-auto flex-1 min-h-0 max-h-64">
-                      {REVIEW_TABLE_COLUMNS.filter((col) => col.id !== 'compareCheckbox').map((col) => (
-                        <div key={col.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50">
-                          <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={visibleColumnIds.includes(col.id)}
-                              onChange={() => toggleColumn(col.id)}
-                              className="rounded border-slate-300"
-                              aria-label={col.label ? `Show ${col.label}` : 'Show column'}
-                            />
-                            <span className="text-sm text-slate-700 truncate">{col.label || '—'}</span>
-                          </label>
-                          <label className="flex items-center gap-1 shrink-0 cursor-pointer" title="Freeze column">
-                            <span className="text-xs text-slate-500">Pin</span>
-                            <input
-                              type="checkbox"
-                              checked={frozenColumnIds.includes(col.id)}
-                              disabled={!visibleColumnIds.includes(col.id)}
-                              onChange={() => toggleFrozenColumn(col.id)}
-                              className="rounded border-slate-300 disabled:opacity-50"
-                              aria-label={col.label ? `Freeze ${col.label}` : 'Freeze column'}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </label>
-                        </div>
-                      ))}
-                    </div>
+                    {columnDropdownOpen && (
+                      <div className="mt-2 max-h-48 overflow-y-auto border-t border-slate-100 pt-2">
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                          Columns
+                        </p>
+                        {REVIEW_TABLE_COLUMNS.filter((col) => col.id !== 'compareCheckbox').map((col) => (
+                          <div key={col.id} className="flex items-center gap-2 px-1 py-1 hover:bg-slate-50 rounded">
+                            <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumnIds.includes(col.id)}
+                                onChange={() => toggleColumn(col.id)}
+                                className="rounded border-slate-300"
+                                aria-label={col.label ? `Show ${col.label}` : 'Show column'}
+                              />
+                              <span className="text-sm text-slate-700 truncate">{col.label || '—'}</span>
+                            </label>
+                            <label className="flex items-center gap-1 shrink-0 cursor-pointer" title="Freeze column">
+                              <span className="text-xs text-slate-500">Pin</span>
+                              <input
+                                type="checkbox"
+                                checked={frozenColumnIds.includes(col.id)}
+                                disabled={!visibleColumnIds.includes(col.id)}
+                                onChange={() => toggleFrozenColumn(col.id)}
+                                className="rounded border-slate-300 disabled:opacity-50"
+                                aria-label={col.label ? `Freeze ${col.label}` : 'Freeze column'}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
-              <button
-                type="button"
-                onClick={resetColumnWidths}
-                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700"
-                title="Reset all column widths to defaults"
-              >
-                Reset widths
-              </button>
             </div>
             <button
               type="button"
@@ -1031,6 +1118,34 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
             )}
           </div>
         </div>
+        <div className="px-5 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowHowItWorks((open) => !open)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 hover:text-slate-900"
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] text-slate-600 bg-white">
+              i
+            </span>
+            {showHowItWorks ? 'Hide how this works' : 'How this review works'}
+          </button>
+          {showHowItWorks && (
+            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-700 space-y-1.5">
+              <p>
+                Recommended increases are calculated from your merit matrix, experience band guardrails, and active
+                Compensation Policy Engine rules, using the current cycle&apos;s effective date.
+              </p>
+              <p>
+                Use the filters below to focus on a population, and color cues to see who is below, in, or above their
+                experience band targets. Update review status and override amounts directly in the grid where needed.
+              </p>
+              <p>
+                Budget usage is based on the total increase across visible providers compared with the cycle budget
+                target.
+              </p>
+            </div>
+          )}
+        </div>
         <SalaryReviewSummaryBar
           summaryTotals={summaryTotals}
           budgetAmount={budgetAmount}
@@ -1044,6 +1159,27 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
             filterOptions={filterOptions}
             totalCount={records.length}
             filteredCount={filteredRecords.length}
+            rightAction={
+              onFullScreenChange ? (
+                <button
+                  type="button"
+                  onClick={() => onFullScreenChange(!fullScreen)}
+                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  title={fullScreen ? 'Exit full screen (Esc)' : 'Expand to full screen'}
+                  aria-label={fullScreen ? 'Exit full screen' : 'Expand to full screen'}
+                >
+                  {fullScreen ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                  )}
+                </button>
+              ) : undefined
+            }
           />
         </div>
         <div
@@ -1386,7 +1522,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                                   const search = `?tab=policy-engine&sub=rules&ruleId=${encodeURIComponent(ruleId)}`;
                                   const hash = '#parameters';
                                   const url = `${window.location.pathname}${search}${hash}`;
-                                  history.replaceState(null, '', url);
+                                  history.pushState(null, '', url);
                                   window.dispatchEvent(new HashChangeEvent('hashchange'));
                                 }
                               }}
@@ -1547,6 +1683,113 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
           onClose={() => setCompareModalOpen(false)}
           onClearSelection={clearCompareSelection}
         />
+      )}
+
+      {/* Customize view buttons modal */}
+      {presetLabelsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+          onClick={() => setPresetLabelsModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="preset-labels-modal-title"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="preset-labels-modal-title" className="font-semibold text-slate-800 mb-4">
+              Customize view buttons
+            </h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Change the labels and order of the Meeting, Full, Comp, and Policy view buttons. Column sets stay the same.
+            </p>
+            <div className="space-y-3 mb-6">
+              {draftPresetOrder.map((presetId, idx) => (
+                <div key={presetId} className="flex items-center gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx === 0) return;
+                        const next = [...draftPresetOrder];
+                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                        setDraftPresetOrder(next);
+                      }}
+                      className="p-1 text-slate-500 hover:text-slate-700 disabled:opacity-40"
+                      disabled={idx === 0}
+                      aria-label={`Move ${draftPresetLabels[presetId] ?? DEFAULT_PRESET_LABELS[presetId]} up`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx === draftPresetOrder.length - 1) return;
+                        const next = [...draftPresetOrder];
+                        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                        setDraftPresetOrder(next);
+                      }}
+                      className="p-1 text-slate-500 hover:text-slate-700 disabled:opacity-40"
+                      disabled={idx === draftPresetOrder.length - 1}
+                      aria-label={`Move ${draftPresetLabels[presetId] ?? DEFAULT_PRESET_LABELS[presetId]} down`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </div>
+                  <label className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className="text-xs text-slate-500 w-16 shrink-0 capitalize">{presetId}</span>
+                    <input
+                      type="text"
+                      value={draftPresetLabels[presetId] ?? ''}
+                      onChange={(e) => setDraftPresetLabels((prev) => ({ ...prev, [presetId]: e.target.value }))}
+                      placeholder={DEFAULT_PRESET_LABELS[presetId]}
+                      className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftPresetLabels({ ...DEFAULT_PRESET_LABELS });
+                  setDraftPresetOrder([...DEFAULT_PRESET_ORDER]);
+                }}
+                className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200"
+              >
+                Reset to defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresetLabelsModalOpen(false)}
+                className="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const labelsToSave: Partial<Record<ReviewViewPresetId, string>> = {};
+                  for (const id of DEFAULT_PRESET_ORDER) {
+                    const v = draftPresetLabels[id]?.trim();
+                    if (v && v !== DEFAULT_PRESET_LABELS[id]) labelsToSave[id] = v;
+                  }
+                  setReviewTableState((prev) => ({
+                    ...prev,
+                    presetLabels: labelsToSave,
+                    presetOrder: [...draftPresetOrder],
+                  }));
+                  setPresetLabelsModalOpen(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Notes modal */}

@@ -34,12 +34,27 @@ import {
   createSavedScenario,
   type SavedScenario,
 } from '../../lib/scenario-storage';
+import {
+  getLibraryScenarioConfig,
+  getLibraryIdFromValue,
+  LIBRARY_SCENARIO_ID_LIST,
+  LIBRARY_SCENARIO_LABELS,
+} from '../../lib/scenario-library';
 
-/** Scenario B selection: preset id or saved scenario id (saved:xxx) */
-type ScenarioBValue = ScenarioPresetId | `saved:${string}`;
+/** Scenario A: current config or a saved/library scenario. */
+type ScenarioAValue = 'current' | `saved:${string}` | `library:${string}`;
+
+/** Scenario B: preset (derived from A), saved, or library. */
+type ScenarioBValue = ScenarioPresetId | `saved:${string}` | `library:${string}`;
+
+const PRESET_IDS: ScenarioPresetId[] = ['merit-matrix-only', 'no-custom-models', 'conservative-cap'];
 
 function isPresetId(v: ScenarioBValue): v is ScenarioPresetId {
-  return !v.startsWith('saved:');
+  return PRESET_IDS.includes(v as ScenarioPresetId);
+}
+
+function isLibraryValue(v: string): boolean {
+  return v.startsWith('library:');
 }
 
 export function CompareScenariosPage() {
@@ -47,7 +62,8 @@ export function CompareScenariosPage() {
   const { meritMatrix, cycles, budgetSettings, experienceBands } = useParametersState();
   const { policies, customModels, tierTables } = usePolicyEngineState();
   const [selectedCycleId] = useSelectedCycle(cycles);
-  const [scenarioB, setScenarioB] = useState<ScenarioBValue>('no-custom-models');
+  const [scenarioA, setScenarioA] = useState<ScenarioAValue>('current');
+  const [scenarioB, setScenarioB] = useState<ScenarioBValue>('library:library-3pct');
   const [resultA, setResultA] = useState<ScenarioRunResult | null>(null);
   const [resultB, setResultB] = useState<ScenarioRunResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -68,7 +84,7 @@ export function CompareScenariosPage() {
     return cycle?.effectiveDate ?? undefined;
   }, [cycles, selectedCycleId]);
 
-  const configA: ScenarioConfigSnapshot = useMemo(
+  const currentConfig: ScenarioConfigSnapshot = useMemo(
     () => ({
       policies,
       customModels,
@@ -79,17 +95,53 @@ export function CompareScenariosPage() {
     [policies, customModels, tierTables, meritMatrix, asOfDate]
   );
 
+  const configA: ScenarioConfigSnapshot = useMemo(() => {
+    if (scenarioA === 'current') return currentConfig;
+    if (scenarioA.startsWith('saved:')) {
+      const saved = savedScenarios.find((s) => s.id === scenarioA.slice('saved:'.length));
+      return saved?.config ?? currentConfig;
+    }
+    if (scenarioA.startsWith('library:')) {
+      const id = getLibraryIdFromValue(scenarioA);
+      const libConfig = id ? getLibraryScenarioConfig(id) : undefined;
+      return libConfig ?? currentConfig;
+    }
+    return currentConfig;
+  }, [scenarioA, currentConfig, savedScenarios]);
+
   const configB: ScenarioConfigSnapshot = useMemo(() => {
     if (isPresetId(scenarioB)) {
       return buildScenarioConfigFromPreset(scenarioB, configA);
+    }
+    if (isLibraryValue(scenarioB)) {
+      const id = getLibraryIdFromValue(scenarioB);
+      const libConfig = id ? getLibraryScenarioConfig(id) : undefined;
+      return libConfig ?? configA;
     }
     const savedId = scenarioB.replace(/^saved:/, '');
     const saved = savedScenarios.find((s) => s.id === savedId);
     return saved?.config ?? configA;
   }, [scenarioB, configA, savedScenarios]);
 
+  const scenarioALabel = useMemo(() => {
+    if (scenarioA === 'current') return 'Current configuration';
+    if (scenarioA.startsWith('saved:')) {
+      const saved = savedScenarios.find((s) => s.id === scenarioA.slice('saved:'.length));
+      return saved?.label ?? 'Saved scenario';
+    }
+    if (scenarioA.startsWith('library:')) {
+      const id = getLibraryIdFromValue(scenarioA);
+      return (id && LIBRARY_SCENARIO_LABELS[id]) ?? 'Library scenario';
+    }
+    return 'Current configuration';
+  }, [scenarioA, savedScenarios]);
+
   const scenarioBLabel = useMemo(() => {
     if (isPresetId(scenarioB)) return SCENARIO_PRESET_LABELS[scenarioB];
+    if (isLibraryValue(scenarioB)) {
+      const id = getLibraryIdFromValue(scenarioB);
+      return (id && LIBRARY_SCENARIO_LABELS[id]) ?? 'Library scenario';
+    }
     const savedId = scenarioB.replace(/^saved:/, '');
     const saved = savedScenarios.find((s) => s.id === savedId);
     return saved?.label ?? 'Custom scenario';
@@ -121,7 +173,7 @@ export function CompareScenariosPage() {
         configA,
         marketResolver,
         'scenario-a',
-        'Current configuration'
+        scenarioALabel
       );
       const b = runScenario(
         records,
@@ -135,7 +187,7 @@ export function CompareScenariosPage() {
     } finally {
       setIsRunning(false);
     }
-  }, [records, configA, configB, marketResolver, scenarioBLabel]);
+  }, [records, configA, configB, marketResolver, scenarioALabel, scenarioBLabel]);
 
   const handleExportXlsx = useCallback(() => {
     if (!resultA || !resultB) return;
@@ -191,39 +243,42 @@ export function CompareScenariosPage() {
   }
 
   return (
-    <div className="app-card overflow-hidden flex flex-col min-w-0">
-      {/* Header + actions - matches Provider table, Data page */}
-      <div className="shrink-0 border-b border-slate-200 px-5 pt-4 pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+    <div className="flex flex-col min-w-0">
+      <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
+        {/* Header row - same structure as Salary Review */}
+        <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
+          <div className="flex flex-col gap-0.5">
             <h2 className="text-xl font-semibold text-slate-800">Compare scenarios</h2>
-            <p className="mt-0.5 text-sm text-slate-600">
+            <p className="text-xs text-slate-600">
               Run two policy configurations on the same providers and compare results side-by-side.
             </p>
+            <p className="text-[11px] text-slate-500">
+              Providers in view: <span className="font-medium text-slate-700">{records.length}</span>
+              {resultA && resultB && (
+                <> · Delta (B − A): <span className="font-medium text-slate-700">{resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars >= 0 ? '+' : ''}{((resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars) / 1).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></>
+              )}
+            </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
             {configValidation.errors.length > 0 && (
-              <div className="w-full max-w-md p-2 rounded-lg border border-red-200 bg-red-50 text-red-800 text-xs">
-                <span className="font-medium">Validation: </span>
-                {configValidation.errors.slice(0, 3).join(' ')}
-                {configValidation.errors.length > 3 && ` (+${configValidation.errors.length - 3} more)`}
-              </div>
+              <span className="text-xs text-red-600 font-medium" title={configValidation.errors.join(' ')}>
+                Validation errors
+              </span>
             )}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRunComparison}
-                disabled={records.length === 0 || isRunning}
-                className="app-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRunning ? 'Running...' : 'Run comparison'}
-              </button>
-              <div className="relative">
+            <button
+              type="button"
+              onClick={handleRunComparison}
+              disabled={records.length === 0 || isRunning}
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isRunning ? 'Running...' : 'Run comparison'}
+            </button>
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => setExportDropdownOpen((o) => !o)}
                 disabled={!resultA || !resultB}
-                className="app-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 transition-colors"
               >
                 Export
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,12 +287,8 @@ export function CompareScenariosPage() {
               </button>
               {exportDropdownOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    aria-hidden
-                    onClick={() => setExportDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg z-20 app-card">
+                  <div className="fixed inset-0 z-10" aria-hidden onClick={() => setExportDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-48 rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-20">
                     <button
                       type="button"
                       onClick={handleExportXlsx}
@@ -248,28 +299,25 @@ export function CompareScenariosPage() {
                   </div>
                 </>
               )}
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Scenario configuration bar - matches filter bar pattern */}
-        <div className="mt-3 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
+        {/* Scenario bar - same pattern as Salary Review filter bar: one strip with border-b */}
+        <div className="shrink-0 px-5 py-3 flex flex-wrap items-center gap-4 border-b border-slate-200 bg-slate-50/50">
+          <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Scenario A</span>
-            <span className="text-sm text-slate-700">Current configuration</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Scenario B</span>
             <select
-              value={scenarioB}
-              onChange={(e) => setScenarioB(e.target.value as ScenarioBValue)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-indigo-500/20 min-w-[200px]"
+              value={scenarioA}
+              onChange={(e) => setScenarioA(e.target.value as ScenarioAValue)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 min-w-[200px]"
+              aria-label="Choose Scenario A"
             >
-              <optgroup label="Presets">
-                {(Object.keys(SCENARIO_PRESET_LABELS) as ScenarioPresetId[]).map((id) => (
-                  <option key={id} value={id}>
-                    {SCENARIO_PRESET_LABELS[id]}
+              <option value="current">Current configuration</option>
+              <optgroup label="Example scenarios (library)">
+                {LIBRARY_SCENARIO_ID_LIST.map((id) => (
+                  <option key={id} value={`library:${id}`}>
+                    {LIBRARY_SCENARIO_LABELS[id]}
                   </option>
                 ))}
               </optgroup>
@@ -283,67 +331,99 @@ export function CompareScenariosPage() {
                 </optgroup>
               )}
             </select>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Scenario B</span>
+            <select
+              value={scenarioB}
+              onChange={(e) => setScenarioB(e.target.value as ScenarioBValue)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 min-w-[200px]"
+              aria-label="Choose Scenario B"
+            >
+              <optgroup label="Presets (from Scenario A)">
+                {PRESET_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {SCENARIO_PRESET_LABELS[id]}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Example scenarios (library)">
+                {LIBRARY_SCENARIO_ID_LIST.map((id) => (
+                  <option key={id} value={`library:${id}`}>
+                    {LIBRARY_SCENARIO_LABELS[id]}
+                  </option>
+                ))}
+              </optgroup>
+              {savedScenarios.length > 0 && (
+                <optgroup label="Saved scenarios">
+                  {savedScenarios.map((s) => (
+                    <option key={s.id} value={`saved:${s.id}`}>
+                      {s.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={handleSaveAsScenario}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
-              title="Save current policy configuration as a named scenario for Scenario B"
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+              title="Save Scenario A configuration as a named scenario"
             >
-              Save current as scenario
+              Save A as scenario
             </button>
             <button
               type="button"
               onClick={handleSaveBAsScenario}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
               title="Save Scenario B configuration as a new named scenario"
             >
               Save B as scenario
             </button>
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Configure policies in Controls, then run a comparison. Use presets or save the current or Scenario B configuration as a named scenario.
-        </p>
-      </div>
 
-      {records.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center p-10 text-center text-slate-600">
-          <p>Load provider data from Import to run a scenario comparison.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col min-w-0 flex-1 min-h-0">
-          <CompareScenariosSummary resultA={resultA} resultB={resultB} budgetAmount={budgetAmount} />
-          {resultA && resultB && (
-            <CompareScenariosFilterBar
-              filters={filters}
-              onFiltersChange={setFilters}
-              filterOptions={filterOptions}
-              totalCount={rows.length}
-              filteredCount={filteredRows.length}
+        {records.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-10 text-center text-slate-600">
+            <p>Load provider data from Import to run a scenario comparison.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col min-w-0 flex-1 min-h-0">
+            <CompareScenariosSummary resultA={resultA} resultB={resultB} budgetAmount={budgetAmount} />
+            {resultA && resultB && (
+              <CompareScenariosFilterBar
+                filters={filters}
+                onFiltersChange={setFilters}
+                filterOptions={filterOptions}
+                totalCount={rows.length}
+                filteredCount={filteredRows.length}
+                selectedForCompare={selectedForCompare}
+                onOpenCompareModal={() => setCompareModalOpen(true)}
+              />
+            )}
+            <CompareScenariosTable
+              rows={filteredRows}
+              scenarioALabel={scenarioALabel}
+              scenarioBLabel={scenarioBLabel}
               selectedForCompare={selectedForCompare}
-              onOpenCompareModal={() => setCompareModalOpen(true)}
+              onToggleCompare={setSelectedForCompare}
+              hasRunComparison={!!resultA && !!resultB}
             />
-          )}
-          <CompareScenariosTable
-            rows={filteredRows}
-            scenarioALabel="Current configuration"
-            scenarioBLabel={scenarioBLabel}
-            selectedForCompare={selectedForCompare}
-            onToggleCompare={setSelectedForCompare}
-            hasRunComparison={!!resultA && !!resultB}
-          />
-          {compareModalOpen && selectedForCompare.length >= 2 && selectedForCompare.length <= 4 && (
-            <ProviderCompareModal
-              providerIds={selectedForCompare}
-              records={records}
-              marketResolver={marketResolver}
-              experienceBands={experienceBands ?? []}
-              onClose={() => setCompareModalOpen(false)}
-              onClearSelection={() => setSelectedForCompare([])}
-            />
-          )}
-        </div>
-      )}
+            {compareModalOpen && selectedForCompare.length >= 2 && selectedForCompare.length <= 4 && (
+              <ProviderCompareModal
+                providerIds={selectedForCompare}
+                records={records}
+                marketResolver={marketResolver}
+                experienceBands={experienceBands ?? []}
+                onClose={() => setCompareModalOpen(false)}
+                onClearSelection={() => setSelectedForCompare([])}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

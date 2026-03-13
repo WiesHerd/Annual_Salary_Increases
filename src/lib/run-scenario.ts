@@ -40,8 +40,18 @@ export function runScenario(
     const result = evaluatePolicyForProvider(record, { ...context, marketRow });
     evaluationResults.set(record.Employee_ID, result);
 
+    // Use a record without saved increase values so proposed base is derived from this scenario's policy only.
+    // Otherwise 3% vs 4% would show the same dollars when the record has Approved_* or Default_Increase_Percent set.
+    const recordForRecalc = {
+      ...record,
+      Approved_Increase_Percent: undefined,
+      Approved_Increase_Amount: undefined,
+      Proposed_Base_Salary: undefined,
+      Default_Increase_Percent: undefined,
+    };
+
     const recalculated = recalculateProviderRow({
-      record,
+      record: recordForRecalc,
       marketRow,
       policyResult: result,
       meritMatrixRows: config.meritMatrixRows,
