@@ -6,7 +6,27 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AnnualIncreasePolicy, PolicyTargetScope } from '../../../types/compensation-policy';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type CollisionDetection,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { AnnualIncreasePolicy, PolicyTargetScope, PolicyStage } from '../../../types/compensation-policy';
 import { POLICY_STAGE_ORDER, POLICY_STAGE_LABELS } from '../../../types/compensation-policy';
 import type { ProviderRecord } from '../../../types/provider';
 import type { usePolicyEngineState } from '../../../hooks/use-policy-engine-state';
@@ -32,6 +52,44 @@ const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[]
   { value: 100, label: 'Last (Fallback)', isFallback: true },
 ];
 
+const TIE_BREAKER_PX = 5;
+
+/**
+ * Collision detection for sortable table rows: pick the row whose center is closest
+ * to the dragged element's center (by vertical distance). Works reliably inside
+ * scrollable containers where pointerWithin/rectIntersection often fail.
+ * When two rows are within TIE_BREAKER_PX distance, prefer the row above (smaller centerY)
+ * so dropping near the boundary between rows resolves consistently.
+ */
+const verticalClosestRow: CollisionDetection = ({ active, collisionRect, droppableRects, droppableContainers }) => {
+  const dragCenterY = collisionRect.top + collisionRect.height / 2;
+  const dragCenterX = collisionRect.left + collisionRect.width / 2;
+  const candidates: { id: string; distance: number; centerY: number; container: (typeof droppableContainers)[0] }[] = [];
+
+  for (const container of droppableContainers) {
+    if (container.id === active.id || container.disabled) continue;
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+    const centerY = rect.top + rect.height / 2;
+    const centerX = rect.left + rect.width / 2;
+    const dy = dragCenterY - centerY;
+    const dx = dragCenterX - centerX;
+    const distance = Math.sqrt(dy * dy + dx * dx);
+    candidates.push({ id: String(container.id), distance, centerY, container });
+  }
+
+  candidates.sort((a, b) => {
+    if (Math.abs(a.distance - b.distance) <= TIE_BREAKER_PX) {
+      return a.centerY - b.centerY;
+    }
+    return a.distance - b.distance;
+  });
+  return candidates.map((c) => ({
+    id: c.id,
+    data: { droppableContainer: c.container, value: -c.distance },
+  }));
+};
+
 function formatTargetScopeSummary(scope: PolicyTargetScope): string {
   const parts: string[] = [];
   if (scope.providerTypes?.length) parts.push(scope.providerTypes.join(', '));
@@ -41,7 +99,117 @@ function formatTargetScopeSummary(scope: PolicyTargetScope): string {
   if (scope.locations?.length) parts.push(scope.locations.join(', '));
   if (scope.providerIds?.length) parts.push(`${scope.providerIds.length} selected`);
   if (parts.length === 0) return 'All providers';
-  return parts.join(' · ');
+  return parts.join(' Â· ');
+}
+
+/** Sortable table row: drag handle uses dnd-kit; row click still selects. */
+function SortablePolicyRow({
+  policy,
+  orderNum,
+  isSelected,
+  onSelect,
+  onUpdatePriority,
+  onDuplicate,
+  onRemove,
+}: {
+  policy: AnnualIncreasePolicy;
+  orderNum: number;
+  isSelected: boolean;
+  onSelect: () => void;
+  onUpdatePriority: (id: string, priority: number, isFallback: boolean) => void;
+  onDuplicate: (p: AnnualIncreasePolicy) => void;
+  onRemove: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: policy.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`group transition-colors cursor-pointer ${
+        isSelected ? 'bg-indigo-100/60' : 'hover:bg-indigo-50/30'
+      } ${isDragging ? 'opacity-50 shadow-md z-10 bg-white' : ''}`}
+      onClick={onSelect}
+    >
+      <td
+        className="px-2 py-1.5 text-center text-sm tabular-nums text-slate-600"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span
+          {...attributes}
+          {...listeners}
+          className="inline-flex cursor-grab active:cursor-grabbing touch-none rounded p-0.5 hover:bg-slate-200/80 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+        >
+          <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+          </svg>
+        </span>
+        <span className="ml-0.5">{orderNum}</span>
+      </td>
+      <td className="px-2 py-1.5 text-sm font-medium text-slate-800">{policy.name}</td>
+      <td className="px-2 py-1.5 text-sm text-slate-600">{policy.policyType}</td>
+      <td className="px-2 py-1.5 text-sm text-slate-600 max-w-[160px] truncate" title={formatTargetScopeSummary(policy.targetScope)}>
+        {formatTargetScopeSummary(policy.targetScope)}
+      </td>
+      <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <select
+          value={policy.isFallback ? 100 : policy.priority}
+          onChange={(e) => {
+            const opt = PRIORITY_OPTIONS.find((o) => String(o.value) === e.target.value);
+            if (opt) onUpdatePriority(policy.id, opt.value, opt.isFallback ?? false);
+          }}
+          className="w-full min-w-0 max-w-[100px] text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700"
+          title="Lower priority runs first within the stage"
+        >
+          {PRIORITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </td>
+      <td className="px-2 py-1.5 text-sm text-slate-600">{policy.status}</td>
+      <td className="px-2 py-1.5 text-sm text-slate-500">
+        {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : 'â€”'}
+      </td>
+      <td className="px-2 py-1.5">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDuplicate(policy); }}
+            className="p-1 text-slate-400 hover:text-indigo-600 rounded"
+            title="Duplicate"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2m8 0h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2m-8 0H6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(policy.id); }}
+            className="p-1 text-slate-400 hover:text-red-600 rounded"
+            title="Remove"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
 }
 
 interface PolicyEngineRulesTabProps {
@@ -153,7 +321,57 @@ export function PolicyEngineRulesTab({
     [setPolicies]
   );
 
+  /** Reassign priorities from a new display order so stage+priority sort preserves that order.
+   * When moving across stages, pass draggedId and targetStage so the moved policy's stage is updated. */
+  const reorderPoliciesByNewOrder = useCallback(
+    (
+      newOrderedPolicies: AnnualIncreasePolicy[],
+      options?: { draggedId: string; targetStage: PolicyStage }
+    ) => {
+      const PRIORITY_VALUES = PRIORITY_OPTIONS.map((o) => o.value);
+      const now = new Date().toISOString();
+      const updates = new Map<
+        string,
+        { priority: number; isFallback: boolean; stage?: PolicyStage }
+      >();
+      let stagePrev: string | undefined;
+      let indexInStage = 0;
+      for (const p of newOrderedPolicies) {
+        const effectiveStage = options?.draggedId === p.id ? options.targetStage : p.stage;
+        if (effectiveStage !== stagePrev) {
+          stagePrev = effectiveStage;
+          indexInStage = 0;
+        }
+        const priority = PRIORITY_VALUES[indexInStage % PRIORITY_VALUES.length] ?? 50;
+        const entry: { priority: number; isFallback: boolean; stage?: PolicyStage } = {
+          priority,
+          isFallback: priority === 100,
+        };
+        if (options?.draggedId === p.id) {
+          entry.stage = options.targetStage;
+        }
+        updates.set(p.id, entry);
+        indexInStage++;
+      }
+      setPolicies((prev) =>
+        prev.map((p) => {
+          const u = updates.get(p.id);
+          if (!u) return p;
+          return {
+            ...p,
+            priority: u.priority,
+            isFallback: u.isFallback,
+            ...(u.stage != null && { stage: u.stage }),
+            updatedAt: now,
+          };
+        })
+      );
+    },
+    [setPolicies]
+  );
+
   const selectedPolicy = selectedRuleId ? policies.find((p) => p.id === selectedRuleId) : null;
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const addFromLibraryButtonRef = useRef<HTMLButtonElement>(null);
@@ -186,6 +404,40 @@ export function PolicyEngineRulesTab({
     sortedPolicies.forEach((p, i) => map.set(p.id, i + 1));
     return map;
   }, [sortedPolicies]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const lastOverIdRef = useRef<string | null>(null);
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    lastOverIdRef.current = event.over ? String(event.over.id) : null;
+  }, []);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveDragId(null);
+      const { active, over } = event;
+      const overId = over?.id ?? lastOverIdRef.current;
+      lastOverIdRef.current = null;
+      if (!overId || active.id === overId) return;
+      const fromIndex = sortedPolicies.findIndex((p) => p.id === active.id);
+      const toIndex = sortedPolicies.findIndex((p) => p.id === overId);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const newOrdered = arrayMove(sortedPolicies, fromIndex, toIndex);
+      const targetStage = sortedPolicies[toIndex].stage;
+      reorderPoliciesByNewOrder(newOrdered, {
+        draggedId: String(active.id),
+        targetStage,
+      });
+    },
+    [sortedPolicies, reorderPoliciesByNewOrder]
+  );
 
   const addFromTemplate = useCallback(
     (templateKey: string) => {
@@ -243,17 +495,17 @@ export function PolicyEngineRulesTab({
     <div className={`flex flex-col min-h-0 w-full ${selectedPolicy ? 'min-h-fit' : 'h-full'}`}>
       <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <div>
-          <h3 className="text-xl font-semibold text-slate-800" title="Order: Guardrails → Custom models → Modifiers → Merit matrix → Caps. First match wins. Use Priority in the table to reorder within a stage.">
+          <h3 className="text-xl font-semibold text-slate-800" title="Order: Guardrails â†’ Custom models â†’ Modifiers â†’ Merit matrix â†’ Caps. First match wins. Use Priority in the table to reorder within a stage.">
             Policy library
           </h3>
           <p className="text-sm text-slate-600 mt-0.5">
             {policies.length > 0
               ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit or duplicate.`
-              : 'Start with a recipe from “Add from library” or create a new policy.'}
+              : 'Start with a recipe from â€œAdd from libraryâ€ or create a new policy.'}
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Common recipes include FMV caps, YOE tier models, and targeted modifiers. Use Priority to control which rules
-            run first within each stage.
+            Common recipes include FMV caps, YOE tier models, and targeted modifiers. Drag the Order handle or use
+            Priority to control which rules run first within each stage.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -399,7 +651,7 @@ export function PolicyEngineRulesTab({
           <table className="min-w-full border-collapse">
             <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr className="bg-neutral-50">
-                <th className="px-2 py-3 text-center text-[11px] font-semibold text-neutral-600 uppercase tracking-wide w-14" title="Evaluation order: by stage, then by priority. Change Priority to reorder.">Order</th>
+                <th className="px-2 py-3 text-center text-[11px] font-semibold text-neutral-600 uppercase tracking-wide w-14" title="Drag to reorder. Evaluation order: by stage, then by priority.">Order</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Name</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Type</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Target population</th>
@@ -413,77 +665,73 @@ export function PolicyEngineRulesTab({
               {policies.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
-                    No policies. Click “Create Policy” to create one.
+                    No policies. Click â€œCreate Policyâ€ to create one.
                   </td>
                 </tr>
               ) : (
-                sortedPolicies.map((p) => (
-                  <tr
-                    key={p.id}
-                    className={`group transition-colors cursor-pointer ${
-                      selectedRuleId === p.id ? 'bg-indigo-100/60' : 'hover:bg-indigo-50/30'
-                    }`}
-                    onClick={() => {
-                      onSelectRuleId(p.id);
-                    }}
+                <>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={verticalClosestRow}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
                   >
-                    <td className="px-2 py-1.5 text-center text-sm tabular-nums text-slate-600">{orderByPolicyId.get(p.id) ?? '—'}</td>
-                    <td className="px-2 py-1.5 text-sm font-medium text-slate-800">{p.name}</td>
-                    <td className="px-2 py-1.5 text-sm text-slate-600">{p.policyType}</td>
-                    <td className="px-2 py-1.5 text-sm text-slate-600 max-w-[160px] truncate" title={formatTargetScopeSummary(p.targetScope)}>
-                      {formatTargetScopeSummary(p.targetScope)}
-                    </td>
-                    <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={p.isFallback ? 100 : p.priority}
-                        onChange={(e) => {
-                          const opt = PRIORITY_OPTIONS.find((o) => String(o.value) === e.target.value);
-                          if (opt) updatePolicyPriority(p.id, opt.value, opt.isFallback ?? false);
-                        }}
-                        className="w-full min-w-0 max-w-[100px] text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700"
-                        title="Lower priority runs first within the stage"
-                      >
-                        {PRIORITY_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-2 py-1.5 text-sm text-slate-600">{p.status}</td>
-                    <td className="px-2 py-1.5 text-sm text-slate-500">
-                      {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          duplicatePolicy(p);
-                        }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 rounded"
-                        title="Duplicate"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h2m8 0h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2m-8 0H6" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removePolicy(p.id);
-                        }}
-                        className="p-1 text-slate-400 hover:text-red-600 rounded"
-                        title="Remove"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                    <SortableContext
+                      items={sortedPolicies.map((p) => p.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                    {sortedPolicies.map((p) => (
+                      <SortablePolicyRow
+                        key={p.id}
+                        policy={p}
+                        orderNum={orderByPolicyId.get(p.id) ?? 0}
+                        isSelected={selectedRuleId === p.id}
+                        onSelect={() => onSelectRuleId(p.id)}
+                        onUpdatePriority={updatePolicyPriority}
+                        onDuplicate={duplicatePolicy}
+                        onRemove={removePolicy}
+                      />
+                    ))}
+                    </SortableContext>
+                    <DragOverlay dropAnimation={null}>
+                      {activeDragId ? (() => {
+                        const policy = sortedPolicies.find((p) => p.id === activeDragId);
+                        const orderNum = policy ? (orderByPolicyId.get(policy.id) ?? 0) : 0;
+                        if (!policy) return null;
+                        return (
+                          <table className="min-w-full border-collapse">
+                            <tbody>
+                              <tr className="bg-white shadow-lg border border-slate-200 rounded-md opacity-95 cursor-grabbing divide-x divide-slate-100">
+                                <td className="px-2 py-1.5 text-center text-sm tabular-nums text-slate-600 rounded-l-md">
+                                  <span className="inline-flex rounded p-0.5">
+                                    <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                      <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+                                    </svg>
+                                  </span>
+                                  <span className="ml-0.5">{orderNum}</span>
+                                </td>
+                                <td className="px-2 py-1.5 text-sm font-medium text-slate-800">{policy.name}</td>
+                                <td className="px-2 py-1.5 text-sm text-slate-600">{policy.policyType}</td>
+                                <td className="px-2 py-1.5 text-sm text-slate-600 max-w-[160px] truncate" title={formatTargetScopeSummary(policy.targetScope)}>
+                                  {formatTargetScopeSummary(policy.targetScope)}
+                                </td>
+                                <td className="px-2 py-1.5 text-sm text-slate-600">
+                                  {PRIORITY_OPTIONS.find((o) => (policy.isFallback ? 100 : policy.priority) === o.value)?.label ?? '—'}
+                                </td>
+                                <td className="px-2 py-1.5 text-sm text-slate-600">{policy.status}</td>
+                                <td className="px-2 py-1.5 text-sm text-slate-500">
+                                  {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : '—'}
+                                </td>
+                                <td className="px-2 py-1.5 rounded-r-md" />
+                              </tr>
+                            </tbody>
+                          </table>
+                        );
+                      })() : null}
+                    </DragOverlay>
+                  </DndContext>
+                </>
               )}
             </tbody>
           </table>
