@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/favicon.ico", "destination": "/GrokImage.jpg" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
