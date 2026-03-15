@@ -10,7 +10,7 @@ const KEY_CUSTOM_MODELS = 'tcc-policy-engine-custom-models';
 const KEY_TIER_TABLES = 'tcc-policy-engine-tier-tables';
 const KEY_ACTIVE_MATRIX_ID = 'tcc-policy-engine-active-matrix-id';
 const KEY_MIGRATED_CUSTOM_MODELS = 'tcc-policy-engine-migrated-custom-models';
-
+const KEY_ADDED_CARDIOLOGY_3TIER = 'tcc-policy-engine-added-cardiology-3tier';
 function loadJson<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -94,9 +94,200 @@ export function migrateCustomModelsToPolicies(
   }
 }
 
-/** Load policies from storage. Default is empty — policies are only added via Add from library or Create new, and can be edited/deleted. */
+function ts(): string {
+  return new Date().toISOString();
+}
+
+/**
+ * Demo set of 6 policies that work together: guardrails supersede first,
+ * then custom models by specialty/division, then modifier, then cap.
+ * Seeded when the policy list is empty so users can see filtering and superseding.
+ */
+function getDemoPolicies(): AnnualIncreasePolicy[] {
+  return [
+    // 1. Guardrail (1st): FMV TCC cap – runs first, supersedes for anyone above 75th TCC
+    {
+      id: 'demo-guardrail-fmv-tcc-cap',
+      key: 'demo-guardrail-fmv-tcc-cap',
+      name: 'FMV TCC cap (75th percentile)',
+      description: 'TCC above 75th percentile → 0% and flag. Runs first; supersedes all other policies for those providers.',
+      status: 'active',
+      stage: 'EXCLUSION_GUARDRAIL',
+      policyType: 'Guardrail',
+      priority: 5,
+      targetScope: {},
+      conditions: { and: [{ '>': [{ var: 'tccPercentile' }, 75] }] },
+      actions: [
+        { type: 'ZERO_OUT_INCREASE' },
+        { type: 'FLAG_MANUAL_REVIEW', metadata: 'FMV: TCC above 75th' },
+      ],
+      conflictStrategy: 'FORCE_RESULT',
+      stopProcessing: true,
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 2. Guardrail (2nd): Low performer – flags only; does not zero out
+    {
+      id: 'demo-guardrail-low-performer',
+      key: 'demo-guardrail-low-performer',
+      name: 'Low performer guardrail',
+      description: 'Evaluation score ≤ 2 → flag for manual review. Does not change increase %; other policies still apply.',
+      status: 'active',
+      stage: 'EXCLUSION_GUARDRAIL',
+      policyType: 'Guardrail',
+      priority: 10,
+      targetScope: {},
+      conditions: { and: [{ '<=': [{ var: 'evaluationScore' }, 2] }] },
+      actions: [{ type: 'FLAG_MANUAL_REVIEW', metadata: 'Below expectations' }],
+      conflictStrategy: 'ANNOTATE_ONLY',
+      stopProcessing: false,
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 3. Custom model: General Pediatrics – increase % by YOE tier (runs before PCP so Gen Peds gets this)
+    {
+      id: 'demo-custom-gen-peds-yoe',
+      key: 'demo-custom-gen-peds-yoe',
+      name: 'General Pediatrics – Increase % by YOE tier',
+      description: 'Targets General Pediatrics / Pediatrics. 0–2 YOE: 3.5%; 3–5: 4%; 6–10: 4.25%; 11+: 4.5%. Supersedes broader PCP tier for matched providers.',
+      status: 'active',
+      stage: 'CUSTOM_MODEL',
+      policyType: 'Custom model',
+      priority: 25,
+      targetScope: {
+        specialties: ['General Pediatrics', 'Pediatrics'],
+        divisions: ['PCP', 'Primary Care', 'Pediatrics'],
+      },
+      conditions: undefined,
+      modelConfig: {
+        type: 'YOE_TIER_TABLE',
+        tierRows: [
+          { minYoe: 0, maxYoe: 2, label: '0–2 YOE', increasePercent: 3.5 },
+          { minYoe: 2.01, maxYoe: 5, label: '3–5 YOE', increasePercent: 4 },
+          { minYoe: 5.01, maxYoe: 10, label: '6–10 YOE', increasePercent: 4.25 },
+          { minYoe: 10.01, maxYoe: 999, label: '11+ YOE', increasePercent: 4.5 },
+        ],
+      },
+      actions: [],
+      conflictStrategy: 'REPLACE_BASE_RESULT',
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 4. Custom model: PCP / Primary Care – increase % by YOE tier (broader; Gen Peds gets Gen Peds policy first)
+    {
+      id: 'demo-custom-pcp-yoe',
+      key: 'demo-custom-pcp-yoe',
+      name: 'PCP / Primary Care – Increase % by YOE tier',
+      description: 'Targets PCP, Primary Care, Family Medicine, Internal Medicine. 0–3 YOE: 3.5%; 4–7: 4%; 8+: 4.5%. Applies when no more specific custom model matches.',
+      status: 'active',
+      stage: 'CUSTOM_MODEL',
+      policyType: 'Custom model',
+      priority: 50,
+      targetScope: {
+        divisions: ['PCP', 'Primary Care', 'Family Medicine'],
+        specialties: ['Family Medicine', 'Internal Medicine', 'General Pediatrics', 'Pediatrics'],
+      },
+      conditions: undefined,
+      modelConfig: {
+        type: 'YOE_TIER_TABLE',
+        tierRows: [
+          { minYoe: 0, maxYoe: 3, label: '0–3 YOE', increasePercent: 3.5 },
+          { minYoe: 3.01, maxYoe: 7, label: '4–7 YOE', increasePercent: 4 },
+          { minYoe: 7.01, maxYoe: 999, label: '8+ YOE', increasePercent: 4.5 },
+        ],
+      },
+      actions: [],
+      conflictStrategy: 'REPLACE_BASE_RESULT',
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 4b. Example: one specialty, three YOE tiers (0–3 = Tier 1, 3–8 = Tier 2, 8+ = Tier 3) – open this policy to see how it’s built
+    {
+      id: 'demo-custom-cardiology-yoe-3tier',
+      key: 'demo-custom-cardiology-yoe-3tier',
+      name: 'Cardiology – Increase % by YOE tier (example)',
+      description: 'Example: one specialty (Cardiology) with 3 tiers. Tier 1: 0–3 YOE → 3.5%. Tier 2: 3–8 YOE → 4%. Tier 3: 8+ YOE → 4.5%. Open this policy to see Target scope + tier table.',
+      status: 'active',
+      stage: 'CUSTOM_MODEL',
+      policyType: 'Custom model',
+      priority: 45,
+      targetScope: {
+        specialties: ['Cardiology'],
+      },
+      conditions: undefined,
+      modelConfig: {
+        type: 'YOE_TIER_TABLE',
+        tierRows: [
+          { minYoe: 0, maxYoe: 3, label: 'Tier 1 (0–3 YOE)', increasePercent: 3.5 },
+          { minYoe: 3.01, maxYoe: 8, label: 'Tier 2 (3–8 YOE)', increasePercent: 4 },
+          { minYoe: 8.01, maxYoe: 999, label: 'Tier 3 (8+ YOE)', increasePercent: 4.5 },
+        ],
+      },
+      actions: [],
+      conflictStrategy: 'REPLACE_BASE_RESULT',
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 5. Modifier: High wRVU – adds 0.5% when wRVU percentile > 60 (stacks on base from matrix or custom model)
+    {
+      id: 'demo-modifier-high-wrvu',
+      key: 'demo-modifier-high-wrvu',
+      name: 'High wRVU productivity modifier',
+      description: 'wRVU percentile > 60 → add +0.5% to base increase. Stacks on merit matrix or custom model result.',
+      status: 'active',
+      stage: 'MODIFIER',
+      policyType: 'Modifier',
+      priority: 10,
+      targetScope: {},
+      conditions: { and: [{ '>': [{ var: 'wrvuPercentile' }, 60] }] },
+      actions: [{ type: 'ADD_INCREASE_PERCENT', value: 0.5 }],
+      conflictStrategy: 'ADDITIVE_MODIFIER',
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+    // 6. Cap/floor: Cap at 5% – runs last, constrains final increase
+    {
+      id: 'demo-cap-5pct',
+      key: 'demo-cap-5pct',
+      name: 'Cap at 5%',
+      description: 'Final increase cannot exceed 5%. Applies after all other policies (guardrails, custom models, modifiers).',
+      status: 'active',
+      stage: 'CAP_FLOOR',
+      policyType: 'Cap / Floor',
+      priority: 10,
+      targetScope: {},
+      conditions: undefined,
+      actions: [{ type: 'CAP_INCREASE_PERCENT', value: 5 }],
+      conflictStrategy: 'CAP_RESULT',
+      createdAt: ts(),
+      updatedAt: ts(),
+    },
+  ];
+}
+
+const CARDIOLOGY_3TIER_EXAMPLE_ID = 'demo-custom-cardiology-yoe-3tier';
+
+/** Load policies from storage. When storage is empty, seeds the demo set (including Cardiology 3-tier example). When user already has policies, add the Cardiology 3-tier example once if missing. */
 export function loadPolicies(): AnnualIncreasePolicy[] {
-  return loadJson(KEY_POLICIES, []);
+  let policies = loadJson<AnnualIncreasePolicy[]>(KEY_POLICIES, []);
+  if (typeof localStorage !== 'undefined') {
+    if (policies.length === 0) {
+      policies = getDemoPolicies();
+      saveJson(KEY_POLICIES, policies);
+    } else {
+      const hasCardiologyExample = policies.some((p) => p.id === CARDIOLOGY_3TIER_EXAMPLE_ID);
+      if (!hasCardiologyExample && localStorage.getItem(KEY_ADDED_CARDIOLOGY_3TIER) !== '1') {
+        const demo = getDemoPolicies();
+        const cardiology = demo.find((p) => p.id === CARDIOLOGY_3TIER_EXAMPLE_ID);
+        if (cardiology) {
+          policies = [...policies, cardiology];
+          saveJson(KEY_POLICIES, policies);
+          localStorage.setItem(KEY_ADDED_CARDIOLOGY_3TIER, '1');
+        }
+      }
+    }
+  }
+  return policies;
 }
 
 export function savePolicies(policies: AnnualIncreasePolicy[]): void {
@@ -119,7 +310,6 @@ const PCP_BASE_SALARY_TIER_MODEL: CustomCompensationModel = {
     { minYoe: 4.01, maxYoe: 8, label: '4–8 YOE', baseSalary: 190_000 },
     { minYoe: 8.01, maxYoe: 999, label: '8+ YOE', baseSalary: 200_000 },
   ],
-  effectiveStart: new Date().toISOString().slice(0, 10),
   version: '1',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -139,7 +329,6 @@ const YOE_TIER_DEMO_MODEL: CustomCompensationModel = {
     { minYoe: 5.01, maxYoe: 10, label: 'Tier 3 (6–10 YOE)', increasePercent: 4.5 },
     { minYoe: 10.01, maxYoe: 999, label: 'Tier 4 (11+ YOE)', increasePercent: 5.5 },
   ],
-  effectiveStart: new Date().toISOString().slice(0, 10),
   version: '1',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -199,7 +388,6 @@ const SAMPLE_CUSTOM_MODELS: CustomCompensationModel[] = [
       { minYoe: 5.01, maxYoe: 10, label: 'Tier 3', increasePercent: 4.25 },
       { minYoe: 10.01, maxYoe: 999, label: 'Tier 4', increasePercent: 4.5 },
     ],
-    effectiveStart: new Date().toISOString().slice(0, 10),
     version: '1',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

@@ -29,12 +29,9 @@ export interface PolicyEvaluationContext {
   asOfDate?: string;
 }
 
-function isPolicyActive(p: AnnualIncreasePolicy, asOfDate?: string): boolean {
-  if (p.status !== 'active') return false;
-  const d = asOfDate ?? new Date().toISOString().slice(0, 10);
-  if (p.effectiveStart && p.effectiveStart > d) return false;
-  if (p.effectiveEnd && p.effectiveEnd < d) return false;
-  return true;
+/** Active = status is active. Date gating is by merit cycle only; per-policy effective dates are not used. */
+function isPolicyActive(p: AnnualIncreasePolicy): boolean {
+  return p.status === 'active';
 }
 
 function applyPolicyActions(
@@ -120,7 +117,7 @@ export function evaluatePolicyForProvider(
   let blocked = false;
   let stopProcessing = false;
 
-  const activePolicies = context.policies.filter((p) => isPolicyActive(p, context.asOfDate));
+  const activePolicies = context.policies.filter((p) => isPolicyActive(p));
   const sortedPolicies = sortPoliciesByStageAndPriority(activePolicies);
 
   // Stage 1: Exclusions / guardrails

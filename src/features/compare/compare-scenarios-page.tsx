@@ -27,6 +27,14 @@ import {
   DEFAULT_COMPARE_SCENARIOS_FILTERS,
   type CompareScenariosFilters,
 } from '../../lib/compare-scenarios-filters';
+import {
+  applyTargetCohortFilters,
+  getTargetCohortFilterOptions,
+  DEFAULT_COMPARE_TARGET_COHORT_FILTERS,
+  hasTargetCohortFilters,
+  type CompareTargetCohortFilters,
+} from '../../lib/compare-target-cohort';
+import { CompareTargetCohortBar } from './compare-target-cohort-bar';
 import { validateScenarioConfig } from '../../lib/policy-engine/validation';
 import {
   loadSavedScenarios,
@@ -34,18 +42,12 @@ import {
   createSavedScenario,
   type SavedScenario,
 } from '../../lib/scenario-storage';
-import {
-  getLibraryScenarioConfig,
-  getLibraryIdFromValue,
-  LIBRARY_SCENARIO_ID_LIST,
-  LIBRARY_SCENARIO_LABELS,
-} from '../../lib/scenario-library';
 
-/** Scenario A: current config or a saved/library scenario. */
-type ScenarioAValue = 'current' | `saved:${string}` | `library:${string}`;
+/** Scenario A: current config (from Policy Engine), a single policy, or a saved scenario. */
+type ScenarioAValue = 'current' | `policy:${string}` | `saved:${string}`;
 
-/** Scenario B: preset (derived from A), saved, or library. */
-type ScenarioBValue = ScenarioPresetId | `saved:${string}` | `library:${string}`;
+/** Scenario B: preset (derived from A), a single policy, or a saved scenario. */
+type ScenarioBValue = ScenarioPresetId | `policy:${string}` | `saved:${string}`;
 
 const PRESET_IDS: ScenarioPresetId[] = ['merit-matrix-only', 'no-custom-models', 'conservative-cap'];
 
@@ -53,8 +55,8 @@ function isPresetId(v: ScenarioBValue): v is ScenarioPresetId {
   return PRESET_IDS.includes(v as ScenarioPresetId);
 }
 
-function isLibraryValue(v: string): boolean {
-  return v.startsWith('library:');
+function isPolicyScenarioValue(v: string): v is `policy:${string}` {
+  return typeof v === 'string' && v.startsWith('policy:');
 }
 
 export function CompareScenariosPage() {
@@ -63,7 +65,7 @@ export function CompareScenariosPage() {
   const { policies, customModels, tierTables } = usePolicyEngineState();
   const [selectedCycleId] = useSelectedCycle(cycles);
   const [scenarioA, setScenarioA] = useState<ScenarioAValue>('current');
-  const [scenarioB, setScenarioB] = useState<ScenarioBValue>('library:library-3pct');
+  const [scenarioB, setScenarioB] = useState<ScenarioBValue>('merit-matrix-only');
   const [resultA, setResultA] = useState<ScenarioRunResult | null>(null);
   const [resultB, setResultB] = useState<ScenarioRunResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -71,7 +73,25 @@ export function CompareScenariosPage() {
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [filters, setFilters] = useState<CompareScenariosFilters>(DEFAULT_COMPARE_SCENARIOS_FILTERS);
+  const [targetCohortFilters, setTargetCohortFilters] = useState<CompareTargetCohortFilters>(
+    DEFAULT_COMPARE_TARGET_COHORT_FILTERS
+  );
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>(() => loadSavedScenarios());
+
+  const activePolicies = useMemo(
+    () => policies.filter((p) => p.status === 'active'),
+    [policies]
+  );
+
+  const targetRecords = useMemo(
+    () => applyTargetCohortFilters(records, targetCohortFilters),
+    [records, targetCohortFilters]
+  );
+
+  const targetCohortFilterOptions = useMemo(
+    () => getTargetCohortFilterOptions(records),
+    [records]
+  );
 
   const marketResolver = useMemo(
     () =>
@@ -101,10 +121,17 @@ export function CompareScenariosPage() {
       const saved = savedScenarios.find((s) => s.id === scenarioA.slice('saved:'.length));
       return saved?.config ?? currentConfig;
     }
-    if (scenarioA.startsWith('library:')) {
-      const id = getLibraryIdFromValue(scenarioA);
-      const libConfig = id ? getLibraryScenarioConfig(id) : undefined;
-      return libConfig ?? currentConfig;
+    if (isPolicyScenarioValue(scenarioA)) {
+      const policyId = scenarioA.slice('policy:'.length);
+      const policy = currentConfig.policies.find((p) => p.id === policyId);
+      if (!policy) return currentConfig;
+      return {
+        policies: [policy],
+        customModels: currentConfig.customModels,
+        tierTables: currentConfig.tierTables,
+        meritMatrixRows: currentConfig.meritMatrixRows,
+        asOfDate: currentConfig.asOfDate,
+      };
     }
     return currentConfig;
   }, [scenarioA, currentConfig, savedScenarios]);
@@ -113,15 +140,25 @@ export function CompareScenariosPage() {
     if (isPresetId(scenarioB)) {
       return buildScenarioConfigFromPreset(scenarioB, configA);
     }
-    if (isLibraryValue(scenarioB)) {
-      const id = getLibraryIdFromValue(scenarioB);
-      const libConfig = id ? getLibraryScenarioConfig(id) : undefined;
-      return libConfig ?? configA;
+    if (scenarioB.startsWith('saved:')) {
+      const savedId = scenarioB.slice('saved:'.length);
+      const saved = savedScenarios.find((s) => s.id === savedId);
+      return saved?.config ?? configA;
     }
-    const savedId = scenarioB.replace(/^saved:/, '');
-    const saved = savedScenarios.find((s) => s.id === savedId);
-    return saved?.config ?? configA;
-  }, [scenarioB, configA, savedScenarios]);
+    if (isPolicyScenarioValue(scenarioB)) {
+      const policyId = scenarioB.slice('policy:'.length);
+      const policy = currentConfig.policies.find((p) => p.id === policyId);
+      if (!policy) return configA;
+      return {
+        policies: [policy],
+        customModels: currentConfig.customModels,
+        tierTables: currentConfig.tierTables,
+        meritMatrixRows: currentConfig.meritMatrixRows,
+        asOfDate: currentConfig.asOfDate,
+      };
+    }
+    return configA;
+  }, [scenarioB, configA, currentConfig, savedScenarios]);
 
   const scenarioALabel = useMemo(() => {
     if (scenarioA === 'current') return 'Current configuration';
@@ -129,23 +166,25 @@ export function CompareScenariosPage() {
       const saved = savedScenarios.find((s) => s.id === scenarioA.slice('saved:'.length));
       return saved?.label ?? 'Saved scenario';
     }
-    if (scenarioA.startsWith('library:')) {
-      const id = getLibraryIdFromValue(scenarioA);
-      return (id && LIBRARY_SCENARIO_LABELS[id]) ?? 'Library scenario';
+    if (isPolicyScenarioValue(scenarioA)) {
+      const policy = currentConfig.policies.find((p) => p.id === scenarioA.slice('policy:'.length));
+      return policy ? `Policy: ${policy.name}` : 'Single policy';
     }
     return 'Current configuration';
-  }, [scenarioA, savedScenarios]);
+  }, [scenarioA, savedScenarios, currentConfig.policies]);
 
   const scenarioBLabel = useMemo(() => {
     if (isPresetId(scenarioB)) return SCENARIO_PRESET_LABELS[scenarioB];
-    if (isLibraryValue(scenarioB)) {
-      const id = getLibraryIdFromValue(scenarioB);
-      return (id && LIBRARY_SCENARIO_LABELS[id]) ?? 'Library scenario';
+    if (scenarioB.startsWith('saved:')) {
+      const saved = savedScenarios.find((s) => s.id === scenarioB.slice('saved:'.length));
+      return saved?.label ?? 'Custom scenario';
     }
-    const savedId = scenarioB.replace(/^saved:/, '');
-    const saved = savedScenarios.find((s) => s.id === savedId);
-    return saved?.label ?? 'Custom scenario';
-  }, [scenarioB, savedScenarios]);
+    if (isPolicyScenarioValue(scenarioB)) {
+      const policy = currentConfig.policies.find((p) => p.id === scenarioB.slice('policy:'.length));
+      return policy ? `Policy: ${policy.name}` : 'Single policy';
+    }
+    return 'Custom scenario';
+  }, [scenarioB, savedScenarios, currentConfig.policies]);
 
   const budgetAmount = useMemo(
     () =>
@@ -165,18 +204,18 @@ export function CompareScenariosPage() {
   }, [configA, configB]);
 
   const handleRunComparison = useCallback(() => {
-    if (records.length === 0) return;
+    if (targetRecords.length === 0) return;
     setIsRunning(true);
     try {
       const a = runScenario(
-        records,
+        targetRecords,
         configA,
         marketResolver,
         'scenario-a',
         scenarioALabel
       );
       const b = runScenario(
-        records,
+        targetRecords,
         configB,
         marketResolver,
         'scenario-b',
@@ -187,11 +226,11 @@ export function CompareScenariosPage() {
     } finally {
       setIsRunning(false);
     }
-  }, [records, configA, configB, marketResolver, scenarioALabel, scenarioBLabel]);
+  }, [targetRecords, configA, configB, marketResolver, scenarioALabel, scenarioBLabel]);
 
   const handleExportXlsx = useCallback(() => {
     if (!resultA || !resultB) return;
-    const buffer = exportCompareScenariosToXlsx(records, resultA, resultB);
+    const buffer = exportCompareScenariosToXlsx(targetRecords, resultA, resultB);
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -202,7 +241,7 @@ export function CompareScenariosPage() {
     a.click();
     URL.revokeObjectURL(url);
     setExportDropdownOpen(false);
-  }, [records, resultA, resultB]);
+  }, [targetRecords, resultA, resultB]);
 
   const handleSaveAsScenario = useCallback(() => {
     const label = window.prompt('Name this scenario:', 'My custom scenario');
@@ -224,8 +263,8 @@ export function CompareScenariosPage() {
 
   const rows = useMemo(() => {
     if (!resultA || !resultB) return [];
-    return buildCompareRows(records, resultA, resultB);
-  }, [records, resultA, resultB]);
+    return buildCompareRows(targetRecords, resultA, resultB);
+  }, [targetRecords, resultA, resultB]);
 
   const filterOptions = useMemo(() => getCompareFilterOptions(rows), [rows]);
 
@@ -250,12 +289,28 @@ export function CompareScenariosPage() {
           <div className="flex flex-col gap-0.5">
             <h2 className="text-xl font-semibold text-slate-800">Compare scenarios</h2>
             <p className="text-xs text-slate-600">
-              Run two policy configurations on the same providers and compare results side-by-side.
+              Run two policy configurations on the same providers and compare results side-by-side. Scenario A and B use the policy set from <strong>Controls → Base increases → Policy library</strong>: choose <strong>Current configuration</strong> (all active policies), a <strong>single policy</strong> to compare that policy alone, or a saved snapshot.
             </p>
             <p className="text-[11px] text-slate-500">
-              Providers in view: <span className="font-medium text-slate-700">{records.length}</span>
-              {resultA && resultB && (
-                <> · Delta (B − A): <span className="font-medium text-slate-700">{resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars >= 0 ? '+' : ''}{((resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars) / 1).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></>
+              {resultA && resultB ? (
+                <>
+                  Providers in run: <span className="font-medium text-slate-700">{targetRecords.length}</span>
+                  {hasTargetCohortFilters(targetCohortFilters) && (
+                    <span className="text-slate-400"> ({targetRecords.length} of {records.length} loaded)</span>
+                  )}
+                  {' · Delta (B − A): '}
+                  <span className="font-medium text-slate-700">
+                    {resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars >= 0 ? '+' : ''}
+                    {((resultB.summary.totalIncreaseDollars - resultA.summary.totalIncreaseDollars) / 1).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                </>
+              ) : (
+                <>
+                  Providers in view: <span className="font-medium text-slate-700">{records.length}</span>
+                  {hasTargetCohortFilters(targetCohortFilters) && (
+                    <span> · Run on: <span className="font-medium text-slate-700">{targetRecords.length}</span> (of {records.length})</span>
+                  )}
+                </>
               )}
             </p>
           </div>
@@ -268,7 +323,7 @@ export function CompareScenariosPage() {
             <button
               type="button"
               onClick={handleRunComparison}
-              disabled={records.length === 0 || isRunning}
+              disabled={targetRecords.length === 0 || isRunning}
               className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isRunning ? 'Running...' : 'Run comparison'}
@@ -303,6 +358,15 @@ export function CompareScenariosPage() {
           </div>
         </div>
 
+        {records.length > 0 && (
+          <CompareTargetCohortBar
+            filters={targetCohortFilters}
+            onFiltersChange={setTargetCohortFilters}
+            filterOptions={targetCohortFilterOptions}
+            targetCount={targetRecords.length}
+            totalCount={records.length}
+          />
+        )}
         {/* Scenario bar - same pattern as Salary Review filter bar: one strip with border-b */}
         <div className="shrink-0 px-5 py-3 flex flex-wrap items-center gap-4 border-b border-slate-200 bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -314,13 +378,15 @@ export function CompareScenariosPage() {
               aria-label="Choose Scenario A"
             >
               <option value="current">Current configuration</option>
-              <optgroup label="Example scenarios (library)">
-                {LIBRARY_SCENARIO_ID_LIST.map((id) => (
-                  <option key={id} value={`library:${id}`}>
-                    {LIBRARY_SCENARIO_LABELS[id]}
-                  </option>
-                ))}
-              </optgroup>
+              {activePolicies.length > 0 && (
+                <optgroup label="Single policy (from Parameters)">
+                  {activePolicies.map((p) => (
+                    <option key={p.id} value={`policy:${p.id}`}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {savedScenarios.length > 0 && (
                 <optgroup label="Saved scenarios">
                   {savedScenarios.map((s) => (
@@ -347,13 +413,15 @@ export function CompareScenariosPage() {
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="Example scenarios (library)">
-                {LIBRARY_SCENARIO_ID_LIST.map((id) => (
-                  <option key={id} value={`library:${id}`}>
-                    {LIBRARY_SCENARIO_LABELS[id]}
-                  </option>
-                ))}
-              </optgroup>
+              {activePolicies.length > 0 && (
+                <optgroup label="Single policy (from Parameters)">
+                  {activePolicies.map((p) => (
+                    <option key={p.id} value={`policy:${p.id}`}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {savedScenarios.length > 0 && (
                 <optgroup label="Saved scenarios">
                   {savedScenarios.map((s) => (
@@ -369,18 +437,26 @@ export function CompareScenariosPage() {
             <button
               type="button"
               onClick={handleSaveAsScenario}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:ring-offset-2 text-sm font-medium"
               title="Save Scenario A configuration as a named scenario"
+              aria-label="Save Scenario A as scenario"
             >
-              Save A as scenario
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              Save A
             </button>
             <button
               type="button"
               onClick={handleSaveBAsScenario}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:ring-offset-2 text-sm font-medium"
               title="Save Scenario B configuration as a new named scenario"
+              aria-label="Save Scenario B as scenario"
             >
-              Save B as scenario
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              Save B
             </button>
           </div>
         </div>

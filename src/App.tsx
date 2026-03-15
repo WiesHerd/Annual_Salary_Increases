@@ -57,7 +57,7 @@ function App() {
           onFullScreenChange={setSalaryReviewFullScreen}
         />
       )}
-      {view === 'parameters' && <ParametersPage onNavigateToHelp={() => setView('help')} />}
+      {view === 'parameters' && <ParametersPage />}
       {view === 'help' && <PolicyHelpPage onNavigateToParameters={() => setView('parameters')} />}
       {view === 'compare' && <CompareScenariosPage />}
     </Layout>

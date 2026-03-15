@@ -21,7 +21,5 @@ export interface TierTable {
   version?: string;
   /** Tier rows ordered by minYoe (low to high). */
   tiers: TierRow[];
-  effectiveStart?: string;
-  effectiveEnd?: string;
   active?: boolean;
 }
