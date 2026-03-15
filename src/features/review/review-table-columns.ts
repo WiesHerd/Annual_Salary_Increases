@@ -230,6 +230,7 @@ export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId
     'compareCheckbox',
     'providerName',
     'specialty',
+    'policySource',
     'currentBaseSalary',
     'proposedBaseSalary',
     'proposedBaseSalaryAt1Fte',

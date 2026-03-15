@@ -1,6 +1,6 @@
 /**
  * Policy and scenario config validation.
- * Surfaces duplicate keys, tier range issues, effective date consistency, required fields, and condition key checks.
+ * Surfaces duplicate keys, tier range issues, required fields, and condition key checks.
  */
 
 import type { AnnualIncreasePolicy, PolicyModelConfig, ConditionTree } from '../../types/compensation-policy';
@@ -100,23 +100,6 @@ export function validatePolicy(policy: AnnualIncreasePolicy): PolicyValidationRe
   }
   if (!policy.key?.trim()) {
     errors.push('Policy key is required.');
-  }
-  if (policy.effectiveStart != null && policy.effectiveStart !== '' && !isValidIsoDate(policy.effectiveStart)) {
-    errors.push('Effective start date must be a valid ISO date (YYYY-MM-DD).');
-  }
-  if (policy.effectiveEnd != null && policy.effectiveEnd !== '' && !isValidIsoDate(policy.effectiveEnd)) {
-    errors.push('Effective end date must be a valid ISO date (YYYY-MM-DD).');
-  }
-  if (
-    policy.effectiveStart != null &&
-    policy.effectiveStart !== '' &&
-    policy.effectiveEnd != null &&
-    policy.effectiveEnd !== '' &&
-    isValidIsoDate(policy.effectiveStart) &&
-    isValidIsoDate(policy.effectiveEnd) &&
-    policy.effectiveStart > policy.effectiveEnd
-  ) {
-    errors.push('Effective start date must be on or before effective end date.');
   }
 
   if (policy.stage === 'CUSTOM_MODEL' && !policy.modelConfig && (!policy.actions || policy.actions.length === 0)) {

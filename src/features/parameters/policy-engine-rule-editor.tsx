@@ -33,6 +33,17 @@ interface PolicyRuleEditorProps {
 
 const STAGES: PolicyStage[] = ['EXCLUSION_GUARDRAIL', 'CUSTOM_MODEL', 'MODIFIER', 'GENERAL_MATRIX', 'CAP_FLOOR'];
 
+/** Policy type dropdown options (display label only; engine uses stage). */
+const POLICY_TYPE_OPTIONS = [
+  'General Merit Matrix',
+  'Guardrail',
+  'Modifier',
+  'Cap / Floor',
+  'Manual Review',
+  'Override',
+  'Custom model',
+];
+
 const CONDITION_FACT_VALUE_OPTIONS: Record<string, keyof ParameterOptions> = {
   division: 'divisions',
   specialty: 'specialties',
@@ -83,6 +94,13 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
   useEffect(() => {
     initialPolicyRef.current = JSON.parse(JSON.stringify(policy));
   }, [policy.id]);
+
+  // New policies are created as active; treat any existing draft as active when opening the editor.
+  useEffect(() => {
+    if (policy.status === 'draft') {
+      onUpdate({ status: 'active' });
+    }
+  }, [policy.id, policy.status, onUpdate]);
 
   const handleRevert = useCallback(() => {
     onUpdate(initialPolicyRef.current);
@@ -434,11 +452,10 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
             <select
-              value={policy.status}
+              value={policy.status === 'draft' ? 'active' : policy.status}
               onChange={(e) => update({ status: e.target.value as AnnualIncreasePolicy['status'] })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
             >
-              <option value="draft">Draft</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="archived">Archived</option>
@@ -460,13 +477,18 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Policy type</label>
-            <input
-              type="text"
+            <select
               value={policy.policyType}
               onChange={(e) => update({ policyType: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-              placeholder="e.g. Guardrail"
-            />
+            >
+              {!POLICY_TYPE_OPTIONS.includes(policy.policyType) && policy.policyType && (
+                <option value={policy.policyType}>{policy.policyType}</option>
+              )}
+              {POLICY_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Priority</label>
@@ -477,45 +499,25 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 if (opt) update({ priority: opt.value, isFallback: opt.isFallback ?? false });
               }}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last"
             >
               {PRIORITY_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Effective start</label>
-            <input
-              type="date"
-              value={policy.effectiveStart ?? ''}
-              onChange={(e) => update({ effectiveStart: e.target.value || undefined })}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-              placeholder="Optional"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Effective end</label>
-            <input
-              type="date"
-              value={policy.effectiveEnd ?? ''}
-              onChange={(e) => update({ effectiveEnd: e.target.value || undefined })}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-              placeholder="Optional"
-            />
+            <p className="text-[11px] text-slate-500 mt-0.5">Within stage: 1st → 2nd → 3rd → 4th → Fallback</p>
           </div>
         </div>
         </div>
         )}
 
         {stepIndex === 1 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+        <div className="rounded-lg border border-slate-200 p-4 space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Target scope (optional)</label>
             <p className="text-xs text-slate-500 mb-3">Leave empty to apply to all providers.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
                 {parameterOptions.divisions && parameterOptions.divisions.length > 0 ? (
                   <MultiSelectDropdown
                     label="Divisions"
@@ -523,12 +525,13 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                     selected={policy.targetScope.divisions ?? []}
                     onChange={(v) => updateScope('divisions', v)}
                     placeholder="All"
+                    className="w-full"
                   />
                 ) : (
-                  <div className="h-9" aria-hidden />
+                  <div className="h-9 w-full" aria-hidden />
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
                 {parameterOptions.specialties && parameterOptions.specialties.length > 0 ? (
                   <MultiSelectDropdown
                     label="Specialties"
@@ -536,79 +539,75 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                     selected={policy.targetScope.specialties ?? []}
                     onChange={(v) => updateScope('specialties', v)}
                     placeholder="All"
+                    className="w-full"
                   />
                 ) : (
-                  <div className="h-9" aria-hidden />
+                  <div className="h-9 w-full" aria-hidden />
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
                 <MultiSelectDropdown
                   label="Provider type"
                   options={(parameterOptions.providerTypes?.length ?? 0) > 0 ? parameterOptions.providerTypes : DEFAULT_PROVIDER_TYPES}
                   selected={policy.targetScope.providerTypes ?? []}
                   onChange={(v) => updateScope('providerTypes', v)}
                   placeholder="All"
+                  className="w-full"
                 />
               </div>
-            <div className="min-w-0">
-              <RangeInputs
-                label="YOE"
-                valueMin={policy.targetScope.yoeMin}
-                valueMax={policy.targetScope.yoeMax}
-                onChange={(min, max) =>
-                  update({ targetScope: { ...policy.targetScope, yoeMin: min, yoeMax: max } })
-                }
-                min={0}
-                max={50}
-              />
-            </div>
-            <div className="min-w-0">
-              <RangeInputs
-                label="TCC %ile"
-                valueMin={policy.targetScope.tccPercentileMin}
-                valueMax={policy.targetScope.tccPercentileMax}
-                onChange={(min, max) =>
-                  update({ targetScope: { ...policy.targetScope, tccPercentileMin: min, tccPercentileMax: max } })
-                }
-                min={0}
-                max={100}
-              />
-            </div>
-            <div className="min-w-0">
-              <RangeInputs
-                label="wRVU %ile"
-                valueMin={policy.targetScope.wrvuPercentileMin}
-                valueMax={policy.targetScope.wrvuPercentileMax}
-                onChange={(min, max) =>
-                  update({ targetScope: { ...policy.targetScope, wrvuPercentileMin: min, wrvuPercentileMax: max } })
-                }
-                min={0}
-                max={100}
-              />
-            </div>
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
+                <RangeInputs
+                  label="YOE"
+                  labelPosition="top"
+                  valueMin={policy.targetScope.yoeMin}
+                  valueMax={policy.targetScope.yoeMax}
+                  onChange={(min, max) =>
+                    update({ targetScope: { ...policy.targetScope, yoeMin: min, yoeMax: max } })
+                  }
+                  min={0}
+                  max={50}
+                />
+              </div>
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
+                <RangeInputs
+                  label="TCC %ile"
+                  labelPosition="top"
+                  valueMin={policy.targetScope.tccPercentileMin}
+                  valueMax={policy.targetScope.tccPercentileMax}
+                  onChange={(min, max) =>
+                    update({ targetScope: { ...policy.targetScope, tccPercentileMin: min, tccPercentileMax: max } })
+                  }
+                  min={0}
+                  max={100}
+                />
+              </div>
+              <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
+                <RangeInputs
+                  label="wRVU %ile"
+                  labelPosition="top"
+                  valueMin={policy.targetScope.wrvuPercentileMin}
+                  valueMax={policy.targetScope.wrvuPercentileMax}
+                  onChange={(min, max) =>
+                    update({ targetScope: { ...policy.targetScope, wrvuPercentileMin: min, wrvuPercentileMax: max } })
+                  }
+                  min={0}
+                  max={100}
+                />
+              </div>
             </div>
           </div>
         </div>
         )}
 
         {stepIndex === 2 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+        <div className="rounded-lg border border-slate-200 p-4">
           <label className="block text-xs font-medium text-slate-600 mb-1">Conditions (when to apply)</label>
-          <p className="text-xs text-slate-500 mb-3">
-            Use fields from your data. Leave all empty to apply when scope matches.
+          <p className="text-xs text-slate-500 mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span>Empty = scope match.</span>
             {policy.stage === 'CUSTOM_MODEL' && (
-              <span className="block mt-1 text-indigo-600">For YOE tier policies, no conditions = applies to all providers in the target scope.</span>
+              <span className="text-indigo-600">YOE tier: empty = all.</span>
             )}
           </p>
-          {policy.stage === 'CUSTOM_MODEL' && conditionList.some((c) => c.factKey !== '') && (
-            <button
-              type="button"
-              onClick={clearAllConditions}
-              className="mb-3 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 inline-flex items-center gap-1.5"
-            >
-              <span aria-hidden>×</span> Remove all conditions (apply when scope matches)
-            </button>
-          )}
           <div className="flex gap-2 mb-3">
             <button
               type="button"
@@ -735,8 +734,8 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 + Add condition
               </button>
               {conditionList.length > 0 && (
-                <button type="button" onClick={clearAllConditions} className="text-sm text-slate-500 hover:text-slate-700 hover:underline">
-                  Clear all (apply when scope matches)
+                <button type="button" onClick={clearAllConditions} className="text-sm text-slate-500 hover:text-slate-700 hover:underline" title="Apply when scope matches">
+                  Clear all
                 </button>
               )}
             </div>
@@ -748,43 +747,46 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         )}
 
         {stepIndex === 3 && (
-        <div className={isTieredModel ? 'grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6' : 'space-y-4'}>
-          <div className={isTieredModel ? 'flex flex-col gap-4 shrink-0' : 'grid grid-cols-2 gap-3'}>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1" title="Behavior is determined by stage and actions; strategy is for labeling and audit.">
-                Conflict strategy
-              </label>
-              <select
-                value={policy.conflictStrategy}
-                onChange={(e) => update({ conflictStrategy: e.target.value as ConflictStrategy })}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-                title="Behavior is determined by stage and actions; strategy is for labeling and audit."
-              >
-                {CONFLICT_STRATEGY_PLAIN.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-500">
-                Behavior is determined by stage and actions; strategy is for labeling and audit.
-              </p>
+        <div className={isTieredModel ? 'flex flex-col gap-6' : 'space-y-4'}>
+          {/* Non-tiered: conflict strategy and stop processing at top */}
+          {!isTieredModel && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1" title="Behavior is determined by stage and actions; strategy is for labeling and audit.">
+                  Conflict strategy
+                </label>
+                <select
+                  value={policy.conflictStrategy}
+                  onChange={(e) => update({ conflictStrategy: e.target.value as ConflictStrategy })}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                  title="Behavior is determined by stage and actions; strategy is for labeling and audit."
+                >
+                  {CONFLICT_STRATEGY_PLAIN.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Behavior is determined by stage and actions; strategy is for labeling and audit.
+                </p>
+              </div>
+              <div className="flex items-center">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={policy.stopProcessing ?? false}
+                    onChange={(e) => update({ stopProcessing: e.target.checked })}
+                    className="rounded border-slate-300"
+                  />
+                  <span className="text-sm text-slate-700">Stop processing after this rule</span>
+                </label>
+              </div>
             </div>
-            <div className="flex items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={policy.stopProcessing ?? false}
-                  onChange={(e) => update({ stopProcessing: e.target.checked })}
-                  className="rounded border-slate-300"
-                />
-                <span className="text-sm text-slate-700">Stop processing after this rule</span>
-              </label>
-            </div>
-          </div>
+          )}
           <div className={isTieredModel ? 'min-w-0' : 'space-y-4'}>
           {policy.stage === 'CUSTOM_MODEL' && !policy.modelConfig && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+            <div className="rounded-lg border border-slate-200 p-4">
               <p className="text-sm font-medium text-slate-700 mb-3">Custom model — select a model type:</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
@@ -1086,6 +1088,45 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
           </div>
           )}
           </div>
+          {/* Tiered model: conflict strategy and stop processing below the tier table */}
+          {isTieredModel && (
+            <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/50">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Rule behavior</h4>
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="min-w-[200px] flex-1">
+                  <label className="block text-xs font-medium text-slate-600 mb-1" title="Behavior is determined by stage and actions; strategy is for labeling and audit.">
+                    Conflict strategy
+                  </label>
+                  <select
+                    value={policy.conflictStrategy}
+                    onChange={(e) => update({ conflictStrategy: e.target.value as ConflictStrategy })}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                    title="Behavior is determined by stage and actions; strategy is for labeling and audit."
+                  >
+                    {CONFLICT_STRATEGY_PLAIN.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center pt-6 pb-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={policy.stopProcessing ?? false}
+                      onChange={(e) => update({ stopProcessing: e.target.checked })}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="text-sm text-slate-700">Stop processing after this rule</span>
+                  </label>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Behavior is determined by stage and actions; strategy is for labeling and audit.
+              </p>
+            </div>
+          )}
         </div>
         )}
 

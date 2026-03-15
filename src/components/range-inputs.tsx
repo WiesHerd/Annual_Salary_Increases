@@ -8,6 +8,8 @@ export interface RangeInputsProps {
   valueMax: number | undefined;
   onChange: (min: number | undefined, max: number | undefined) => void;
   label?: string;
+  /** When 'top', label is above the inputs; when 'left', label is to the left (default). */
+  labelPosition?: 'left' | 'top';
   placeholder?: string;
   min?: number;
   max?: number;
@@ -20,6 +22,7 @@ export function RangeInputs({
   valueMax,
   onChange,
   label,
+  labelPosition = 'left',
   placeholder = '—',
   min = 0,
   max = 50,
@@ -33,11 +36,8 @@ export function RangeInputs({
     return v === '' || !Number.isFinite(n) ? undefined : Math.max(min, Math.min(max, n));
   };
 
-  return (
-    <div className={`flex items-center gap-2 w-full min-w-0 ${className}`}>
-      {label != null && (
-        <span className="text-xs text-slate-500 shrink-0 w-16">{label}</span>
-      )}
+  const inputsRow = (
+    <>
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <input
           type="number"
@@ -73,6 +73,26 @@ export function RangeInputs({
           ×
         </button>
       )}
+    </>
+  );
+
+  if (labelPosition === 'top' && label != null) {
+    return (
+      <div className={`flex flex-col gap-1.5 w-full min-w-0 text-center ${className}`}>
+        <span className="text-xs font-medium text-slate-600">{label}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          {inputsRow}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-2 w-full min-w-0 ${className}`}>
+      {label != null && (
+        <span className="text-xs text-slate-500 shrink-0 w-16">{label}</span>
+      )}
+      {inputsRow}
     </div>
   );
 }

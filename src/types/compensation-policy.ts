@@ -133,8 +133,6 @@ export interface AnnualIncreasePolicy {
   policyType: string;
   /** Lower number = higher priority within stage. */
   priority: number;
-  effectiveStart?: string;
-  effectiveEnd?: string;
   version?: string;
   targetScope: PolicyTargetScope;
   /** JsonLogic condition tree. Empty or missing = always match. */
@@ -202,8 +200,6 @@ export interface CustomCompensationModel {
   /** For FIXED_PERCENT. */
   fixedIncreasePercent?: number;
   /** For CUSTOM_MATRIX: score/label → percent (future). */
-  effectiveStart?: string;
-  effectiveEnd?: string;
   version?: string;
   createdAt?: string;
   updatedAt?: string;

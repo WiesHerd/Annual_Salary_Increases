@@ -208,7 +208,6 @@ export function PolicyCreateWizard({
   const [modelConfig, setModelConfig] = useState<PolicyModelConfig | undefined>(undefined);
   const [priorityOption, setPriorityOption] = useState(50); // Medium
   const [isFallback, setIsFallback] = useState(false);
-  const [activateImmediately, setActivateImmediately] = useState(true);
 
   const selectedType = useMemo(() => POLICY_TYPE_CARDS.find((t) => t.id === selectedTypeId), [selectedTypeId]);
 
@@ -460,13 +459,13 @@ export function PolicyCreateWizard({
       id,
       key: `rule-${id}`,
       name: name || draftPolicy.name,
-      status: activateImmediately ? 'active' : 'draft',
+      status: 'active',
       updatedAt: new Date().toISOString(),
     };
     policyState.setPolicies((prev) => [...prev, saved]);
     onSaved(saved);
     onClose();
-  }, [draftPolicy, name, activateImmediately, policyState, onSaved, onClose, saveValidation.errors.length]);
+  }, [draftPolicy, name, policyState, onSaved, onClose, saveValidation.errors.length]);
 
   const step = STEPS[stepIndex];
   useEffect(() => {
@@ -1074,15 +1073,6 @@ export function PolicyCreateWizard({
                     />
                   </div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer mt-3">
-                  <input
-                    type="checkbox"
-                    checked={activateImmediately}
-                    onChange={(e) => setActivateImmediately(e.target.checked)}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="text-sm text-slate-700">Activate immediately (policy will run in Salary Review)</span>
-                </label>
                 {draftPolicy && (
                   <div className="text-sm text-slate-600 pt-2">
                     <p><strong>Type:</strong> {draftPolicy.policyType}</p>

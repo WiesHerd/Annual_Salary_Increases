@@ -52,6 +52,12 @@ const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[]
   { value: 100, label: 'Last (Fallback)', isFallback: true },
 ];
 
+const STATUS_OPTIONS: { value: AnnualIncreasePolicy['status']; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'archived', label: 'Archived' },
+];
+
 const TIE_BREAKER_PX = 5;
 
 /**
@@ -109,6 +115,7 @@ function SortablePolicyRow({
   isSelected,
   onSelect,
   onUpdatePriority,
+  onUpdateStatus,
   onDuplicate,
   onRemove,
 }: {
@@ -117,6 +124,7 @@ function SortablePolicyRow({
   isSelected: boolean;
   onSelect: () => void;
   onUpdatePriority: (id: string, priority: number, isFallback: boolean) => void;
+  onUpdateStatus: (id: string, status: AnnualIncreasePolicy['status']) => void;
   onDuplicate: (p: AnnualIncreasePolicy) => void;
   onRemove: (id: string) => void;
 }) {
@@ -173,14 +181,27 @@ function SortablePolicyRow({
             if (opt) onUpdatePriority(policy.id, opt.value, opt.isFallback ?? false);
           }}
           className="w-full min-w-0 max-w-[100px] text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700"
-          title="Lower priority runs first within the stage"
+          title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last when no other policy applied"
         >
           {PRIORITY_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </td>
-      <td className="px-2 py-1.5 text-sm text-slate-600">{policy.status}</td>
+      <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <select
+          value={policy.status === 'draft' ? 'active' : policy.status}
+          onChange={(e) => onUpdateStatus(policy.id, e.target.value as AnnualIncreasePolicy['status'])}
+          className={`w-full min-w-0 max-w-[90px] text-xs border rounded px-1.5 py-1 bg-white ${
+            policy.status === 'active' ? 'border-green-200 text-slate-700' : 'border-slate-200 text-slate-600'
+          }`}
+          title="Active = runs in Salary Review. Inactive = skipped (turn off temporarily)."
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </td>
       <td className="px-2 py-1.5 text-sm text-slate-500">
         {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : 'â€”'}
       </td>
@@ -219,7 +240,6 @@ interface PolicyEngineRulesTabProps {
   selectedRuleId: string | null;
   onSelectRuleId: (id: string | null) => void;
   onStartCreatePolicy?: () => void;
-  onNavigateToHelp?: () => void;
 }
 
 function newId() {
@@ -233,7 +253,6 @@ export function PolicyEngineRulesTab({
   selectedRuleId,
   onSelectRuleId,
   onStartCreatePolicy,
-  onNavigateToHelp,
 }: PolicyEngineRulesTabProps) {
   const { policies, setPolicies, tierTables, setTierTables, customModels, setCustomModels, persistNow } = policyState;
   const [savePackOpen, setSavePackOpen] = useState(false);
@@ -243,6 +262,7 @@ export function PolicyEngineRulesTab({
   const [savedPacksRefresh, setSavedPacksRefresh] = useState(0);
   const [userTemplatesRefresh, setUserTemplatesRefresh] = useState(0);
   const [manageTemplatesOpen, setManageTemplatesOpen] = useState(false);
+  const [orderHelpOpen, setOrderHelpOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editTemplateName, setEditTemplateName] = useState('');
   const [editTemplateDescription, setEditTemplateDescription] = useState('');
@@ -316,6 +336,15 @@ export function PolicyEngineRulesTab({
     (id: string, priority: number, isFallback: boolean) => {
       setPolicies((prev) =>
         prev.map((p) => (p.id === id ? { ...p, priority, isFallback, updatedAt: new Date().toISOString() } : p))
+      );
+    },
+    [setPolicies]
+  );
+
+  const updatePolicyStatus = useCallback(
+    (id: string, status: AnnualIncreasePolicy['status']) => {
+      setPolicies((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status, updatedAt: new Date().toISOString() } : p))
       );
     },
     [setPolicies]
@@ -495,18 +524,31 @@ export function PolicyEngineRulesTab({
     <div className={`flex flex-col min-h-0 w-full ${selectedPolicy ? 'min-h-fit' : 'h-full'}`}>
       <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <div>
-          <h3 className="text-xl font-semibold text-slate-800" title="Order: Guardrails â†’ Custom models â†’ Modifiers â†’ Merit matrix â†’ Caps. First match wins. Use Priority in the table to reorder within a stage.">
-            Policy library
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xl font-semibold text-slate-800">Policy library</h3>
+            <button
+              type="button"
+              onClick={() => setOrderHelpOpen((v) => !v)}
+              className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              aria-expanded={orderHelpOpen}
+              aria-label="How order and status work"
+              title="How order and status work"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
           <p className="text-sm text-slate-600 mt-0.5">
             {policies.length > 0
               ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit or duplicate.`
               : 'Start with a recipe from â€œAdd from libraryâ€ or create a new policy.'}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Common recipes include FMV caps, YOE tier models, and targeted modifiers. Drag the Order handle or use
-            Priority to control which rules run first within each stage.
-          </p>
+          {orderHelpOpen && (
+            <p className="text-xs text-slate-500 mt-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+              Order: Guardrails → Custom models → Modifiers → Merit matrix → Caps. Within each stage, <strong>1st runs first</strong>, then 2nd, 3rd, 4th; <strong>Fallback</strong> runs last. Use the <strong>Status</strong> dropdown to turn a policy off temporarily (Inactive) without deleting it.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -520,19 +562,6 @@ export function PolicyEngineRulesTab({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
           </button>
-          {onNavigateToHelp && (
-            <button
-              type="button"
-              onClick={onNavigateToHelp}
-              className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
-              title="How to build policies"
-              aria-label="How to build policies"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setManageTemplatesOpen(true)}
@@ -549,15 +578,16 @@ export function PolicyEngineRulesTab({
               ref={addFromLibraryButtonRef}
               type="button"
               onClick={() => setLibraryOpen((o) => !o)}
-              className="p-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
-              title="Add from library"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900 text-sm font-medium"
+              title="Add a pre-built policy (e.g. 3% with 75th TCC cap, FMV guardrails)"
               aria-label="Add from library"
               aria-expanded={libraryOpen}
               aria-haspopup="true"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.256A8.967 8.967 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.256A8.967 8.967 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
               </svg>
+              Add from library
             </button>
             {libraryOpen &&
               libraryDropdownRect &&
@@ -595,7 +625,7 @@ export function PolicyEngineRulesTab({
                         </button>
                       ))
                     )}
-                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase border-t border-slate-100 mt-1">Add from template</div>
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase border-t border-slate-100 mt-1">Your saved templates</div>
                     {userTemplatesList.map((t) => (
                       <button
                         key={t.id}
@@ -609,6 +639,7 @@ export function PolicyEngineRulesTab({
                         <span className="text-xs text-indigo-600 mt-0.5 inline-block">{t.stage}</span>
                       </button>
                     ))}
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase border-t border-slate-100 mt-1">Pre-built (3% + 75th TCC cap, FMV guardrails, YOE tiers, …)</div>
                     {POLICY_TEMPLATES.map((t) => (
                       <button
                         key={t.templateKey}
@@ -630,7 +661,7 @@ export function PolicyEngineRulesTab({
           <button
             type="button"
             onClick={handleCreatePolicy}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-700"
           >
             Create new
           </button>
@@ -651,12 +682,12 @@ export function PolicyEngineRulesTab({
           <table className="min-w-full border-collapse">
             <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr className="bg-neutral-50">
-                <th className="px-2 py-3 text-center text-[11px] font-semibold text-neutral-600 uppercase tracking-wide w-14" title="Drag to reorder. Evaluation order: by stage, then by priority.">Order</th>
+                <th className="px-2 py-3 text-center text-[11px] font-semibold text-neutral-600 uppercase tracking-wide w-14" title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback).">Order</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Name</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Type</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Target population</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide min-w-[100px]">Priority</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Status</th>
+                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">Priority</th>
+                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide" title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
                 <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Last updated</th>
                 <th className="w-24 px-2 py-3" />
               </tr>
@@ -689,6 +720,7 @@ export function PolicyEngineRulesTab({
                         isSelected={selectedRuleId === p.id}
                         onSelect={() => onSelectRuleId(p.id)}
                         onUpdatePriority={updatePolicyPriority}
+                        onUpdateStatus={updatePolicyStatus}
                         onDuplicate={duplicatePolicy}
                         onRemove={removePolicy}
                       />

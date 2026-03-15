@@ -3,7 +3,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { POLICY_STAGE_LABELS, POLICY_STAGE_ORDER, CONFLICT_STRATEGY_LABELS } from '../../types/compensation-policy';
+import { POLICY_STAGE_LABELS, POLICY_STAGE_ORDER } from '../../types/compensation-policy';
 import type { PolicyStage } from '../../types/compensation-policy';
 import { CONDITION_FACT_OPTIONS } from '../../lib/policy-engine/condition-builder';
 
@@ -140,16 +140,22 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
       <Section title="Actions and conflict strategy">
         <p>
           Each policy has one or more <strong>actions</strong> (e.g. &quot;Force increase to 0%&quot;,
-          &quot;Add 0.5%&quot;, &quot;Cap at 5%&quot;) and a <strong>conflict strategy</strong> that defines how it
-          interacts with the current result:
+          &quot;Add 0.5%&quot;, &quot;Cap at 5%&quot;) and a <strong>conflict strategy</strong> that describes how it
+          interacts with the current result.
         </p>
-        <ul className="list-disc list-inside mt-2 space-y-1">
-          {Object.entries(CONFLICT_STRATEGY_LABELS).map(([key, label]) => (
-            <li key={key}>
-              <strong>{label}</strong> — {key.replace(/_/g, ' ').toLowerCase()}
-            </li>
-          ))}
-        </ul>
+        <SubSection title="Conflict strategy options">
+          <p className="mb-2">Choose the option that best matches what this policy does:</p>
+          <ul className="list-disc list-inside space-y-1.5 text-slate-700">
+            <li><strong>Override and set the result</strong> — Sets the increase to a specific value (e.g. guardrail to 0%, or override to 4%). Replaces whatever was there.</li>
+            <li><strong>Replace the base result</strong> — This policy’s result becomes the new baseline (e.g. custom model or merit matrix output).</li>
+            <li><strong>Add to the current result</strong> — Adds a percentage on top of the current result (e.g. +0.5% for high wRVU). Used for modifiers.</li>
+            <li><strong>Cap the result at a maximum</strong> — Does not let the increase go above the specified maximum. Used in the Caps / Floors stage.</li>
+            <li><strong>Set a minimum floor</strong> — Does not let the increase go below the specified minimum. Used in the Caps / Floors stage.</li>
+            <li><strong>Block automation (require manual review)</strong> — Flags the provider for manual review; the system does not auto-apply. Use for FMV or compliance guardrails.</li>
+            <li><strong>Apply only when no other policy has set a result</strong> — Runs only when no earlier policy has set a result. Use for your single General Merit Matrix fallback.</li>
+            <li><strong>Annotate only (do not change the result)</strong> — Adds notes or context without changing the numeric increase. For audit or labeling.</li>
+          </ul>
+        </SubSection>
         <p className="mt-3">
           <strong>Stop processing</strong>: when enabled, no later policies run for that provider after this one
           applies. Use for guardrails that must be the final word (e.g. FMV zero-out).
@@ -169,8 +175,9 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
         <ul className="list-disc list-inside space-y-1.5">
           <li>Use <strong>one</strong> General Merit Matrix policy as fallback so everyone has a default result.</li>
           <li>Put guardrails and exclusions first (they run in the Exclusions / Guardrails stage).</li>
-          <li>Use the <strong>Simulator</strong> (Controls → Compensation Policy Engine → Simulator) to test
-            policies on sample providers before rolling out.
+          <li>Use <strong>Compare scenarios</strong> to run two policy configs (e.g. current vs merit-only) and see
+            impact side-by-side; use <strong>Salary Review</strong> and the provider detail panel to see why a given
+            provider got a specific recommendation.
           </li>
           <li>Start from <strong>Add from library</strong> templates and adjust targeting and conditions to fit
             your organization.
@@ -182,20 +189,14 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
       </Section>
 
       <Section title="Where to go next">
-        <p className="mb-3">From Controls → Compensation Policy Engine you can:</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>
-            <strong>Dashboard</strong> — See active policies and evaluation pipeline order.
-          </li>
-          <li>
-            <strong>Policy library</strong> — Create new policies, add from library (templates), edit, duplicate, or
-            archive.
-          </li>
-          <li>
-            <strong>Simulator</strong> — Run the engine on one provider to see which policies match and the final
-            recommendation.
-          </li>
-        </ul>
+        <p className="mb-3">In <strong>Controls → Base increases → Policy library</strong> you can create new policies,
+          add from library (templates), edit, duplicate, or archive. Policies are listed in evaluation order (stage,
+          then priority).
+        </p>
+        <p className="mt-3 text-sm text-slate-600">
+          Use <strong>Compare scenarios</strong> to test configs side-by-side; use <strong>Salary Review</strong> to run
+          the full cycle and open a provider to see the policy explanation.
+        </p>
         {onNavigateToParameters && (
           <p className="mt-4">
             <button

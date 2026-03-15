@@ -437,6 +437,8 @@ function HowMappingWorksIcon() {
   );
 }
 
+type AutoMapEmptyReason = 'no-market' | 'all-matched' | 'no-keys' | 'low-confidence' | null;
+
 interface AutoMapPreviewModalProps {
   open: boolean;
   onClose: () => void;
@@ -448,6 +450,9 @@ interface AutoMapPreviewModalProps {
   surveyLabel: string;
   minConfidence: number;
   onMinConfidenceChange: (v: number) => void;
+  emptyReason: AutoMapEmptyReason;
+  marketRowCount: number;
+  unmappedCount: number;
 }
 
 function AutoMapPreviewModal({
@@ -461,6 +466,9 @@ function AutoMapPreviewModal({
   surveyLabel,
   minConfidence,
   onMinConfidenceChange,
+  emptyReason,
+  marketRowCount,
+  unmappedCount,
 }: AutoMapPreviewModalProps) {
   if (!open) return null;
 
@@ -469,6 +477,39 @@ function AutoMapPreviewModal({
     ...appSuggestions.map((s) => ({ ...s, kind: 'app' as const })),
   ];
   const selectedCount = allSuggestions.filter((s) => selectedIds.has(s.employeeId)).length;
+
+  const emptyMessage = ((): { message: string } => {
+    switch (emptyReason) {
+      case 'no-market':
+        return {
+          message: (
+            <>
+              No market data for {surveyLabel}. Upload a market file for this survey in the <strong>Import</strong> tab.
+            </>
+          ),
+        };
+      case 'all-matched':
+        return { message: 'All providers are already matched for this survey.' };
+      case 'no-keys':
+        return {
+          message: (
+            <>
+              Unmapped providers have no Specialty or Benchmark_Group. Add these in your provider file or{' '}
+              <strong>Data browser</strong>.
+            </>
+          ),
+        };
+      case 'low-confidence':
+        return {
+          message: `No fuzzy matches above ${Math.round(minConfidence * 100)}% confidence. Try lowering the slider.`,
+        };
+      default:
+        return {
+          message:
+            'No suggestions found. All providers may already be matched, or market data may be empty.',
+        };
+    }
+  })();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -495,9 +536,12 @@ function AutoMapPreviewModal({
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {allSuggestions.length === 0 ? (
-            <p className="text-slate-500 text-sm py-4">
-              No suggestions found. All providers may already be matched, or market data may be empty.
-            </p>
+            <div className="py-4">
+              <p className="text-slate-700 text-sm font-medium">{emptyMessage.message}</p>
+              <p className="text-slate-500 text-xs mt-2">
+                Market specialties: {marketRowCount} · Unmapped: {unmappedCount}
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
               {allSuggestions.map((s) => (
@@ -595,6 +639,26 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
     const fromLabels = Object.keys(SURVEY_LABELS);
     return [...new Set([...fromLabels, ...fromData])];
   }, [marketSurveys]);
+
+  /** Only show tabs for surveys that are in use: have market data or at least one provider type mapped. */
+  const surveyIdsInUse = useMemo(() => {
+    const typeToSurvey = loadProviderTypeToSurveyMapping();
+    const mappedSurveyIds = new Set(Object.values(typeToSurvey));
+    const realSurveyIds = Object.keys(marketSurveys).filter((id) => id !== 'apps');
+    return surveyIds.filter((id) => {
+      if (id === 'apps') {
+        return realSurveyIds.some((rid) => mappedSurveyIds.has(rid));
+      }
+      return (marketSurveys[id]?.length ?? 0) > 0 || mappedSurveyIds.has(id);
+    });
+  }, [marketSurveys, surveyIds]);
+
+  /** When the selected tab is no longer in use, switch to the first in-use tab. */
+  useEffect(() => {
+    if (surveyIdsInUse.length > 0 && !surveyIdsInUse.includes(selectedSurveyId)) {
+      setSelectedSurveyId(surveyIdsInUse[0]);
+    }
+  }, [surveyIdsInUse, selectedSurveyId]);
 
   const realSurveyIds = useMemo(() => 
     Object.keys(marketSurveys).filter((id) => id !== 'apps'),
@@ -711,6 +775,18 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
     ).map((r) => r.specialty);
     return { matchedCount: matched, unmatchedCount: unmatched, orphanSpecialties: orphan };
   }, [providersForSurvey, marketData, getMarket]);
+
+  /** Why Auto Map returned no suggestions; used for specific empty-state messaging. */
+  const emptyReason = useMemo((): 'no-market' | 'all-matched' | 'no-keys' | 'low-confidence' | null => {
+    if (marketData.length === 0) return 'no-market';
+    if (unmatchedCount === 0) return 'all-matched';
+    const unmappedWithKey = providersForSurvey.filter((p) => {
+      const key = getMatchKey(p);
+      return key.trim() !== '' && !getMarket(key);
+    }).length;
+    if (unmappedWithKey === 0) return 'no-keys';
+    return 'low-confidence';
+  }, [marketData.length, unmatchedCount, providersForSurvey, getMarket]);
 
   const physicianSuggestions = useMemo(
     () =>
@@ -892,25 +968,26 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         {/* Header bar - matches Salary Review */}
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
-          <div className="flex items-center gap-4 flex-wrap">
-            <h2 className="text-xl font-semibold text-slate-800">Specialty map</h2>
-            <div className="flex rounded-xl border border-slate-300 bg-slate-50">
-              {surveyIds.map((id, idx) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSelectedSurveyId(id)}
-                  className={`px-3 py-2 text-sm font-medium transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${idx === surveyIds.length - 1 ? 'rounded-r-xl' : ''} ${
-                    selectedSurveyId === id
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {getSurveyLabel(id, surveyMetadata)}
-                </button>
-              ))}
-            </div>
-            {isAppsView && realSurveyIds.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-4 flex-wrap">
+              <h2 className="text-xl font-semibold text-slate-800">Specialty map</h2>
+              <div className="flex rounded-xl border border-slate-300 bg-slate-50">
+                {surveyIdsInUse.map((id, idx) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSelectedSurveyId(id)}
+                    className={`px-3 py-2 text-sm font-medium transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${idx === surveyIdsInUse.length - 1 ? 'rounded-r-xl' : ''} ${
+                      selectedSurveyId === id
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {getSurveyLabel(id, surveyMetadata)}
+                  </button>
+                ))}
+              </div>
+              {isAppsView && realSurveyIds.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">Using market:</span>
                 <select
@@ -924,6 +1001,8 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
                 </select>
               </div>
             )}
+            </div>
+            <p className="text-xs text-slate-500">By market survey. Add a survey in Import to get another tab.</p>
           </div>
           <div className="flex items-center gap-3">
             <MappingDonutChart matchedCount={matchedCount} unmatchedCount={unmatchedCount} />
@@ -1274,6 +1353,9 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
         surveyLabel={surveyLabel}
         minConfidence={autoMapMinConfidence}
         onMinConfidenceChange={setAutoMapMinConfidence}
+        emptyReason={emptyReason}
+        marketRowCount={marketData.length}
+        unmappedCount={unmatchedCount}
       />
     </div>
   );

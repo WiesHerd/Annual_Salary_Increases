@@ -36,7 +36,7 @@ const navSections: {
   {
     label: 'CONFIGURATION',
     items: [
-      { label: 'Controls', id: 'parameters', icon: 'settings' },
+      { label: 'Parameters', id: 'parameters', icon: 'settings' },
       { label: 'Policy help', id: 'help', icon: 'help' },
     ],
   },
@@ -170,20 +170,20 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           ))}
         </nav>
 
-        {/* Footer: budget cycle, collapse toggle + tagline */}
+        {/* Footer: merit cycle, collapse toggle + tagline */}
         <div className="shrink-0 border-t border-slate-100 flex flex-col">
           {!collapsed && (
             <div className="border-b border-slate-100 px-4 py-3">
               {cycles.length > 0 && (
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Budget cycle
+                    Merit cycle
                   </span>
                   <select
                     value={selectedCycleId || (cycles[0]?.id ?? '')}
                     onChange={(e) => setSelectedCycleId(e.target.value)}
                     className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
-                    aria-label="Select budget cycle"
+                    aria-label="Select merit cycle"
                   >
                     {cycles.map((c) => (
                       <option key={c.id} value={c.id}>
