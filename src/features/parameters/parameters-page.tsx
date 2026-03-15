@@ -61,13 +61,6 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   },
 ];
 
-function getGroupForTab(tabId: ParametersTabId): TabGroupId {
-  for (const g of TAB_GROUPS) {
-    if (g.tabs.some((t) => t.id === tabId)) return g.id;
-  }
-  return 'cycle-budget';
-}
-
 function getInitialTabFromUrl(): ParametersTabId {
   if (typeof window === 'undefined') return 'cycle';
   const params = new URLSearchParams(window.location.search);
@@ -127,8 +120,6 @@ export function ParametersPage(_props: ParametersPageProps = {} as ParametersPag
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentGroup = getGroupForTab(activeTab);
-
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Header + horizontal nav with dropdowns */}
@@ -150,7 +141,6 @@ export function ParametersPage(_props: ParametersPageProps = {} as ParametersPag
         >
           {TAB_GROUPS.map((group) => {
             const isOpen = openDropdownId === group.id;
-            const isActive = currentGroup === group.id;
             return (
               <div key={group.id} className="relative">
                 <button

@@ -4,7 +4,7 @@
  * Physician (1:1) and APP (many-to-one) sections with Auto Map and status badges.
  */
 
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, type ReactNode } from 'react';
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketSurveySet } from '../../types/market-survey-config';
 import type { AppCombinedGroupRow } from '../../types/app-combined-group';
@@ -478,7 +478,7 @@ function AutoMapPreviewModal({
   ];
   const selectedCount = allSuggestions.filter((s) => selectedIds.has(s.employeeId)).length;
 
-  const emptyMessage = ((): { message: string } => {
+  const emptyMessage = ((): { message: string | ReactNode } => {
     switch (emptyReason) {
       case 'no-market':
         return {
