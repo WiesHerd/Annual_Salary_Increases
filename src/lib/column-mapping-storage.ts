@@ -8,6 +8,7 @@ const KEY_PROVIDER = 'tcc-learned-provider-mapping';
 const KEY_MARKET = 'tcc-learned-market-mapping';
 const KEY_EVALUATION = 'tcc-learned-evaluation-mapping';
 const KEY_PAYMENTS = 'tcc-learned-payments-mapping';
+const KEY_CUSTOM_STREAM_PREFIX = 'tcc-learned-custom-stream-';
 
 export type LearnedProviderMapping = Record<string, string>;
 export type LearnedMarketMapping = Record<string, string>;
@@ -149,4 +150,43 @@ export function persistLearnedPaymentsMapping(mapping: Record<string, string | u
     if (source && source.trim()) learned[target] = source;
   }
   saveLearnedPaymentsMapping(learned);
+}
+
+// ---------- Custom stream (per-stream-id) ----------
+
+export type LearnedCustomStreamMapping = Record<string, string>;
+
+export function loadLearnedCustomStreamMapping(streamId: string): LearnedCustomStreamMapping {
+  const key = streamId ? `${KEY_CUSTOM_STREAM_PREFIX}${streamId}` : KEY_CUSTOM_STREAM_PREFIX;
+  return loadJson(key, {});
+}
+
+export function saveLearnedCustomStreamMapping(streamId: string, m: LearnedCustomStreamMapping): void {
+  if (!streamId) return;
+  saveJson(`${KEY_CUSTOM_STREAM_PREFIX}${streamId}`, m);
+}
+
+export function applyLearnedCustomStreamMapping(
+  base: Record<string, string | undefined>,
+  headers: string[],
+  learned: LearnedCustomStreamMapping
+): Record<string, string | undefined> {
+  const headerSet = new Set(headers.map((h) => h.trim()));
+  const merged = { ...base };
+  for (const [target, source] of Object.entries(learned)) {
+    if (source && headerSet.has(source)) merged[target] = source;
+  }
+  return merged;
+}
+
+export function persistLearnedCustomStreamMapping(
+  streamId: string,
+  mapping: Record<string, string | undefined>
+): void {
+  if (!streamId) return;
+  const learned: LearnedCustomStreamMapping = {};
+  for (const [target, source] of Object.entries(mapping)) {
+    if (source && source.trim()) learned[target] = source;
+  }
+  saveLearnedCustomStreamMapping(streamId, learned);
 }

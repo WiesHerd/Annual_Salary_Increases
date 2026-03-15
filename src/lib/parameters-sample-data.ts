@@ -28,7 +28,7 @@ export const SAMPLE_MERIT_MATRIX: MeritMatrixRow[] = [
 ];
 
 export const SAMPLE_EXPERIENCE_BANDS: ExperienceBand[] = [
-  { id: 'band-1', label: '0–2 YOE', minYoe: 0, maxYoe: 2, targetTccPercentileLow: 25, targetTccPercentileHigh: 50 },
+  { id: 'band-1', label: '0–2 YOE', minYoe: 0, maxYoe: 2, targetTccPercentileLow: 25, targetTccPercentileHigh: 50, suggestBaseToHitTarget: true },
   { id: 'band-2', label: '3–5 YOE', minYoe: 3, maxYoe: 5, targetTccPercentileLow: 50, targetTccPercentileHigh: 75 },
   { id: 'band-3', label: '6–10 YOE', minYoe: 6, maxYoe: 10, targetTccPercentileLow: 50, targetTccPercentileHigh: 75 },
   { id: 'band-4', label: '11+ YOE', minYoe: 11, maxYoe: 99, targetTccPercentileLow: 75, targetTccPercentileHigh: 90 },

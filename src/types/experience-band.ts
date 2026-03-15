@@ -19,4 +19,6 @@ export interface ExperienceBand {
   specialtyScope?: string[];
   /** Optional: limit to plan type(s). */
   planScope?: string[];
+  /** When true, show suggested base (and Apply) in review so TCC at 1.0 FTE hits target. */
+  suggestBaseToHitTarget?: boolean;
 }

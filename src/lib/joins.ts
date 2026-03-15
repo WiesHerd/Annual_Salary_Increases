@@ -10,7 +10,14 @@ import type { MarketRow } from '../types/market';
 import type { AppCombinedGroupRow } from '../types/app-combined-group';
 import type { MarketSurveySet, SurveySpecialtyMappingSet, ProviderTypeToSurveyMapping } from '../types/market-survey-config';
 import { DEFAULT_SURVEY_ID } from '../types/market-survey-config';
-import type { IncentiveJoinRow, ProductivityJoinRow, EvaluationJoinRow, ParsedPaymentRow } from '../types/upload';
+import type {
+  IncentiveJoinRow,
+  ProductivityJoinRow,
+  EvaluationJoinRow,
+  ParsedPaymentRow,
+  CustomDataset,
+  RawRow,
+} from '../types/upload';
 import { interpolatePercentile } from './calculations/recalculate-provider-row';
 
 const PERCENTILES = [25, 50, 75, 90];
@@ -329,4 +336,22 @@ export function mergePaymentsIntoProviders(
       Current_TCC_at_1FTE: tccAt1Fte,
     };
   });
+}
+
+/**
+ * Build a lookup from provider key to custom row for a single custom dataset.
+ * Used at export time to add custom columns when join key matches provider (e.g. Employee_ID).
+ * Returns a function (providerKey) => RawRow | undefined.
+ */
+export function buildCustomDatasetLookup(dataset: CustomDataset): (providerKey: string) => RawRow | undefined {
+  if (!dataset.joinKeyColumn || dataset.rows.length === 0) {
+    return () => undefined;
+  }
+  const byKey = new Map<string, RawRow>();
+  for (const row of dataset.rows) {
+    const keyVal = row[dataset.joinKeyColumn];
+    const key = keyVal !== undefined && keyVal !== null && keyVal !== '' ? String(keyVal).trim() : '';
+    if (key) byKey.set(key, row);
+  }
+  return (providerKey: string) => byKey.get(providerKey.trim());
 }

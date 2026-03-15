@@ -111,9 +111,9 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           }`}
         >
         {/* Header: logo + title */}
-        <div className="p-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+        <div className={`border-b border-slate-100 shrink-0 ${collapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className={`shrink-0 flex items-center justify-center ${collapsed ? 'w-10 h-10' : 'w-12 h-12'}`}>
               <img
                 src="/GrokImage.jpg"
                 alt="Meritly"

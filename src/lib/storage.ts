@@ -5,7 +5,7 @@
 import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 import type { MarketSurveySet } from '../types/market-survey-config';
-import type { ParsedPaymentRow, EvaluationJoinRow } from '../types/upload';
+import type { ParsedPaymentRow, EvaluationJoinRow, CustomDataset } from '../types/upload';
 import { getSeedMarketData } from './seed-data';
 import { DEFAULT_SURVEY_ID, type SurveyMetadata } from '../types/market-survey-config';
 
@@ -15,6 +15,7 @@ const STORAGE_KEY_MARKET_SURVEYS = 'tcc-market-surveys';
 const STORAGE_KEY_SURVEY_METADATA = 'tcc-survey-metadata';
 const STORAGE_KEY_PAYMENTS = 'tcc-payments';
 const STORAGE_KEY_EVALUATIONS = 'tcc-evaluation-rows';
+const STORAGE_KEY_CUSTOM_DATASETS = 'tcc-custom-datasets';
 
 export function loadProviderRecords(): ProviderRecord[] {
   try {
@@ -152,6 +153,26 @@ export function loadEvaluationRows(): EvaluationJoinRow[] {
 export function saveEvaluationRows(rows: EvaluationJoinRow[]): void {
   try {
     localStorage.setItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(rows));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadCustomDatasets(): CustomDataset[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_DATASETS);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as unknown;
+    if (!Array.isArray(data)) return [];
+    return data as CustomDataset[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomDatasets(datasets: CustomDataset[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_DATASETS, JSON.stringify(datasets));
   } catch {
     // ignore
   }

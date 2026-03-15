@@ -4,7 +4,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { ProviderRecord } from '../../types/provider';
-import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
+import type { CustomDataset } from '../../types/upload';
+import { exportToCsv, exportToXlsx, type CustomStreamExportLookup } from '../../lib/batch-export';
 import { formatCurrency, formatFte } from '../../utils/format';
 import { ProviderEditModal } from './provider-edit-modal';
 import { getModifiedProviderIds } from '../../lib/audit';
@@ -48,7 +49,11 @@ interface ProviderTableProps {
   marketSpecialties: string[];
   onUpdate: (employeeId: string, updates: Partial<ProviderRecord>) => void;
   onRemove: (employeeId: string) => void;
+  /** Optional: include these custom dataset columns in CSV/XLSX export when join key matches Employee_ID. */
   onClear: () => void;
+  customDatasets?: CustomDataset[];
+  /** Optional: provider-linked custom streams to include in export. */
+  customStreamLookups?: CustomStreamExportLookup[];
 }
 
 function extractOptions(records: ProviderRecord[], key: keyof ProviderRecord): string[] {
@@ -204,7 +209,7 @@ function FilterDropdown({
   );
 }
 
-export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, onClear }: ProviderTableProps) {
+export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, onClear, customDatasets, customStreamLookups }: ProviderTableProps) {
   const [editRecord, setEditRecord] = useState<ProviderRecord | null>(null);
   const [filters, setFilters] = useState<ProviderTableFilters>(DEFAULT_FILTERS);
   const modifiedIds = useMemo(() => getModifiedProviderIds(), [records]);
@@ -250,7 +255,7 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
   }, [page, totalPages]);
 
   const handleExportCsv = () => {
-    const csv = exportToCsv(sorted);
+    const csv = exportToCsv(sorted, undefined, customDatasets, customStreamLookups);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -261,7 +266,7 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
   };
 
   const handleExportXlsx = async () => {
-    const buffer = exportToXlsx(sorted);
+    const buffer = exportToXlsx(sorted, undefined, customDatasets, customStreamLookups);
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });

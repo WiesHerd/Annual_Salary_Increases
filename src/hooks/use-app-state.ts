@@ -5,7 +5,14 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ProviderRecord } from '../types/provider';
-import type { ProviderUploadResult, MarketUploadResult, PaymentUploadResult, EvaluationUploadResult } from '../types';
+import type {
+  ProviderUploadResult,
+  MarketUploadResult,
+  PaymentUploadResult,
+  EvaluationUploadResult,
+  CustomDataset,
+  CustomUploadResult,
+} from '../types';
 import type { MarketSurveySet } from '../types/market-survey-config';
 import { DEFAULT_SURVEY_ID } from '../types/market-survey-config';
 import {
@@ -19,6 +26,8 @@ import {
   savePayments,
   loadEvaluationRows,
   saveEvaluationRows,
+  loadCustomDatasets,
+  saveCustomDatasets,
 } from '../lib/storage';
 import { appendAuditEntry } from '../lib/audit';
 import { getDemoData, getSeedProviderRecords, getSeedMarketData, getSeedPayments } from '../lib/seed-data';
@@ -42,6 +51,7 @@ export function useAppState() {
   const [marketSurveys, setMarketSurveys] = useState<MarketSurveySet>({});
   const [surveyMetadata, setSurveyMetadata] = useState<Record<string, { label: string }>>({});
   const [payments, setPayments] = useState<import('../types/upload').ParsedPaymentRow[]>([]);
+  const [customDatasets, setCustomDatasets] = useState<CustomDataset[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   const recordsWithPayments = useMemo(
@@ -91,6 +101,8 @@ export function useAppState() {
       savePayments(pay);
     }
     setPayments(pay);
+
+    setCustomDatasets(loadCustomDatasets());
     setLoaded(true);
   }, [mergeAll]);
 
@@ -109,6 +121,9 @@ export function useAppState() {
   useEffect(() => {
     if (loaded) savePayments(payments);
   }, [payments, loaded]);
+  useEffect(() => {
+    if (loaded) saveCustomDatasets(customDatasets);
+  }, [customDatasets, loaded]);
 
   const addFromUpload = useCallback((result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
     try {
@@ -248,6 +263,44 @@ export function useAppState() {
   }, []);
   const clearPayments = useCallback(() => setPayments([]), []);
 
+  const addCustomDataset = useCallback(
+    (name: string, result: CustomUploadResult, joinKeyColumn: string | null) => {
+      const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `custom-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const dataset: CustomDataset = {
+        id,
+        name: name.trim() || 'Custom data',
+        joinKeyColumn,
+        columns: result.columns,
+        rows: result.rows,
+      };
+      setCustomDatasets((prev) => [...prev, dataset]);
+      return id;
+    },
+    []
+  );
+
+  const replaceCustomDataset = useCallback((id: string, name: string, result: CustomUploadResult, joinKeyColumn: string | null) => {
+    setCustomDatasets((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              name: name.trim() || d.name,
+              joinKeyColumn,
+              columns: result.columns,
+              rows: result.rows,
+            }
+          : d
+      )
+    );
+  }, []);
+
+  const removeCustomDataset = useCallback((id: string) => {
+    setCustomDatasets((prev) => prev.filter((d) => d.id !== id));
+  }, []);
+
+  const clearCustomDatasets = useCallback(() => setCustomDatasets([]), []);
+
   /** Flattened market rows (all surveys) for components that need "all specialties". */
   const marketData = useMemo(
     () => Object.values(marketSurveys).flat(),
@@ -262,10 +315,12 @@ export function useAppState() {
     saveMarketSurveys(seedSurveys);
     savePayments(payments);
     saveEvaluationRows(evaluationRows);
+    saveCustomDatasets([]);
     setRecords(merged);
     setEvaluationRows(evaluationRows);
     setMarketSurveys(seedSurveys);
     setPayments(payments);
+    setCustomDatasets([]);
     try {
       window.localStorage.setItem('asi-demo-mode', 'true');
     } catch {
@@ -299,6 +354,11 @@ export function useAppState() {
     addPaymentsFromUpload,
     replacePaymentsFromUpload,
     clearPayments,
+    customDatasets,
+    addCustomDataset,
+    replaceCustomDataset,
+    removeCustomDataset,
+    clearCustomDatasets,
     loaded,
     loadDemoData,
   };

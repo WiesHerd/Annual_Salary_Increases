@@ -110,3 +110,26 @@ export interface EvaluationUploadResult {
   errors: string[];
   mapping: EvaluationColumnMapping;
 }
+
+// ─── Custom data upload (dynamic, user-defined columns) ─────────────────────
+
+/** One custom dataset: user-defined name, optional join key, generic rows. */
+export interface CustomDataset {
+  id: string;
+  name: string;
+  /** Source column name used to join to providers (e.g. Employee_ID). Null = display/export only without join. */
+  joinKeyColumn: string | null;
+  /** Column names (from file headers). */
+  columns: string[];
+  /** Generic row data. */
+  rows: RawRow[];
+}
+
+/** Result of a custom file upload: raw rows, errors, and chosen options. */
+export interface CustomUploadResult {
+  rows: RawRow[];
+  errors: string[];
+  columns: string[];
+  /** Column name chosen as join key (optional). */
+  joinKeyColumn: string | null;
+}

@@ -5,6 +5,7 @@ import { loadSurveySpecialtyMappingSet, loadProviderTypeToSurveyMapping } from '
 import { useParametersState } from '../../hooks/use-parameters-state';
 import { usePolicyEngineState } from '../../hooks/use-policy-engine-state';
 import { useSelectedCycle } from '../../hooks/use-selected-cycle';
+import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { evaluatePolicyForProvider } from '../../lib/policy-engine/evaluator';
 import type { PolicyEvaluationContext } from '../../lib/policy-engine/evaluator';
 import type { ProviderRecord } from '../../types/provider';
@@ -14,6 +15,7 @@ import {
   getExperienceBandAlignment,
   recalculateProviderRow,
 } from '../../lib/calculations/recalculate-provider-row';
+import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
 import { enrichReviewDetail } from '../../lib/review-detail-enrichment';
 import {
   applyFilters,
@@ -62,7 +64,19 @@ interface SalaryReviewPageProps {
 }
 
 export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFullScreenChange }: SalaryReviewPageProps) {
-  const { records, setRecords, marketSurveys, loaded } = useAppState();
+  const { records, setRecords, marketSurveys, customDatasets, loaded } = useAppState();
+  const { definitions: customStreamDefinitions, getStreamData, buildProviderLookup } = useCustomStreams();
+  const customStreamLookups = useMemo(
+    () =>
+      customStreamDefinitions
+        .filter((d) => d.linkType === 'provider')
+        .map((d) => ({
+          label: d.label,
+          columnOrder: getStreamData(d.id)?.columnOrder ?? [],
+          getRow: buildProviderLookup(d.id),
+        })),
+    [customStreamDefinitions, getStreamData, buildProviderLookup]
+  );
   const { experienceBands, meritMatrix, cycles, budgetSettings, cfBySpecialty } = useParametersState();
   const { policies, customModels, tierTables } = usePolicyEngineState();
   const [selectedCycleId] = useSelectedCycle(cycles);
@@ -593,8 +607,59 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     [records, setRecords, marketResolver, experienceBands, meritMatrix, evaluationResults]
   );
 
+  const equitySuggestionsApplyCount = useMemo(() => {
+    return filteredRecords.filter((r) => {
+      const rec = getEquityRecommendation(r, experienceBands);
+      return (
+        rec?.suggestedIncreaseAmount != null &&
+        Number.isFinite(rec.suggestedIncreaseAmount)
+      );
+    }).length;
+  }, [filteredRecords, experienceBands]);
+
+  const handleApplyAllEquitySuggestions = useCallback(() => {
+    const updates = new Map<string, number>();
+    for (const r of filteredRecords) {
+      const rec = getEquityRecommendation(r, experienceBands);
+      if (
+        rec?.suggestedIncreaseAmount != null &&
+        Number.isFinite(rec.suggestedIncreaseAmount)
+      ) {
+        updates.set(r.Employee_ID, rec.suggestedIncreaseAmount);
+      }
+    }
+    if (updates.size === 0) return;
+    setRecords(
+      records.map((r) => {
+        const amount = updates.get(r.Employee_ID);
+        if (amount == null) return r;
+        const merged = { ...r, Approved_Increase_Amount: amount };
+        const matchKey = (merged.Market_Specialty_Override ?? merged.Specialty ?? merged.Benchmark_Group ?? '').trim();
+        const marketRow = matchKey ? marketResolver(merged, matchKey) : undefined;
+        const policyResult = evaluationResults.get(r.Employee_ID);
+        return recalculateProviderRow({
+          record: merged,
+          marketRow,
+          experienceBands,
+          meritMatrixRows: meritMatrix,
+          policyResult,
+          cfBySpecialty,
+        });
+      })
+    );
+  }, [
+    filteredRecords,
+    records,
+    setRecords,
+    marketResolver,
+    experienceBands,
+    meritMatrix,
+    evaluationResults,
+    cfBySpecialty,
+  ]);
+
   const handleExportCsv = () => {
-    const csv = exportToCsv(records, evaluationResults);
+    const csv = exportToCsv(records, evaluationResults, customDatasets, customStreamLookups);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -605,7 +670,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   };
 
   const handleExportXlsx = async () => {
-    const buffer = exportToXlsx(records, evaluationResults);
+    const buffer = exportToXlsx(records, evaluationResults, customDatasets, customStreamLookups);
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1160,25 +1225,37 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
             totalCount={records.length}
             filteredCount={filteredRecords.length}
             rightAction={
-              onFullScreenChange ? (
-                <button
-                  type="button"
-                  onClick={() => onFullScreenChange(!fullScreen)}
-                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                  title={fullScreen ? 'Exit full screen (Esc)' : 'Expand to full screen'}
-                  aria-label={fullScreen ? 'Exit full screen' : 'Expand to full screen'}
-                >
-                  {fullScreen ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                    </svg>
-                  )}
-                </button>
-              ) : undefined
+              <>
+                {equitySuggestionsApplyCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleApplyAllEquitySuggestions}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    title="Apply internal-equity suggested base to all visible below-target providers"
+                  >
+                    Apply equity suggestions ({equitySuggestionsApplyCount})
+                  </button>
+                )}
+                {onFullScreenChange ? (
+                  <button
+                    type="button"
+                    onClick={() => onFullScreenChange(!fullScreen)}
+                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                    title={fullScreen ? 'Exit full screen (Esc)' : 'Expand to full screen'}
+                    aria-label={fullScreen ? 'Exit full screen' : 'Expand to full screen'}
+                  >
+                    {fullScreen ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                      </svg>
+                    )}
+                  </button>
+                ) : null}
+              </>
             }
           />
         </div>
@@ -1668,6 +1745,12 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               onSelectNext={handleSelectNext}
               hasPrev={hasPrevInList}
               hasNext={hasNextInList}
+              onApplyEquitySuggestion={
+                selectedEmployeeId
+                  ? (suggestedIncreaseAmount) =>
+                      updateRecord(selectedEmployeeId, { Approved_Increase_Amount: suggestedIncreaseAmount })
+                  : undefined
+              }
             />
           </div>
         </>

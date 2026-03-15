@@ -17,6 +17,7 @@ import type {
   EvaluationColumnMapping,
   EvaluationUploadResult,
   EvaluationJoinRow,
+  CustomUploadResult,
 } from '../types';
 import type { MarketRow } from '../types/market';
 import { parseProviderRow, buildDefaultProviderMapping as buildProviderMapping } from './provider-parse';
@@ -365,6 +366,29 @@ export function parseEvaluationXlsx(buffer: ArrayBuffer, mapping: EvaluationColu
     if (r) rows.push(r);
   });
   return { rows, errors, mapping };
+}
+
+// ---------- Custom data (generic rows, no fixed schema) ----------
+
+/** Parse CSV for custom upload: returns raw rows and column names. No schema applied. */
+export function parseCustomCsv(csv: string): CustomUploadResult {
+  const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
+  const errors: string[] = parsed.errors.map((e) => e.message ?? 'Parse error');
+  const rawRows: RawRow[] = parsed.data as RawRow[];
+  const first = rawRows[0];
+  const columns = first ? Object.keys(first) : [];
+  return { rows: rawRows, errors, columns, joinKeyColumn: null };
+}
+
+/** Parse XLSX (first sheet) for custom upload: returns raw rows and column names. No schema applied. */
+export function parseCustomXlsx(buffer: ArrayBuffer): CustomUploadResult {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const first = wb.SheetNames[0];
+  if (!first) return { rows: [], errors: ['No sheet in workbook'], columns: [], joinKeyColumn: null };
+  const sheet = wb.Sheets[first];
+  const data = XLSX.utils.sheet_to_json<Record<string, string | number>>(sheet) as RawRow[];
+  const columns = data[0] ? Object.keys(data[0]) : [];
+  return { rows: data, errors: [], columns, joinKeyColumn: null };
 }
 
 export { DEFAULT_CYCLE_ID };

@@ -13,14 +13,19 @@ import type {
   EvaluationUploadResult,
 } from '../../types';
 import { SURVEY_LABELS, getSurveyLabel } from '../../types/market-survey-config';
+import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { UploadAndMapping } from './upload-and-mapping';
 import { MarketUpload } from './market-upload';
 import { PaymentsUpload } from './payments-upload';
 import { EvaluationUpload } from './evaluation-upload';
+import { CustomStreamUpload } from './custom-stream-upload';
+import { AddCustomStreamModal } from './add-custom-stream-modal';
+import type { CustomStreamUploadResult } from '../../types/custom-stream';
+import { UPLOAD_FORMAT_HINT } from '../../lib/upload-constants';
 
-type UploadCardType = 'provider' | 'market' | 'evaluation' | 'payments';
+type UploadCardType = 'provider' | 'market' | 'evaluation' | 'payments' | 'custom';
 
-type DataBrowserTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments';
+type DataBrowserTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
 
 function slugify(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -183,6 +188,18 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     loaded,
   } = useAppState();
 
+  const {
+    definitions: customStreamDefinitions,
+    getRowCount,
+    addStream,
+    removeStream,
+    clearStreamData,
+    replaceStreamDataFromUpload,
+  } = useCustomStreams();
+
+  const [customStreamView, setCustomStreamView] = useState<'list' | 'add' | { upload: string }>('list');
+  const [addStreamModalOpen, setAddStreamModalOpen] = useState(false);
+
   const surveyIds = useMemo(() => {
     const fromData = Object.keys(marketSurveys);
     const fromLabels = Object.keys(SURVEY_LABELS);
@@ -203,25 +220,25 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
   const handleProviderUpload = (result: ProviderUploadResult, cycle: string, mode: 'replace' | 'add') => {
     if (mode === 'replace') replaceFromUpload(result, cycle);
     else addFromUpload(result, cycle);
-    setModalOpen(null);
   };
 
   const handleMarketUpload = (result: MarketUploadResult, surveyId: string, mode: 'replace' | 'add') => {
     if (mode === 'replace') replaceMarketFromUpload(result, surveyId);
     else addMarketFromUpload(result, surveyId, mode);
-    setModalOpen(null);
   };
 
   const handleEvaluationUpload = (result: EvaluationUploadResult, mode: 'replace' | 'add') => {
     if (mode === 'replace') replaceEvaluationFromUpload(result);
     else addEvaluationFromUpload(result, mode);
-    setModalOpen(null);
   };
 
   const handlePaymentsUpload = (result: PaymentUploadResult, mode: 'replace' | 'add') => {
     if (mode === 'replace') replacePaymentsFromUpload(result);
     else addPaymentsFromUpload(result, mode);
-    setModalOpen(null);
+  };
+
+  const handleCustomStreamUpload = (streamId: string, result: CustomStreamUploadResult, mode: 'replace' | 'add') => {
+    replaceStreamDataFromUpload(streamId, result, mode);
   };
 
   const handleDownloadTemplate = (type: UploadCardType) => {
@@ -261,10 +278,29 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     </svg>
   );
 
+  const AddStreamIcon = () => (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v16m8-8H4" />
+    </svg>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Import Data</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Import Data</h1>
+          <p className="text-slate-600 mt-1 max-w-xl">
+            Upload provider, market, and compensation data. Each upload uses a guided flow: select file → map columns → preview & validate → import.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setModalOpen('custom'); setCustomStreamView('list'); setAddStreamModalOpen(false); }}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+        >
+          <AddStreamIcon />
+          Add new data stream
+        </button>
       </div>
 
       <div className="grid grid-cols-2 grid-rows-2 gap-6">
@@ -278,11 +314,19 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-slate-800">Provider Upload</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{records.length} rows loaded</p>
+                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
               </div>
             </div>
             <button type="button" onClick={() => setModalOpen('provider')} className="app-btn-primary shrink-0">
               Choose File
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => handleDownloadTemplate('provider')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+              Download template
+            </button>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
           </div>
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('provider')} className="app-action-btn" title="Download sample template" aria-label="Download template">
@@ -372,11 +416,19 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                 >
                   + Add new survey slot
                 </button>
+                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
               </div>
             </div>
             <button type="button" onClick={() => setModalOpen('market')} className="app-btn-primary shrink-0">
               Choose File
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => handleDownloadTemplate('market')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+              Download template
+            </button>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
           </div>
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('market')} className="app-action-btn" title="Download template" aria-label="Download template">
@@ -401,11 +453,19 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-slate-800">Evaluations</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{evaluationRows.length} rows loaded</p>
+                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
               </div>
             </div>
             <button type="button" onClick={() => setModalOpen('evaluation')} className="app-btn-primary shrink-0">
               Choose File
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => handleDownloadTemplate('evaluation')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+              Download template
+            </button>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
           </div>
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('evaluation')} className="app-action-btn" title="Download sample template" aria-label="Download template">
@@ -430,11 +490,19 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-slate-800">Payments</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{payments.length} rows loaded</p>
+                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
               </div>
             </div>
             <button type="button" onClick={() => setModalOpen('payments')} className="app-btn-primary shrink-0">
               Choose File
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => handleDownloadTemplate('payments')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+              Download template
+            </button>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
           </div>
           <div className={`flex items-center gap-2 ${footerDivider}`}>
             <button type="button" onClick={() => handleDownloadTemplate('payments')} className="app-action-btn" title="Download template" aria-label="Download template">
@@ -469,6 +537,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                 onUpload={handleProviderUpload}
                 cycleId={cycleId}
                 setCycleId={setCycleId}
+                onDone={() => setModalOpen(null)}
               />
             </div>
             <div className="px-5 pb-5 flex justify-end">
@@ -501,6 +570,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                 surveyId={selectedMarketSurveyId}
                 surveyLabel={SURVEY_LABELS[selectedMarketSurveyId] ?? selectedMarketSurveyId}
                 onUpload={handleMarketUpload}
+                onDone={() => setModalOpen(null)}
               />
             </div>
             <div className="px-5 pb-5 flex justify-end">
@@ -529,7 +599,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-5">
-              <EvaluationUpload onUpload={handleEvaluationUpload} />
+              <EvaluationUpload onUpload={handleEvaluationUpload} onDone={() => setModalOpen(null)} />
             </div>
             <div className="px-5 pb-5 flex justify-end">
               <button
@@ -578,7 +648,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-5">
-              <PaymentsUpload onUpload={handlePaymentsUpload} />
+              <PaymentsUpload onUpload={handlePaymentsUpload} onDone={() => setModalOpen(null)} />
             </div>
             <div className="px-5 pb-5 flex justify-end">
               <button
@@ -588,6 +658,118 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalOpen === 'custom' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Custom data streams"
+          onClick={() => { setModalOpen(null); setCustomStreamView('list'); setAddStreamModalOpen(false); }}
+        >
+          <div
+            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5">
+              {addStreamModalOpen ? (
+                <AddCustomStreamModal
+                  existingIds={customStreamDefinitions.map((d) => d.id)}
+                  onClose={() => setAddStreamModalOpen(false)}
+                  onAdd={(label, linkType, keyColumn) => {
+                    addStream(label, linkType, keyColumn);
+                    setAddStreamModalOpen(false);
+                  }}
+                />
+              ) : typeof customStreamView === 'object' && 'upload' in customStreamView ? (
+                (() => {
+                  const def = customStreamDefinitions.find((d) => d.id === customStreamView.upload);
+                  if (!def) return null;
+                  return (
+                    <>
+                      <CustomStreamUpload
+                        streamId={def.id}
+                        definition={def}
+                        onUpload={(result, mode) => handleCustomStreamUpload(def.id, result, mode)}
+                        onClose={() => setCustomStreamView('list')}
+                      />
+                      <div className="mt-4 flex justify-end">
+                        <button type="button" onClick={() => setCustomStreamView('list')} className="app-btn-secondary">
+                          Back to list
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()
+              ) : customStreamView === 'list' ? (
+                <>
+                  <h2 className="text-lg font-semibold text-slate-800 mb-4">Custom data streams</h2>
+                  <p className="text-sm text-slate-600 mb-4">
+                    Add streams (e.g. risk, quality) and upload files. Provider-linked streams can be joined to providers by Employee ID in exports.
+                  </p>
+                  <div className="space-y-3 mb-4">
+                    {customStreamDefinitions.length === 0 ? (
+                      <p className="text-sm text-slate-500">No streams yet. Add one to get started.</p>
+                    ) : (
+                      customStreamDefinitions.map((def) => (
+                        <div
+                          key={def.id}
+                          className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg border border-slate-200 bg-slate-50"
+                        >
+                          <div>
+                            <span className="font-medium text-slate-800">{def.label}</span>
+                            <span className="text-slate-500 text-sm ml-2">
+                              {def.linkType === 'provider' ? 'Provider-linked' : `Standalone (${def.keyColumn ?? 'Key'})`}
+                            </span>
+                            <span className="text-slate-500 text-sm ml-2">— {getRowCount(def.id)} rows</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCustomStreamView({ upload: def.id })}
+                              className="app-btn-primary text-sm py-1.5 px-3"
+                            >
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => clearStreamData(def.id)}
+                              disabled={getRowCount(def.id) === 0}
+                              className="app-btn-secondary text-sm py-1.5 px-3 disabled:opacity-50"
+                            >
+                              Clear
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeStream(def.id)}
+                              className="app-action-btn-danger text-sm py-1.5 px-3"
+                              title="Delete stream"
+                            >
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setAddStreamModalOpen(true)}
+                      className="app-btn-primary"
+                    >
+                      + Add new stream
+                    </button>
+                    <button type="button" onClick={() => { setModalOpen(null); setCustomStreamView('list'); }} className="app-btn-secondary">
+                      Close
+                    </button>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         </div>

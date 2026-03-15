@@ -34,6 +34,8 @@ interface ProviderDetailPanelProps {
   onSelectNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  /** Called when user clicks Apply on internal-equity suggested base. Pass the increase amount to apply. */
+  onApplyEquitySuggestion?: (suggestedIncreaseAmount: number) => void;
 }
 
 export function ProviderDetailPanel({
@@ -46,6 +48,7 @@ export function ProviderDetailPanel({
   onSelectNext,
   hasPrev = false,
   hasNext = false,
+  onApplyEquitySuggestion,
 }: ProviderDetailPanelProps) {
   if (!provider) {
     return (
@@ -231,6 +234,11 @@ export function ProviderDetailPanel({
         {experienceBands.length > 0 && (() => {
           const rec = getEquityRecommendation(provider, experienceBands);
           if (!rec) return null;
+          const hasSuggestedBase =
+            rec.suggestedBaseAtFte != null &&
+            Number.isFinite(rec.suggestedBaseAtFte) &&
+            rec.suggestedIncreaseAmount != null &&
+            Number.isFinite(rec.suggestedIncreaseAmount);
           return (
             <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
               <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Internal equity recommendation</h4>
@@ -243,6 +251,25 @@ export function ProviderDetailPanel({
                   <p className="text-slate-700">
                     Consider moving toward ~{formatCurrency(rec.suggestedTccAt1Fte)} at 1.0 FTE.
                   </p>
+                )}
+                {hasSuggestedBase && (
+                  <>
+                    <p className="text-slate-700">
+                      Suggested base: {formatCurrency(rec.suggestedBaseAtFte!)} (increase {formatCurrency(rec.suggestedIncreaseAmount!)}).
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Uses current productivity and supplemental; missing wRVU/CF treated as 0.
+                    </p>
+                    {onApplyEquitySuggestion && (
+                      <button
+                        type="button"
+                        onClick={() => onApplyEquitySuggestion(rec.suggestedIncreaseAmount!)}
+                        className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                      >
+                        Apply suggestion
+                      </button>
+                    )}
+                  </>
                 )}
                 <p className="text-xs text-slate-500 mt-1">Comparisons use compensation at 1.0 FTE.</p>
               </div>

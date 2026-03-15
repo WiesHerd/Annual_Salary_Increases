@@ -7,8 +7,10 @@ import { MarketTable } from './market-table';
 import { PaymentsTable } from './payments-table';
 import { EvaluationTable } from './evaluation-table';
 import { SpecialtyMap } from './specialty-map';
+import { useCustomStreams } from '../../hooks/use-custom-streams';
+import { CustomStreamsTable } from './custom-streams-table';
 
-export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments';
+export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
 export type DataPageFocus = 'import' | 'browse';
 
 const TABS: { id: DataTab; label: string }[] = [
@@ -17,6 +19,7 @@ const TABS: { id: DataTab; label: string }[] = [
   { id: 'evaluation', label: 'Evaluations' },
   { id: 'specialty-map', label: 'Specialty map' },
   { id: 'payments', label: 'Payments' },
+  { id: 'custom', label: 'Custom data' },
 ];
 
 interface DataPageProps {
@@ -44,8 +47,22 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
     clearEvaluations,
     payments,
     clearPayments,
+    customDatasets,
     loaded,
   } = useAppState();
+  const { definitions: customStreamDefinitions, getStreamData, buildProviderLookup } = useCustomStreams();
+  const customStreamLookups = useMemo(() => {
+    return customStreamDefinitions
+      .filter((d) => d.linkType === 'provider')
+      .map((d) => {
+        const data = getStreamData(d.id);
+        return {
+          label: d.label,
+          columnOrder: data?.columnOrder ?? [],
+          getRow: buildProviderLookup(d.id),
+        };
+      });
+  }, [customStreamDefinitions, getStreamData, buildProviderLookup]);
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('physicians');
 
   const surveyIds = useMemo(() => {
@@ -98,6 +115,8 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
           onUpdate={updateProviderRecord}
           onRemove={removeRecord}
           onClear={clearAll}
+          customDatasets={customDatasets}
+          customStreamLookups={customStreamLookups}
         />
       )}
 
@@ -139,6 +158,13 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
 
       {activeTab === 'payments' && (
         <PaymentsTable rows={payments} onClear={clearPayments} />
+      )}
+
+      {activeTab === 'custom' && (
+        <CustomStreamsTable
+          definitions={customStreamDefinitions}
+          getStreamData={getStreamData}
+        />
       )}
     </div>
   );

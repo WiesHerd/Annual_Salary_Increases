@@ -14,7 +14,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands }: Expe
   const addRow = useCallback(() => {
     setExperienceBands((prev) => [
       ...prev,
-      { id: newId(), label: 'New band', minYoe: 0, maxYoe: 5, targetTccPercentileLow: 25, targetTccPercentileHigh: 50, populationScope: [], planScope: [] },
+      { id: newId(), label: 'New band', minYoe: 0, maxYoe: 5, targetTccPercentileLow: 25, targetTccPercentileHigh: 50, populationScope: [], planScope: [], suggestBaseToHitTarget: false },
     ]);
   }, [setExperienceBands]);
 
@@ -58,13 +58,14 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands }: Expe
               <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Target TCC % max</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Applies to provider type</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Applies to plan</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Suggest base</th>
               <th className="w-20" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {experienceBands.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-500 text-sm">
                   No bands. Click “Add band” to create one.
                 </td>
               </tr>
@@ -127,6 +128,15 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands }: Expe
                       onChange={(e) => update(r.id, { planScope: e.target.value ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : undefined })}
                       className="w-full min-w-[100px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
                       placeholder="wrvu, salary"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={r.suggestBaseToHitTarget === true}
+                      onChange={(e) => update(r.id, { suggestBaseToHitTarget: e.target.checked })}
+                      className="rounded border-slate-300"
+                      title="Suggest base and show Apply in review to hit target TCC at 1.0 FTE"
                     />
                   </td>
                   <td className="px-2 py-2">
