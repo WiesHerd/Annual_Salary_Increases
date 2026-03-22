@@ -25,6 +25,7 @@ import type { PhysicianMappingSuggestion, AppGroupMappingSuggestion } from '../.
 import { SearchableSelect } from '../../components/searchable-select';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
+import { standardDonutPieSeriesBase } from '../../lib/echarts-donut-style';
 import {
   type SpecialtyMapFilters,
   DEFAULT_SPECIALTY_MAP_FILTERS,
@@ -142,28 +143,8 @@ function MappingDonutChart({
       },
       series: [
         {
-          type: 'pie',
-          radius: ['50%', '80%'],
-          center: ['50%', '50%'],
-          avoidLabelOverlap: false,
+          ...standardDonutPieSeriesBase,
           padAngle: 2,
-          itemStyle: {
-            borderRadius: 4,
-            borderColor: '#fff',
-            borderWidth: 2,
-            shadowBlur: 8,
-            shadowColor: 'rgba(0,0,0,0.08)',
-          },
-          label: { show: false },
-          labelLine: { show: false },
-          emphasis: {
-            scale: true,
-            scaleSize: 4,
-            itemStyle: {
-              shadowBlur: 12,
-              shadowColor: 'rgba(0,0,0,0.15)',
-            },
-          },
           data,
         },
       ],
@@ -953,7 +934,7 @@ export function SpecialtyMap({ records, marketSurveys, surveyMetadata = {}, setR
     );
   }
 
-  const marketSpecialties = marketData.map((r) => r.specialty);
+  const marketSpecialties = marketData.map((r) => r.specialty).filter((s) => s.trim() !== '');
   const allTargetsForOverride = [...new Set([...marketSpecialties, ...appCombinedGroups.map((g) => g.combinedGroupName).filter(Boolean)])];
 
   const autoMapDisabledReason =

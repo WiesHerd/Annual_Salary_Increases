@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { safeSessionStorageSetItem } from '../lib/safe-local-storage';
 
 const STORAGE_KEY_REVIEW_CYCLE = 'salary-review-cycle-id';
 
@@ -19,11 +20,7 @@ export function useSelectedCycle(cycles: { id: string }[]) {
 
   const setSelectedCycleId = useCallback((id: string) => {
     setSelectedCycleIdState(id);
-    try {
-      sessionStorage.setItem(STORAGE_KEY_REVIEW_CYCLE, id);
-    } catch {
-      // ignore
-    }
+    safeSessionStorageSetItem(STORAGE_KEY_REVIEW_CYCLE, id);
   }, []);
 
   useEffect(() => {
@@ -33,11 +30,7 @@ export function useSelectedCycle(cycles: { id: string }[]) {
     const next = cycles[0]?.id ?? '';
     if (next !== selectedCycleId) {
       setSelectedCycleIdState(next);
-      try {
-        sessionStorage.setItem(STORAGE_KEY_REVIEW_CYCLE, next);
-      } catch {
-        // ignore
-      }
+      safeSessionStorageSetItem(STORAGE_KEY_REVIEW_CYCLE, next);
     }
   }, [cycles, selectedCycleId]);
 

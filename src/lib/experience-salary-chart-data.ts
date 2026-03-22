@@ -26,6 +26,51 @@ export interface ExperienceSalaryChartData {
   allPoints: ExperienceSalaryPoint[];
 }
 
+/** ECharts scatter label placement to reduce on-screen name collisions. */
+export type ScatterLabelPosition = 'right' | 'left' | 'top' | 'bottom';
+
+export interface ScatterLabelLayout {
+  position: ScatterLabelPosition;
+  /** Pixel nudge [x, y] when many points fall in the same YOE/salary bucket. */
+  offset: [number, number];
+}
+
+const SCATTER_LABEL_POSITIONS: ScatterLabelPosition[] = ['right', 'left', 'top', 'bottom'];
+
+/**
+ * Assign label position + offset per provider so nearby points do not all use the same side
+ * (which stacks names on top of each other). Deterministic: same inputs → same layout.
+ */
+export function assignExperienceScatterLabelLayouts(
+  points: ExperienceSalaryPoint[]
+): Map<string, ScatterLabelLayout> {
+  const cellCount = new Map<string, number>();
+  const sorted = [...points].sort((a, b) => a.employeeId.localeCompare(b.employeeId, 'en'));
+  const result = new Map<string, ScatterLabelLayout>();
+
+  for (const p of sorted) {
+    const yoeBin = Math.round(p.yoe * 2) / 2;
+    const salaryBin = Math.round(p.salaryAt1Fte / 25_000) * 25_000;
+    const cellKey = `${yoeBin}\0${salaryBin}`;
+    const n = cellCount.get(cellKey) ?? 0;
+    cellCount.set(cellKey, n + 1);
+
+    const position = SCATTER_LABEL_POSITIONS[n % SCATTER_LABEL_POSITIONS.length];
+    const stack = Math.floor(n / SCATTER_LABEL_POSITIONS.length);
+    let offset: [number, number] = [0, 0];
+    if (stack > 0) {
+      if (position === 'right' || position === 'left') {
+        offset = [0, stack * 14];
+      } else {
+        offset = [stack * 12, 0];
+      }
+    }
+    result.set(p.employeeId, { position, offset });
+  }
+
+  return result;
+}
+
 function getYoe(record: ProviderRecord): number | undefined {
   const yoe = record.Years_of_Experience ?? record.Total_YOE;
   return yoe != null && Number.isFinite(yoe) ? yoe : undefined;

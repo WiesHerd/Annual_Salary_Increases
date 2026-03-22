@@ -3,69 +3,24 @@
  * so you can scan down and spot differences quickly (e.g. across 900 providers).
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { ProviderRecord } from '../../types/provider';
-import type { MarketResolver } from '../../types/market-survey-config';
 import type { ExperienceBand } from '../../types/experience-band';
 import { isLowFteForNormalization } from '../../lib/calculations/recalculate-provider-row';
+import { buildProviderCompareInsights, getProviderCompBreakdown } from '../../lib/provider-compare-insights';
 import { formatCurrency, formatFte } from '../../utils/format';
 
 interface ProviderCompareModalProps {
   providerIds: string[];
   records: ProviderRecord[];
-  marketResolver: MarketResolver;
   experienceBands: ExperienceBand[];
   onClose: () => void;
   onClearSelection?: () => void;
 }
 
-function getTccAt1Fte(p: ProviderRecord): number | undefined {
-  const stored = p.Proposed_TCC_at_1FTE ?? p.Current_TCC_at_1FTE;
-  if (stored != null && Number.isFinite(stored)) return stored;
-  const raw = p.Proposed_TCC ?? p.Current_TCC;
-  const fte = p.Current_FTE ?? 1;
-  if (raw != null && Number.isFinite(raw) && fte > 0) return raw / fte;
-  return undefined;
-}
-
-/** Build a short "why these differ" narrative from 2+ providers. */
-function buildCompareNarrative(providers: ProviderRecord[]): string {
-  if (providers.length < 2) return '';
-  const names = providers.map((p) => p.Provider_Name ?? p.Employee_ID);
-  const tccAt1 = providers.map((p) => getTccAt1Fte(p));
-  const supplementals = providers.map((p) =>
-    (p.Division_Chief_Pay ?? 0) +
-    (p.Medical_Director_Pay ?? 0) +
-    (p.Teaching_Pay ?? 0) +
-    (p.PSQ_Pay ?? 0) +
-    (p.Quality_Bonus ?? 0) +
-    (p.Other_Recurring_Comp ?? 0)
-  );
-  const ftes = providers.map((p) => p.Current_FTE ?? 1);
-
-  const parts: string[] = [];
-  let maxTccIdx = 0;
-  let minTccIdx = 0;
-  for (let i = 0; i < tccAt1.length; i++) {
-    const v = tccAt1[i];
-    if (v != null && Number.isFinite(v)) {
-      if (tccAt1[maxTccIdx] == null || v > (tccAt1[maxTccIdx] as number)) maxTccIdx = i;
-      if (tccAt1[minTccIdx] == null || v < (tccAt1[minTccIdx] as number)) minTccIdx = i;
-    }
-  }
-  if (tccAt1[maxTccIdx] != null && tccAt1[minTccIdx] != null && maxTccIdx !== minTccIdx) {
-    parts.push(`${names[maxTccIdx]} ${formatCurrency(tccAt1[maxTccIdx] as number)} vs ${names[minTccIdx]} ${formatCurrency(tccAt1[minTccIdx] as number)}`);
-  }
-  if (supplementals.some((s, i) => i > 0 && s !== supplementals[0])) parts.push('different supp');
-  if (ftes.some((f, i) => i > 0 && Math.abs((f ?? 1) - (ftes[0] ?? 1)) > 0.01)) parts.push('different FTE');
-  if (parts.length === 0) return 'See table below.';
-  return parts.join(' · ');
-}
-
 export function ProviderCompareModal({
   providerIds,
   records,
-  marketResolver,
   experienceBands: _experienceBands,
   onClose,
   onClearSelection,
@@ -76,10 +31,26 @@ export function ProviderCompareModal({
 
   if (providers.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30" onClick={onClose}>
-        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-          <p className="text-slate-600">No providers to compare.</p>
-          <button type="button" onClick={onClose} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px]"
+        onClick={onClose}
+        role="presentation"
+      >
+        <div
+          className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xl shadow-slate-900/10 ring-1 ring-black/[0.03]"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="compare-empty-title"
+        >
+          <p id="compare-empty-title" className="text-sm text-slate-600">
+            No providers to compare.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
+          >
             Close
           </button>
         </div>
@@ -87,44 +58,69 @@ export function ProviderCompareModal({
     );
   }
 
-  const narrative = buildCompareNarrative(providers);
+  const insightBullets = buildProviderCompareInsights(providers);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-[2px]"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col"
+        className="flex max-h-[min(90vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/12 ring-1 ring-black/[0.03]"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="compare-modal-title"
       >
-        <div className="shrink-0 px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-slate-800">Compare providers</h2>
-          <div className="flex gap-2">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-4">
+          <div className="min-w-0 pt-0.5">
+            <h2 id="compare-modal-title" className="text-base font-semibold tracking-tight text-slate-900">
+              Compare providers
+            </h2>
+            <p className="mt-0.5 text-[13px] text-slate-500">
+              {providers.length} selected · side-by-side metrics
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
             {onClearSelection && (
               <button
                 type="button"
-                onClick={() => { onClearSelection(); onClose(); }}
-                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                onClick={() => {
+                  onClearSelection();
+                  onClose();
+                }}
+                className="rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
               >
-                Clear selection
+                Clear
               </button>
             )}
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close"
             >
-              Close
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
-        </div>
+        </header>
 
-        {narrative && (
-          <div className="shrink-0 px-6 py-2.5 bg-indigo-50 border-b border-indigo-100">
-            <p className="text-sm text-slate-700"><span className="font-medium text-indigo-900">Why:</span> {narrative}</p>
+        {insightBullets.length > 0 && (
+          <div className="shrink-0 border-b border-slate-100 px-5 py-3 sm:px-6">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">At a glance</p>
+            <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[13px] leading-relaxed text-slate-600">
+              {insightBullets.map((line, idx) => (
+                <li key={idx}>{line}</li>
+              ))}
+            </ul>
           </div>
         )}
 
-        <div className="flex-1 min-h-0 flex flex-col p-6 overflow-hidden">
-          <CompareTable providers={providers} marketResolver={marketResolver} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 sm:px-6 sm:pb-5">
+          <CompareTable providers={providers} />
         </div>
       </div>
     </div>
@@ -153,41 +149,26 @@ function getTccDriverLine(provider: ProviderRecord): string {
 
 interface CompareTableProps {
   providers: ProviderRecord[];
-  marketResolver: MarketResolver;
 }
 
 /** Side-by-side table: one row per metric, one column per provider. Same data on same line. */
-function CompareTable({ providers, marketResolver }: CompareTableProps) {
-  const [showMore, setShowMore] = useState(false);
+function CompareTable({ providers }: CompareTableProps) {
+  const breakdown = providers.map(getProviderCompBreakdown);
 
   type Row = { label: string; values: string[]; highlight?: boolean };
   const rows: Row[] = [];
 
   const tccPercentiles = providers.map((p) => (p.Proposed_TCC_Percentile ?? p.Current_TCC_Percentile) != null ? `${Number(p.Proposed_TCC_Percentile ?? p.Current_TCC_Percentile).toFixed(1)}%` : '—');
   const wrvuPercentiles = providers.map((p) => p.WRVU_Percentile != null ? `${Number(p.WRVU_Percentile).toFixed(1)}%` : '—');
-  const tccAt1Values = providers.map((p) => {
-    const v = getTccAt1Fte(p);
-    return v != null ? formatCurrency(v) : '—';
-  });
+  const tccAt1Values = breakdown.map((b) => (b.tccAt1 != null ? formatCurrency(b.tccAt1) : '—'));
+  const baseAt1Values = breakdown.map((b) => (b.salaryAt1 != null ? formatCurrency(b.salaryAt1) : '—'));
   const currentFte = providers.map((p) => p.Current_FTE != null ? formatFte(p.Current_FTE) : '—');
   const clinicalFte = providers.map((p) => p.Clinical_FTE != null ? formatFte(p.Clinical_FTE) : '—');
 
-  // Raw amounts and total TCC (for % of TCC and "what's contributing")
-  const baseNum = providers.map((p) => p.Proposed_Base_Salary ?? p.Current_Base_Salary ?? 0);
-  const prodNum = providers.map((p) => {
-    const cf = p.Proposed_CF ?? p.Current_CF ?? 0;
-    const w = p.Prior_Year_WRVUs ?? p.Normalized_WRVUs ?? p.Adjusted_WRVUs ?? 0;
-    return cf * w;
-  });
-  const suppNum = providers.map((p) =>
-    (p.Division_Chief_Pay ?? 0) +
-    (p.Medical_Director_Pay ?? 0) +
-    (p.Teaching_Pay ?? 0) +
-    (p.PSQ_Pay ?? 0) +
-    (p.Quality_Bonus ?? 0) +
-    (p.Other_Recurring_Comp ?? 0)
-  );
-  const rawTccNum = providers.map((_, i) => baseNum[i] + prodNum[i] + suppNum[i]);
+  const baseNum = breakdown.map((b) => b.base);
+  const prodNum = breakdown.map((b) => b.prod);
+  const suppNum = breakdown.map((b) => b.supp);
+  const rawTccNum = breakdown.map((b) => b.tcc);
 
   const baseSalary = providers.map((_, i) => formatCurrency(baseNum[i]));
   const productivity = providers.map((_, i) => formatCurrency(prodNum[i]));
@@ -234,6 +215,7 @@ function CompareTable({ providers, marketResolver }: CompareTableProps) {
   rows.push({ label: 'TCC at 1 FTE', values: tccAt1Values, highlight: true });
   rows.push({ label: 'FTE', values: currentFte });
   rows.push({ label: 'Clinical FTE', values: clinicalFte });
+  rows.push({ label: 'Base at 1 FTE', values: baseAt1Values, highlight: true });
   rows.push({ label: 'Base', values: baseSalary });
   rows.push({ label: 'Productivity', values: productivity });
   rows.push({ label: 'Supp', values: supplemental });
@@ -243,87 +225,76 @@ function CompareTable({ providers, marketResolver }: CompareTableProps) {
 
   const showContributing = contributingExplanation.length > 0;
 
-  const extraRows: Row[] = [];
-  if (showMore) {
-    extraRows.push({
-      label: 'Market TCC (25/50/75/90)',
-      values: providers.map((p) => {
-        const key = (p.Market_Specialty_Override ?? p.Specialty ?? p.Benchmark_Group ?? '').trim();
-        const m = key ? marketResolver(p, key) : undefined;
-        return m ? [25, 50, 75, 90].map((x) => formatCurrency(m.tccPercentiles?.[x] ?? 0)).join(' / ') : '—';
-      }),
-    });
-    extraRows.push({
-      label: 'Market wRVU (25/50/75/90)',
-      values: providers.map((p) => {
-        const key = (p.Market_Specialty_Override ?? p.Specialty ?? p.Benchmark_Group ?? '').trim();
-        const m = key ? marketResolver(p, key) : undefined;
-        return m ? [25, 50, 75, 90].map((x) => (m.wrvuPercentiles?.[x] ?? 0).toLocaleString()).join(' / ') : '—';
-      }),
-    });
-  }
+  /** Keep label column only as wide as needed in % so value columns sit closer to names. */
+  const metricColPct = providers.length <= 2 ? 14 : 12;
+  const providerColPct = (100 - metricColPct) / providers.length;
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-100 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
-            <tr className="border-b border-slate-200">
-              <th className="text-left py-2.5 px-3 font-semibold text-slate-700 w-48 min-w-[10rem] bg-slate-100">Metric</th>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white">
+      <div className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
+        <table className="w-full table-fixed border-collapse text-[13px]">
+          <colgroup>
+            <col style={{ width: `${metricColPct}%` }} />
+            {providers.map((p) => (
+              <col key={p.Employee_ID} style={{ width: `${providerColPct}%` }} />
+            ))}
+          </colgroup>
+          <thead className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/90 backdrop-blur-md">
+            <tr>
+              <th className="px-3 py-3 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Metric
+              </th>
               {providers.map((p) => (
-                <th key={p.Employee_ID} className="text-right py-2.5 px-3 font-semibold text-slate-800 max-w-[14rem] bg-slate-100">
-                  <div className="truncate" title={p.Provider_Name ?? p.Employee_ID}>
+                <th
+                  key={p.Employee_ID}
+                  className="px-3 py-3 text-right align-bottom font-semibold text-slate-900"
+                >
+                  <div className="truncate leading-tight" title={p.Provider_Name ?? p.Employee_ID}>
                     {p.Provider_Name ?? p.Employee_ID}
                   </div>
-                  <div className="text-xs font-normal text-slate-500 mt-0.5">{p.Specialty ?? '—'}</div>
+                  <div className="mt-1 truncate text-[12px] font-normal text-slate-500">
+                    {p.Specialty ?? '—'}
+                  </div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
-          {rows.map((row) => (
-            <React.Fragment key={row.label}>
-              <tr className={`border-b border-slate-100 ${row.highlight ? 'bg-slate-50/80' : ''}`}>
-                <td className="py-2 px-3 text-left text-slate-600 font-medium w-48 min-w-[10rem]">{row.label}</td>
-                {row.values.map((val, i) => (
-                  <td
-                    key={providers[i].Employee_ID}
-                    className={`py-2 px-3 text-slate-800 max-w-[14rem] ${row.label === 'Mix' ? 'text-left text-xs' : 'text-right tabular-nums'}`}
-                  >
-                    {val}
-                  </td>
-                ))}
-              </tr>
-              {row.label === 'Mix' && showContributing && (
-                <tr key="contributing" className="border-b border-slate-100 bg-emerald-50/50">
-                  <td colSpan={colCount} className="py-1.5 px-3 text-xs text-slate-700">
-                    {contributingExplanation}
-                  </td>
+          <tbody className="text-slate-800">
+            {rows.map((row) => (
+              <React.Fragment key={row.label}>
+                <tr
+                  className={`border-b border-slate-100/90 transition-colors ${
+                    row.highlight ? 'bg-slate-50/60' : 'hover:bg-slate-50/[0.35]'
+                  }`}
+                >
+                  <td className="px-3 py-2.5 text-left font-medium text-slate-500">{row.label}</td>
+                  {row.values.map((val, i) => (
+                    <td
+                      key={providers[i].Employee_ID}
+                      className={`px-3 py-2.5 text-right tabular-nums ${
+                        row.label === 'Mix'
+                          ? 'text-[12px] leading-snug text-slate-600'
+                          : 'text-slate-900'
+                      }`}
+                    >
+                      <span className="block truncate" title={val}>
+                        {val}
+                      </span>
+                    </td>
+                  ))}
                 </tr>
-              )}
-            </React.Fragment>
-          ))}
-          {extraRows.map((row) => (
-            <tr key={row.label} className="border-b border-slate-100 bg-slate-50/50">
-              <td className="py-2 px-3 text-left text-slate-600 font-medium text-xs w-48 min-w-[10rem]">{row.label}</td>
-              {row.values.map((val, i) => (
-                <td key={providers[i].Employee_ID} className="py-2 px-3 text-right tabular-nums text-slate-700 text-xs max-w-[14rem]">
-                  {val}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
+                {row.label === 'Mix' && showContributing && (
+                  <tr key="contributing" className="border-b border-slate-100/90 bg-slate-50/40">
+                    <td colSpan={colCount} className="border-l-2 border-l-emerald-500/35 px-3 py-2 pl-[10px] text-[12px] leading-snug text-slate-600">
+                      <span className="font-medium text-slate-500">Vs. lowest total in this group: </span>
+                      {contributingExplanation}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
         </table>
-      </div>
-      <div className="shrink-0 px-3 py-2 bg-slate-50 border-t border-slate-100">
-        <button
-          type="button"
-          onClick={() => setShowMore((m) => !m)}
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
-        >
-          {showMore ? 'Hide market' : 'Market'}
-        </button>
       </div>
     </div>
   );

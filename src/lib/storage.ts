@@ -1,5 +1,6 @@
 /**
  * Persist provider records, market data, and payments to localStorage.
+ * Uses meritly-* keys with backward-compatible reads from tcc-* (see migrated-local-storage).
  */
 
 import type { ProviderRecord } from '../types/provider';
@@ -8,6 +9,15 @@ import type { MarketSurveySet } from '../types/market-survey-config';
 import type { ParsedPaymentRow, EvaluationJoinRow, CustomDataset } from '../types/upload';
 import { getSeedMarketData } from './seed-data';
 import { DEFAULT_SURVEY_ID, type SurveyMetadata } from '../types/market-survey-config';
+import { migratedStorageGetItem, migratedStorageSetItem, migratedStorageRemoveItem } from './migrated-local-storage';
+import {
+  parseProviderRecordsFromStorage,
+  parseMarketSurveySetFromStorage,
+  parseSurveyMetadataFromStorage,
+  parsePaymentRowsFromStorage,
+  parseEvaluationRowsFromStorage,
+  parseCustomDatasetsFromStorage,
+} from './schemas/persisted-data';
 
 const STORAGE_KEY_RECORDS = 'tcc-provider-records';
 const STORAGE_KEY_MARKET = 'tcc-market-data';
@@ -19,22 +29,18 @@ const STORAGE_KEY_CUSTOM_DATASETS = 'tcc-custom-datasets';
 
 export function loadProviderRecords(): ProviderRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_RECORDS);
+    const raw = migratedStorageGetItem(STORAGE_KEY_RECORDS);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];
-    return data as ProviderRecord[];
+    return parseProviderRecordsFromStorage(data);
   } catch {
     return [];
   }
 }
 
 export function saveProviderRecords(records: ProviderRecord[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
 }
 
 /** @deprecated Use loadProviderRecords */
@@ -60,7 +66,7 @@ export function saveMarketData(rows: MarketRow[]): void {
 
 function loadJsonObject<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return null;
     const data = JSON.parse(raw) as unknown;
     return typeof data === 'object' && data !== null ? (data as T) : null;
@@ -69,20 +75,16 @@ function loadJsonObject<T>(key: string): T | null {
   }
 }
 
-/** Migrate legacy tcc-market-data to tcc-market-surveys. */
+/** Migrate legacy tcc-market-data to tcc-market-surveys (meritly keys via migrated set). */
 function migrateLegacyMarketData(): MarketSurveySet | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_MARKET);
+    const raw = migratedStorageGetItem(STORAGE_KEY_MARKET);
     if (!raw) return null;
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data) || data.length === 0) return null;
     const migrated: MarketSurveySet = { [DEFAULT_SURVEY_ID]: data as MarketRow[] };
     saveMarketSurveys(migrated);
-    try {
-      localStorage.removeItem(STORAGE_KEY_MARKET);
-    } catch {
-      // ignore
-    }
+    migratedStorageRemoveItem(STORAGE_KEY_MARKET);
     return migrated;
   } catch {
     return null;
@@ -92,111 +94,111 @@ function migrateLegacyMarketData(): MarketSurveySet | null {
 export function loadMarketSurveys(): MarketSurveySet {
   const migrated = migrateLegacyMarketData();
   if (migrated) return migrated;
+  const raw = migratedStorageGetItem(STORAGE_KEY_MARKET_SURVEYS);
+  if (!raw) return { [DEFAULT_SURVEY_ID]: getSeedMarketData() };
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const validated = parseMarketSurveySetFromStorage(parsed);
+    if (validated && typeof validated === 'object') return validated;
+  } catch {
+    // fall through
+  }
   const data = loadJsonObject<MarketSurveySet>(STORAGE_KEY_MARKET_SURVEYS);
   if (data && typeof data === 'object') return data;
   return { [DEFAULT_SURVEY_ID]: getSeedMarketData() };
 }
 
 export function saveMarketSurveys(surveys: MarketSurveySet): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_MARKET_SURVEYS, JSON.stringify(surveys));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_MARKET_SURVEYS, JSON.stringify(surveys));
 }
 
 export function loadSurveyMetadata(): SurveyMetadata {
-  const data = loadJsonObject<SurveyMetadata>(STORAGE_KEY_SURVEY_METADATA);
-  return data ?? {};
+  const raw = migratedStorageGetItem(STORAGE_KEY_SURVEY_METADATA);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parseSurveyMetadataFromStorage(parsed);
+  } catch {
+    return {};
+  }
 }
 
 export function saveSurveyMetadata(metadata: SurveyMetadata): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_SURVEY_METADATA, JSON.stringify(metadata));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_SURVEY_METADATA, JSON.stringify(metadata));
 }
 
 export function loadPayments(): ParsedPaymentRow[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PAYMENTS);
+    const raw = migratedStorageGetItem(STORAGE_KEY_PAYMENTS);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];
-    return data as ParsedPaymentRow[];
+    return parsePaymentRowsFromStorage(data);
   } catch {
     return [];
   }
 }
 
 export function savePayments(rows: ParsedPaymentRow[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_PAYMENTS, JSON.stringify(rows));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_PAYMENTS, JSON.stringify(rows));
 }
 
 export function loadEvaluationRows(): EvaluationJoinRow[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_EVALUATIONS);
+    const raw = migratedStorageGetItem(STORAGE_KEY_EVALUATIONS);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];
-    return data as EvaluationJoinRow[];
+    return parseEvaluationRowsFromStorage(data);
   } catch {
     return [];
   }
 }
 
 export function saveEvaluationRows(rows: EvaluationJoinRow[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(rows));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(rows));
 }
 
 export function loadCustomDatasets(): CustomDataset[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_DATASETS);
+    const raw = migratedStorageGetItem(STORAGE_KEY_CUSTOM_DATASETS);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];
-    return data as CustomDataset[];
+    return parseCustomDatasetsFromStorage(data);
   } catch {
     return [];
   }
 }
 
 export function saveCustomDatasets(datasets: CustomDataset[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_CUSTOM_DATASETS, JSON.stringify(datasets));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_CUSTOM_DATASETS, JSON.stringify(datasets));
+}
+
+function shouldClearStorageKey(key: string): boolean {
+  return (
+    key.startsWith('tcc-') ||
+    key.startsWith('meritly-') ||
+    key.startsWith('salary-review-') ||
+    key.startsWith('compare-scenarios-') ||
+    key === 'asi-demo-mode'
+  );
 }
 
 /**
- * Clear all TCC-related data from localStorage for a full reset (simulation testing, fresh start).
- * Removes: providers, market, evaluations, payments, parameters, policy engine, column mappings, audit.
+ * Clear all app-related data from localStorage for a full reset (simulation testing, fresh start).
+ * Removes: meritly-*, tcc-*, salary-review-*, compare-scenarios-*, asi-demo-mode, parameters, policy engine, column mappings, audit.
  * Call window.location.reload() after to reset React state.
  */
 export function clearAllTccData(): void {
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && (key.startsWith('tcc-') || key.startsWith('salary-review-'))) {
+    if (key && shouldClearStorageKey(key)) {
       keysToRemove.push(key);
     }
   }
   for (const key of keysToRemove) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
+    migratedStorageRemoveItem(key);
   }
 }
-

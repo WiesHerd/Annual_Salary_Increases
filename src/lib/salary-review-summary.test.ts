@@ -49,6 +49,7 @@ describe('computeSummary', () => {
     expect(s.avgCurrentTccPercentile).toBeUndefined();
     expect(s.avgProposedTccPercentile).toBeUndefined();
     expect(s.providerCountWithPercentile).toBe(0);
+    expect(s.avgWrvuPercentile).toBeUndefined();
     expect(s.avgPercentIncrease).toBeUndefined();
     expect(s.providerCount).toBe(0);
   });
@@ -98,6 +99,16 @@ describe('computeSummary', () => {
     expect(s.avgCurrentTccPercentile).toBe(50);
     expect(s.avgProposedTccPercentile).toBe(55);
     expect(s.providerCountWithPercentile).toBe(1);
+  });
+
+  it('computes average WRVU percentile (mean) when WRVU_Percentile is set', () => {
+    const records = [
+      makeRecord({ Employee_ID: 'e1', WRVU_Percentile: 45 }),
+      makeRecord({ Employee_ID: 'e2', WRVU_Percentile: 55 }),
+      makeRecord({ Employee_ID: 'e3' }),
+    ];
+    const s = computeSummary(records);
+    expect(s.avgWrvuPercentile).toBe(50);
   });
 
   it('computes average percent increase (only providers with current base > 0)', () => {

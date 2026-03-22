@@ -4,6 +4,8 @@
  * on future uploads when that header appears (inspired by Provider_Survey_System_Aggregator).
  */
 
+import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
+
 const KEY_PROVIDER = 'tcc-learned-provider-mapping';
 const KEY_MARKET = 'tcc-learned-market-mapping';
 const KEY_EVALUATION = 'tcc-learned-evaluation-mapping';
@@ -17,7 +19,7 @@ export type LearnedPaymentsMapping = Record<string, string>;
 
 function loadJson<T>(key: string, defaultVal: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return defaultVal;
     const parsed = JSON.parse(raw) as T;
     return parsed ?? defaultVal;
@@ -27,10 +29,9 @@ function loadJson<T>(key: string, defaultVal: T): T {
 }
 
 function saveJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn('Failed to save learned mapping:', e);
+  const ok = migratedStorageSetItem(key, JSON.stringify(value));
+  if (!ok) {
+    console.warn('Failed to save learned mapping');
   }
 }
 

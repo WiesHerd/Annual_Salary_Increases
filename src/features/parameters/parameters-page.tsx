@@ -75,11 +75,9 @@ function getInitialTabFromUrl(): ParametersTabId {
   return 'cycle';
 }
 
-export interface ParametersPageProps {
-  /** Reserved for future use (e.g. deep links). */
-}
+export type ParametersPageProps = Record<string, never>;
 
-export function ParametersPage(_props: ParametersPageProps = {} as ParametersPageProps) {
+export function ParametersPage(_props: ParametersPageProps = {}) {
   const [activeTab, setActiveTab] = useState<ParametersTabId>(getInitialTabFromUrl);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [createPolicyWizardOpen, setCreatePolicyWizardOpen] = useState(false);

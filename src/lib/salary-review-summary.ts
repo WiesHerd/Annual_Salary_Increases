@@ -26,6 +26,8 @@ export interface SummaryTotals {
   avgProposedTccPercentile: number | undefined;
   /** Number of providers with at least one TCC percentile (current or proposed). */
   providerCountWithPercentile: number;
+  /** Mean of WRVU_Percentile across providers with a defined value (market productivity position). */
+  avgWrvuPercentile: number | undefined;
   /** Average percent increase in base salary (only providers with current base > 0). */
   avgPercentIncrease: number | undefined;
   providerCount: number;
@@ -48,6 +50,8 @@ export function computeSummary(records: ProviderRecord[]): SummaryTotals {
   let countProposedPct = 0;
   let sumPercentIncrease = 0;
   let countPercentIncrease = 0;
+  let sumWrvuPct = 0;
+  let countWrvuPct = 0;
   for (const r of records) {
     totalIncreaseDollars += getIncreaseDollars(r);
     totalCurrentBase += r.Current_Base_Salary ?? 0;
@@ -68,6 +72,10 @@ export function computeSummary(records: ProviderRecord[]): SummaryTotals {
       sumPercentIncrease += pct;
       countPercentIncrease += 1;
     }
+    if (isFiniteNum(r.WRVU_Percentile)) {
+      sumWrvuPct += r.WRVU_Percentile;
+      countWrvuPct += 1;
+    }
   }
   const providerCountWithPercentile = records.filter(
     (r) => isFiniteNum(r.Current_TCC_Percentile) || isFiniteNum(r.Proposed_TCC_Percentile)
@@ -81,6 +89,7 @@ export function computeSummary(records: ProviderRecord[]): SummaryTotals {
     avgCurrentTccPercentile: countCurrentPct > 0 ? sumCurrentPct / countCurrentPct : undefined,
     avgProposedTccPercentile: countProposedPct > 0 ? sumProposedPct / countProposedPct : undefined,
     providerCountWithPercentile,
+    avgWrvuPercentile: countWrvuPct > 0 ? sumWrvuPct / countWrvuPct : undefined,
     avgPercentIncrease:
       countPercentIncrease > 0 ? sumPercentIncrease / countPercentIncrease : undefined,
     providerCount: records.length,

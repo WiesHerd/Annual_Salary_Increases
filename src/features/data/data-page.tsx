@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
 import { SURVEY_LABELS, getSurveyLabel } from '../../types/market-survey-config';
 import { ImportCards } from './import-cards';
@@ -13,14 +13,9 @@ import { CustomStreamsTable } from './custom-streams-table';
 export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
 export type DataPageFocus = 'import' | 'browse';
 
-const TABS: { id: DataTab; label: string }[] = [
-  { id: 'provider', label: 'Provider data' },
-  { id: 'market', label: 'Market survey data' },
-  { id: 'evaluation', label: 'Evaluations' },
-  { id: 'specialty-map', label: 'Specialty map' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'custom', label: 'Custom data' },
-];
+function withCount(label: string, count: number): string {
+  return count > 0 ? `${label} · ${count}` : label;
+}
 
 interface DataPageProps {
   focus?: DataPageFocus;
@@ -65,11 +60,31 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
   }, [customStreamDefinitions, getStreamData, buildProviderLookup]);
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('physicians');
 
+  const totalMarketRows = useMemo(
+    () => Object.values(marketSurveys).reduce((acc, rows) => acc + rows.length, 0),
+    [marketSurveys],
+  );
+
+  const TABS: { id: DataTab; label: string }[] = useMemo(() => [
+    { id: 'provider', label: withCount('Provider data', records.length) },
+    { id: 'market', label: withCount('Market survey', totalMarketRows) },
+    { id: 'evaluation', label: withCount('Evaluations', evaluationRows.length) },
+    { id: 'specialty-map', label: 'Specialty map' },
+    { id: 'payments', label: withCount('Payments', payments.length) },
+    { id: 'custom', label: 'Custom data' },
+  ], [records.length, totalMarketRows, evaluationRows.length, payments.length]);
+
   const surveyIds = useMemo(() => {
-    const fromData = Object.keys(marketSurveys);
-    const fromLabels = Object.keys(SURVEY_LABELS);
-    return [...new Set([...fromLabels, ...fromData])];
+    const allIds = [...new Set([...Object.keys(SURVEY_LABELS), ...Object.keys(marketSurveys)])];
+    return allIds.filter((id) => (marketSurveys[id]?.length ?? 0) > 0);
   }, [marketSurveys]);
+
+  // If the selected survey no longer has data, fall back to the first available one.
+  useEffect(() => {
+    if (surveyIds.length > 0 && !surveyIds.includes(selectedMarketSurveyId)) {
+      setSelectedMarketSurveyId(surveyIds[0]);
+    }
+  }, [surveyIds, selectedMarketSurveyId]);
 
   if (!loaded) {
     return (

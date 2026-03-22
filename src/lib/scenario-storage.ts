@@ -4,6 +4,7 @@
  */
 
 import type { ScenarioConfigSnapshot } from '../types/scenario';
+import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
 
 const STORAGE_KEY = 'tcc-compare-saved-scenarios';
 
@@ -16,7 +17,7 @@ export interface SavedScenario {
 
 export function loadSavedScenarios(): SavedScenario[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = migratedStorageGetItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -39,12 +40,12 @@ export function saveScenario(scenario: SavedScenario): void {
   const updated = idx >= 0
     ? list.map((s, i) => (i === idx ? scenario : s))
     : [...list, scenario];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  migratedStorageSetItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
 export function deleteSavedScenario(id: string): void {
   const list = loadSavedScenarios().filter((s) => s.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  migratedStorageSetItem(STORAGE_KEY, JSON.stringify(list));
 }
 
 export function createSavedScenario(

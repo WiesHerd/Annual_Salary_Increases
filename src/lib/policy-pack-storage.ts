@@ -6,6 +6,7 @@
 import type { AnnualIncreasePolicy } from '../types/compensation-policy';
 import type { CustomCompensationModel } from '../types/compensation-policy';
 import type { TierTable } from '../types/tier-table';
+import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
 
 const STORAGE_KEY = 'tcc-policy-engine-saved-packs';
 
@@ -21,7 +22,7 @@ export interface SavedPolicyPack {
 
 function loadJson<T>(key: string, defaultValue: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return defaultValue;
     const data = JSON.parse(raw) as unknown;
     return (data ?? defaultValue) as T;
@@ -31,11 +32,7 @@ function loadJson<T>(key: string, defaultValue: T): T {
 }
 
 function saveJson<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(key, JSON.stringify(value));
 }
 
 export function loadSavedPacks(): SavedPolicyPack[] {

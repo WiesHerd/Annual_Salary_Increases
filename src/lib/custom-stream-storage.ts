@@ -8,6 +8,7 @@ import type {
   CustomStreamColumnMapping,
   CustomStreamRow,
 } from '../types/custom-stream';
+import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
 
 const STORAGE_KEY_DEFINITIONS = 'tcc-custom-stream-definitions';
 const STORAGE_KEY_DATA = 'tcc-custom-stream-data';
@@ -20,7 +21,7 @@ export interface CustomStreamData {
 
 function loadJson<T>(key: string, defaultVal: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return defaultVal;
     const parsed = JSON.parse(raw) as T;
     return parsed ?? defaultVal;
@@ -30,11 +31,7 @@ function loadJson<T>(key: string, defaultVal: T): T {
 }
 
 function saveJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(key, JSON.stringify(value));
 }
 
 export function loadCustomStreamDefinitions(): CustomStreamDefinition[] {

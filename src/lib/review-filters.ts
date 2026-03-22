@@ -10,6 +10,7 @@ import {
   getExperienceBandLabel,
 } from './calculations/recalculate-provider-row';
 import { getReviewStatusBucket } from '../types/enums';
+import { safeSessionStorageSetItem } from './safe-local-storage';
 
 /** Filter state for the Salary Review screen. */
 export interface SalaryReviewFilters {
@@ -627,9 +628,5 @@ export function loadFiltersFromStorage(): SalaryReviewFilters {
 
 /** Persist filter state to sessionStorage. */
 export function saveFiltersToStorage(filters: SalaryReviewFilters): void {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
-  } catch {
-    // ignore
-  }
+  safeSessionStorageSetItem(STORAGE_KEY, JSON.stringify(filters));
 }

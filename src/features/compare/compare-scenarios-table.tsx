@@ -6,6 +6,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { CompareScenarioRow } from '../../lib/compare-scenarios-filters';
 import { formatCurrencyTwoDecimals } from '../review/review-table-columns';
+import { safeLocalStorageSetItem } from '../../lib/safe-local-storage';
 
 const PAGE_SIZES = [10, 25, 50, 100, 200] as const;
 
@@ -58,11 +59,7 @@ function loadColumnWidths(): Record<CompareTableColumnId, number> {
 }
 
 function saveColumnWidths(widths: Record<CompareTableColumnId, number>): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_WIDTHS, JSON.stringify(widths));
-  } catch {
-    // ignore
-  }
+  safeLocalStorageSetItem(STORAGE_KEY_WIDTHS, JSON.stringify(widths));
 }
 
 export interface CompareScenariosTableProps {

@@ -12,6 +12,7 @@ import {
   getDefaultVisibleColumnIds,
   getDefaultColumnWidths,
 } from '../features/review/review-table-columns';
+import { safeLocalStorageSetItem } from './safe-local-storage';
 
 const STORAGE_KEY_COLUMNS = 'salary-review-visible-columns';
 const STORAGE_KEY_PRESET = 'salary-review-view-preset';
@@ -179,23 +180,16 @@ export function loadReviewTableFromStorage(): ReviewTableStorage {
 
 /** Save column visibility and preset to localStorage. */
 export function saveReviewTableToStorage(state: ReviewTableStorage): void {
-  try {
-    const columnWidths = state.columnWidths ?? getDefaultColumnWidths();
-    const frozenColumnIds = state.frozenColumnIds ?? ['providerName'];
-    const presetLabels = state.presetLabels ?? defaultPresetLabels;
-    const presetOrder = state.presetOrder ?? defaultPresetOrder;
-    localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(state.visibleColumnIds));
-    localStorage.setItem(STORAGE_KEY_PRESET, JSON.stringify(state.preset));
-    localStorage.setItem(STORAGE_KEY_SAVED_VIEWS, JSON.stringify(state.savedCustomViews));
-    localStorage.setItem(
-      STORAGE_KEY_ACTIVE_CUSTOM_VIEW,
-      JSON.stringify(state.activeCustomViewId ?? '')
-    );
-    localStorage.setItem(STORAGE_KEY_COLUMN_WIDTHS, JSON.stringify(columnWidths));
-    localStorage.setItem(STORAGE_KEY_FROZEN_COLUMNS, JSON.stringify(frozenColumnIds));
-    localStorage.setItem(STORAGE_KEY_PRESET_LABELS, JSON.stringify(presetLabels));
-    localStorage.setItem(STORAGE_KEY_PRESET_ORDER, JSON.stringify(presetOrder));
-  } catch {
-    // ignore
-  }
+  const columnWidths = state.columnWidths ?? getDefaultColumnWidths();
+  const frozenColumnIds = state.frozenColumnIds ?? ['providerName'];
+  const presetLabels = state.presetLabels ?? defaultPresetLabels;
+  const presetOrder = state.presetOrder ?? defaultPresetOrder;
+  safeLocalStorageSetItem(STORAGE_KEY_COLUMNS, JSON.stringify(state.visibleColumnIds));
+  safeLocalStorageSetItem(STORAGE_KEY_PRESET, JSON.stringify(state.preset));
+  safeLocalStorageSetItem(STORAGE_KEY_SAVED_VIEWS, JSON.stringify(state.savedCustomViews));
+  safeLocalStorageSetItem(STORAGE_KEY_ACTIVE_CUSTOM_VIEW, JSON.stringify(state.activeCustomViewId ?? ''));
+  safeLocalStorageSetItem(STORAGE_KEY_COLUMN_WIDTHS, JSON.stringify(columnWidths));
+  safeLocalStorageSetItem(STORAGE_KEY_FROZEN_COLUMNS, JSON.stringify(frozenColumnIds));
+  safeLocalStorageSetItem(STORAGE_KEY_PRESET_LABELS, JSON.stringify(presetLabels));
+  safeLocalStorageSetItem(STORAGE_KEY_PRESET_ORDER, JSON.stringify(presetOrder));
 }

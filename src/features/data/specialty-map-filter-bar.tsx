@@ -1,6 +1,6 @@
 /**
  * Filter bar for Specialty map: search, collapsible dimension filters.
- * Mirrors Salary Review filter bar pattern for quick navigation.
+ * Layout matches Salary Review: flat sticky bar, no inset panel.
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -180,10 +180,10 @@ export function SpecialtyMapFilterBar({
   const statusOptions: MappingStatus[] = ['mapped', 'needs-mapping', 'override'];
 
   return (
-    <div className="sticky top-0 z-30 py-3 bg-white/98 backdrop-blur-sm border-b border-slate-100">
-      {/* Row 1: Search + result count + clear */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-0 flex-1 max-w-sm">
+    <div className="sticky top-0 z-30 py-4 bg-white/98 backdrop-blur-sm">
+      {/* Row 1: Search + result count + clear — flat layout like Salary Review (no inset panel) */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md">
           <input
             type="search"
             value={filters.searchText ?? ''}
@@ -204,7 +204,7 @@ export function SpecialtyMapFilterBar({
             </button>
           )}
         </div>
-        <span className="text-[13px] text-neutral-500 shrink-0">
+        <span className="text-[13px] text-neutral-500 shrink-0 tabular-nums">
           <span className="font-medium text-neutral-700">{filteredCount}</span>
           <span className="text-neutral-400"> / {totalCount} providers</span>
         </span>
@@ -220,7 +220,7 @@ export function SpecialtyMapFilterBar({
       </div>
 
       {/* Row 2: Collapsible dimension filters */}
-      <div className="mt-2">
+      <div className="mt-3">
         <button
           type="button"
           onClick={() => setFiltersExpanded((e) => !e)}

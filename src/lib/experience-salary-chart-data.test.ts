@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildExperienceSalaryChartData } from './experience-salary-chart-data';
+import {
+  assignExperienceScatterLabelLayouts,
+  buildExperienceSalaryChartData,
+  type ExperienceSalaryPoint,
+} from './experience-salary-chart-data';
 import type { ProviderRecord } from '../types/provider';
 
 function record(overrides: Partial<ProviderRecord> & { Employee_ID: string }): ProviderRecord {
@@ -187,5 +191,29 @@ describe('buildExperienceSalaryChartData', () => {
     const result = buildExperienceSalaryChartData(records, 'specialty');
     expect(result.series).toHaveLength(1);
     expect(result.series[0].name).toBe('—');
+  });
+});
+
+describe('assignExperienceScatterLabelLayouts', () => {
+  function pt(id: string, yoe: number, salary: number): ExperienceSalaryPoint {
+    return { employeeId: id, yoe, salaryAt1Fte: salary };
+  }
+
+  it('cycles label side for points in the same YOE/salary bucket', () => {
+    const layouts = assignExperienceScatterLabelLayouts([
+      pt('a', 4, 200_000),
+      pt('b', 4.2, 202_000),
+    ]);
+    expect(layouts.get('a')?.position).toBe('right');
+    expect(layouts.get('b')?.position).toBe('left');
+  });
+
+  it('adds vertical offset when a fifth point shares a bucket', () => {
+    const points: ExperienceSalaryPoint[] = ['e1', 'e2', 'e3', 'e4', 'e5'].map((id, i) =>
+      pt(id, 6, 225_000 + i * 1000)
+    );
+    const layouts = assignExperienceScatterLabelLayouts(points);
+    expect(layouts.get('e5')?.position).toBe('right');
+    expect(layouts.get('e5')?.offset[1]).toBeGreaterThan(0);
   });
 });

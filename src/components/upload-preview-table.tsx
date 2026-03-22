@@ -11,14 +11,14 @@ function formatCell(val: unknown): string {
   return String(val).trim() || '—';
 }
 
-interface UploadPreviewTableProps<T extends Record<string, unknown>> {
+interface UploadPreviewTableProps<T extends object> {
   rows: T[];
   columnOrder?: string[];
   maxRows?: number;
   emptyMessage?: string;
 }
 
-export function UploadPreviewTable<T extends Record<string, unknown>>({
+export function UploadPreviewTable<T extends object>({
   rows,
   columnOrder,
   maxRows = DEFAULT_PREVIEW_ROWS,
@@ -54,7 +54,7 @@ export function UploadPreviewTable<T extends Record<string, unknown>>({
             <tr key={i}>
               {cols.map((col) => (
                 <td key={col} className="text-slate-900 whitespace-nowrap">
-                  {formatCell(row[col])}
+                  {formatCell((row as Record<string, unknown>)[col])}
                 </td>
               ))}
             </tr>

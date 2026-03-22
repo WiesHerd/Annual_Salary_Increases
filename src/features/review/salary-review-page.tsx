@@ -1,13 +1,9 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
-import { buildMarketResolver } from '../../lib/joins';
-import { loadSurveySpecialtyMappingSet, loadProviderTypeToSurveyMapping } from '../../lib/parameters-storage';
 import { useParametersState } from '../../hooks/use-parameters-state';
 import { usePolicyEngineState } from '../../hooks/use-policy-engine-state';
 import { useSelectedCycle } from '../../hooks/use-selected-cycle';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
-import { evaluatePolicyForProvider } from '../../lib/policy-engine/evaluator';
-import type { PolicyEvaluationContext } from '../../lib/policy-engine/evaluator';
 import type { ProviderRecord } from '../../types/provider';
 import { ReviewStatus } from '../../types/enums';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
@@ -54,6 +50,7 @@ import { SalaryReviewFilterBar } from './salary-review-filter-bar';
 import { SalaryReviewSummaryBar } from './salary-review-summary-bar';
 import { ExperienceSalaryTrendChart } from './experience-salary-trend-chart';
 import type { ExperienceSalaryGroupBy } from '../../lib/experience-salary-chart-data';
+import { useSalaryReviewPolicyEngine } from './use-salary-review-policy-engine';
 
 type SortDir = 'asc' | 'desc';
 
@@ -117,7 +114,6 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   const [draftPresetLabels, setDraftPresetLabels] = useState<Record<ReviewViewPresetId, string>>({ ...DEFAULT_PRESET_LABELS });
   const [draftPresetOrder, setDraftPresetOrder] = useState<ReviewViewPresetId[]>([...DEFAULT_PRESET_ORDER]);
   const [trendGroupBy, setTrendGroupBy] = useState<ExperienceSalaryGroupBy>('population');
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showLayoutOptions, setShowLayoutOptions] = useState(false);
 
   const DRAWER_MIN_WIDTH = 320;
@@ -161,96 +157,19 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     return () => clearTimeout(t);
   }, [selectedEmployeeId]);
 
-  const marketResolver = useMemo(
-    () =>
-      buildMarketResolver(marketSurveys, loadSurveySpecialtyMappingSet(), loadProviderTypeToSurveyMapping()),
-    [marketSurveys]
-  );
-
-  const asOfDate = useMemo(() => {
-    const cycle = cycles.find((c) => c.id === selectedCycleId);
-    return cycle?.effectiveDate ?? undefined;
-  }, [cycles, selectedCycleId]);
-
-  const policyContext = useMemo(
-    (): PolicyEvaluationContext => ({
-      policies,
-      customModels,
-      tierTables,
-      meritMatrixRows: meritMatrix,
-      asOfDate,
-    }),
-    [policies, customModels, tierTables, meritMatrix, asOfDate]
-  );
-
-  const evaluationResults = useMemo(() => {
-    const map = new Map<string, import('../../types/compensation-policy').PolicyEvaluationResult>();
-    for (const r of records) {
-      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
-      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
-      const result = evaluatePolicyForProvider(r, { ...policyContext, marketRow });
-      map.set(r.Employee_ID, result);
-    }
-    return map;
-  }, [records, policyContext, marketResolver]);
-
-  // Apply policy engine results to records (e.g. PCP tier base salary) when policies or records change
-  useEffect(() => {
-    if (records.length === 0) return;
-    const ctx: PolicyEvaluationContext = {
-      policies,
-      customModels,
-      tierTables,
-      meritMatrixRows: meritMatrix,
-      asOfDate: cycles.find((c) => c.id === selectedCycleId)?.effectiveDate,
-    };
-    let hasChange = false;
-    const nextRecords = records.map((r) => {
-      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
-      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
-      const policyResult = evaluatePolicyForProvider(r, { ...ctx, marketRow });
-      const recalculated = recalculateProviderRow({
-        record: r,
-        marketRow,
-        experienceBands,
-        meritMatrixRows: meritMatrix,
-        policyResult,
-        cfBySpecialty,
-      });
-      if (
-        recalculated.Proposed_Base_Salary !== r.Proposed_Base_Salary ||
-        recalculated.Approved_Increase_Percent !== r.Approved_Increase_Percent ||
-        recalculated.Approved_Increase_Amount !== r.Approved_Increase_Amount ||
-        recalculated.Policy_Tier_Assigned !== r.Policy_Tier_Assigned ||
-        recalculated.Proposed_Tier !== r.Proposed_Tier
-      ) {
-        hasChange = true;
-      }
-      return recalculated;
-    });
-    if (hasChange) setRecords(nextRecords);
-  }, [
+  const { marketResolver, evaluationResults, policySourceByEmployeeId } = useSalaryReviewPolicyEngine({
     records,
+    setRecords,
+    marketSurveys,
+    cycles,
+    selectedCycleId,
     policies,
     customModels,
     tierTables,
     meritMatrix,
     experienceBands,
     cfBySpecialty,
-    marketResolver,
-    cycles,
-    selectedCycleId,
-    setRecords,
-  ]);
-
-  const policySourceByEmployeeId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of records) {
-      const source = evaluationResults.get(r.Employee_ID)?.finalPolicySource ?? r.Policy_Source_Name ?? '—';
-      map.set(r.Employee_ID, source);
-    }
-    return map;
-  }, [records, evaluationResults]);
+  });
 
   const orderedColumnIds = useMemo((): ReviewTableColumnId[] => {
     const frozenOrdered = frozenColumnIds.filter((id) => visibleColumnIds.includes(id));
@@ -454,25 +373,18 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     return row?.warningThresholdPercent;
   }, [selectedCycleId, budgetSettings]);
 
-  const activeCycleLabel = useMemo(
-    () => cycles.find((c) => c.id === selectedCycleId)?.label ?? cycles[0]?.label ?? '',
-    [cycles, selectedCycleId]
-  );
+  const headerBudgetUsagePercent = useMemo(() => {
+    const b = budgetAmount;
+    if (b == null || !Number.isFinite(b) || b <= 0) return null;
+    return (summaryTotals.totalIncreaseDollars / b) * 100;
+  }, [summaryTotals.totalIncreaseDollars, budgetAmount]);
 
-  const friendlySummary = useMemo(() => {
-    const providerCount = summaryTotals.providerCount;
-    const budget = budgetAmount;
-    const totalIncrease = summaryTotals.totalIncreaseDollars;
-    let budgetPhrase = 'No budget set yet';
-    if (budget != null && budget > 0) {
-      const pct = (totalIncrease / budget) * 100;
-      budgetPhrase = `Using approximately ${pct.toFixed(1)}% of the budget`;
-    }
-    return {
-      providerCount,
-      budgetPhrase,
-    };
-  }, [summaryTotals, budgetAmount]);
+  const headerBudgetIsWarning = useMemo(() => {
+    if (budgetWarningThresholdPercent == null || headerBudgetUsagePercent == null) return false;
+    return (
+      headerBudgetUsagePercent >= budgetWarningThresholdPercent && headerBudgetUsagePercent <= 100
+    );
+  }, [budgetWarningThresholdPercent, headerBudgetUsagePercent]);
 
   const sortedRecords = useMemo(() => {
     return [...filteredRecords].sort((a, b) => {
@@ -604,7 +516,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
       });
       setRecords(records.map((r) => (r.Employee_ID === employeeId ? next : r)));
     },
-    [records, setRecords, marketResolver, experienceBands, meritMatrix, evaluationResults]
+    [records, setRecords, marketResolver, experienceBands, meritMatrix, evaluationResults, cfBySpecialty]
   );
 
   const equitySuggestionsApplyCount = useMemo(() => {
@@ -819,37 +731,57 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   return (
     <div className={`flex flex-col min-w-0 ${fullScreen ? 'p-3' : ''}`}>
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
-        <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col gap-0.5">
-              <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
-              <p className="text-xs text-slate-600">
-                Review recommended annual increases, flag exceptions, and finalize decisions for this budget cycle.
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Cycle:{' '}
-                <span className="font-medium text-slate-700">
-                  {activeCycleLabel || 'Not set'}
-                </span>{' '}
-                · Providers in view:{' '}
-                <span className="font-medium text-slate-700">
-                  {friendlySummary.providerCount}
-                </span>{' '}
-                · {friendlySummary.budgetPhrase}
-              </p>
+        <div className="shrink-0 border-b border-slate-200 px-5 pb-3 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+                <span className="group relative inline-flex shrink-0">
+                  <button
+                    type="button"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    aria-label="How salary review works"
+                    aria-describedby="salary-review-works-tooltip"
+                  >
+                    i
+                  </button>
+                  <div
+                    id="salary-review-works-tooltip"
+                    role="tooltip"
+                    className="pointer-events-auto invisible absolute left-1/2 top-[calc(100%-4px)] z-50 max-h-[70vh] w-[min(22rem,calc(100vw-2.5rem))] -translate-x-1/2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 pt-4 text-left text-[11px] leading-snug text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+                  >
+                    <p className="font-medium text-slate-800">How salary review works</p>
+                    <p className="mt-2">
+                      Recommended increases are calculated from your merit matrix, experience band guardrails, and active
+                      Compensation Policy Engine rules, using the current cycle&apos;s effective date.
+                    </p>
+                    <p className="mt-2">
+                      Use the filters below to focus on a population, and color cues to see who is below, in, or above
+                      their experience band targets. Update review status and override amounts directly in the grid where
+                      needed.
+                    </p>
+                    <p className="mt-2">
+                      Budget usage lines up total base salary changes for whoever is in the table with the cycle budget
+                      number. Change filters or search and the totals update to match what you see in the grid.
+                    </p>
+                  </div>
+                </span>
+              </div>
+              {(budgetAmount == null || !Number.isFinite(budgetAmount) || budgetAmount <= 0) && (
+                <p className="text-xs text-amber-800">
+                  No budget set for this cycle — add a budget in Parameters to compare usage to a target.
+                </p>
+              )}
             </div>
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <div className="flex rounded-xl border border-slate-300 bg-slate-50">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="app-segmented-track w-fit">
               {(['table', 'trend'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setReviewViewMode(mode)}
-                  className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${mode === 'table' ? 'rounded-l-xl' : 'rounded-r-xl'} ${
-                    reviewViewMode === mode
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-700 hover:bg-slate-200'
+                  className={`app-segmented-segment ${mode === 'table' ? 'rounded-l-full' : 'rounded-r-full'} ${
+                    reviewViewMode === mode ? 'app-segmented-segment-active' : ''
                   }`}
                 >
                   {mode === 'table' ? 'Table' : 'Trend'}
@@ -858,26 +790,361 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
             </div>
             {reviewViewMode === 'table' && (
               <>
-            <span className="text-sm text-slate-600 mr-1">View:</span>
-            <div className="flex rounded-xl border border-slate-300 bg-slate-50">
-              {presetOrder.map((presetId, idx) => (
+            <span className="text-sm font-medium text-slate-600 mr-1">View</span>
+            <div className="app-segmented-track w-fit flex items-center">
+              {presetOrder.map((presetId, idx) =>
+                (presetId as ReviewViewPresetId | 'custom') === 'custom' ? (
+                  <div key="custom" className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setColumnDropdownOpen(false);
+                        if (customViewDropdownOpen) {
+                          setCustomViewDropdownOpen(false);
+                        } else {
+                          openCustomDropdown();
+                        }
+                      }}
+                      className={`app-segmented-segment flex items-center gap-1 ${
+                        activePreset === 'custom' ? 'app-segmented-segment-active' : ''
+                      }`}
+                      aria-expanded={customViewDropdownOpen}
+                      aria-haspopup="menu"
+                    >
+                      Custom
+                      <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {customViewDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          aria-hidden
+                          onClick={closeCustomDropdown}
+                        />
+                        <div className="absolute left-0 top-full mt-1.5 z-50 w-72 max-h-[20rem] flex flex-col app-dropdown-panel">
+                          <button
+                            type="button"
+                            onClick={selectCurrentSelection}
+                            className={`w-full px-3 py-2 text-sm text-left ${
+                              activePreset === 'custom' && !activeCustomViewId
+                                ? 'bg-indigo-50 text-indigo-800 font-medium'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            Current selection
+                          </button>
+                          {savedCustomViews.length > 0 ? (
+                            <>
+                              <p className="px-3 pt-2 pb-1 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                                Saved views
+                              </p>
+                              <div className="overflow-y-auto flex-1 min-h-0 max-h-48">
+                                {savedCustomViews.map((view) => (
+                                  <div
+                                    key={view.id}
+                                    className={`flex items-center gap-1 px-3 py-2 text-sm ${
+                                      activeCustomViewId === view.id
+                                        ? 'bg-indigo-50 text-indigo-800 font-medium'
+                                        : 'text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => applySavedCustomView(view)}
+                                      className="flex-1 min-w-0 text-left truncate"
+                                    >
+                                      {view.name}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeSavedCustomView(view.id);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-red-600 rounded shrink-0"
+                                      title="Delete view"
+                                      aria-label={`Delete ${view.name}`}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <p className="px-3 py-2 text-sm text-slate-500">No saved views yet.</p>
+                          )}
+                          <div className="border-t border-slate-200 p-2 shrink-0">
+                            {saveViewOpen ? (
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={saveViewName}
+                                  onChange={(e) => setSaveViewName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') addSavedCustomView(saveViewName);
+                                    if (e.key === 'Escape') setSaveViewOpen(false);
+                                  }}
+                                  placeholder="View name"
+                                  className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => addSavedCustomView(saveViewName)}
+                                  disabled={!saveViewName.trim()}
+                                  className="px-2 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
+                                  className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSaveViewOpen(true)}
+                                className="w-full px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg text-left"
+                              >
+                                Save current columns as view…
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    key={presetId}
+                    type="button"
+                    onClick={() => applyPreset(presetId)}
+                    className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
+                      activePreset === presetId ? 'app-segmented-segment-active' : ''
+                    }`}
+                  >
+                    {presetLabels[presetId] ?? DEFAULT_PRESET_LABELS[presetId]}
+                  </button>
+                )
+              )}
+              <div className="relative shrink-0">
                 <button
-                  key={presetId}
                   type="button"
-                  onClick={() => applyPreset(presetId)}
-                  className={`px-3 py-2 text-sm font-medium transition-colors ${idx === 0 ? 'rounded-l-xl' : ''} ${
-                    activePreset === presetId
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-700 hover:bg-slate-200'
+                  onClick={() => {
+                    setShowLayoutOptions((o) => !o);
+                    if (!showLayoutOptions) {
+                      setColumnDropdownOpen(false);
+                      setCustomViewDropdownOpen(false);
+                    }
+                  }}
+                  className={`app-segmented-segment flex shrink-0 items-center gap-1.5 rounded-none pr-3 pl-3 ${
+                    showLayoutOptions ? 'app-segmented-segment-active' : ''
                   }`}
+                  aria-expanded={showLayoutOptions}
+                  aria-haspopup="menu"
+                  title="Columns, saved views, and table layout"
                 >
-                  {presetLabels[presetId] ?? DEFAULT_PRESET_LABELS[presetId]}
+                  <svg
+                    className="h-4 w-4 opacity-80"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">Layout</span>
+                  <svg
+                    className={`h-3.5 w-3.5 opacity-50 transition-transform duration-200 ${showLayoutOptions ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
-              ))}
+                {showLayoutOptions && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      aria-hidden
+                      onClick={() => {
+                        setShowLayoutOptions(false);
+                        setColumnDropdownOpen(false);
+                        setCustomViewDropdownOpen(false);
+                      }}
+                    />
+                    <div
+                      className="absolute left-0 top-[calc(100%+6px)] z-50 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200/90 bg-white py-1 shadow-lg shadow-slate-200/40 ring-1 ring-black/[0.03]"
+                      role="menu"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setColumnDropdownOpen((o) => !o);
+                          setCustomViewDropdownOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 px-2.5 py-2 text-left text-[13px] font-medium leading-snug transition-colors ${
+                          columnDropdownOpen ? 'bg-slate-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                            />
+                          </svg>
+                        </span>
+                        <span className="min-w-0 flex-1">Show &amp; pin columns</span>
+                        <svg
+                          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
+                            columnDropdownOpen ? 'rotate-90' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setColumnDropdownOpen(false);
+                          if (customViewDropdownOpen) {
+                            setCustomViewDropdownOpen(false);
+                          } else {
+                            setShowLayoutOptions(false);
+                            openCustomDropdown();
+                          }
+                        }}
+                        className="flex w-full items-center gap-3 px-2.5 py-2 text-left text-[13px] font-medium leading-snug text-slate-700 transition-colors hover:bg-slate-50"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                            />
+                          </svg>
+                        </span>
+                        <span className="min-w-0 flex-1">Saved views</span>
+                        <svg
+                          className="h-4 w-4 shrink-0 text-slate-300"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                      <div className="mx-2 my-1 h-px bg-slate-100" aria-hidden />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          resetColumnWidths();
+                          setShowLayoutOptions(false);
+                          setColumnDropdownOpen(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-2.5 py-2 text-left text-[13px] font-medium leading-snug text-slate-600 transition-colors hover:bg-slate-50"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2m-8 0H6a2 2 0 01-2-2v-2"
+                            />
+                          </svg>
+                        </span>
+                        <span className="min-w-0 flex-1">Reset column widths</span>
+                      </button>
+                      {columnDropdownOpen && (
+                        <div className="max-h-52 overflow-y-auto border-t border-slate-100 bg-slate-50/80 px-1.5 py-1">
+                          <div
+                            className="mb-0.5 grid grid-cols-[1rem_11rem_auto] items-center gap-x-1.5 border-b border-slate-200/70 px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400"
+                            aria-hidden
+                          >
+                            <span />
+                            <span className="min-w-0 truncate">Column</span>
+                            <span title="Pinned columns stay visible when scrolling horizontally">Pin</span>
+                          </div>
+                          {REVIEW_TABLE_COLUMNS.filter((col) => col.id !== 'compareCheckbox').map((col) => {
+                            const visId = `review-col-vis-${col.id}`;
+                            return (
+                              <div
+                                key={col.id}
+                                className="grid grid-cols-[1rem_11rem_auto] items-center gap-x-1.5 rounded px-1 py-0.5 hover:bg-white/80"
+                              >
+                                <input
+                                  id={visId}
+                                  type="checkbox"
+                                  checked={visibleColumnIds.includes(col.id)}
+                                  onChange={() => toggleColumn(col.id)}
+                                  className="h-3.5 w-3.5 place-self-center rounded border-slate-300"
+                                  aria-label={col.label ? `Show ${col.label}` : 'Show column'}
+                                />
+                                <label
+                                  htmlFor={visId}
+                                  className="min-w-0 cursor-pointer truncate text-[13px] leading-tight text-slate-700"
+                                >
+                                  {col.label || '—'}
+                                </label>
+                                <label
+                                  className="flex cursor-pointer justify-self-start rounded p-0.5 hover:bg-slate-200/60"
+                                  title={
+                                    col.label
+                                      ? `Pin “${col.label}” (stays visible when scrolling)`
+                                      : 'Pin column'
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={frozenColumnIds.includes(col.id)}
+                                    disabled={!visibleColumnIds.includes(col.id)}
+                                    onChange={() => toggleFrozenColumn(col.id)}
+                                    className="h-3.5 w-3.5 rounded border-slate-300 disabled:opacity-50"
+                                    aria-label={col.label ? `Pin ${col.label}` : 'Pin column'}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setPresetLabelsModalOpen(true)}
-                className="px-2 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200 border-l border-slate-300 transition-colors"
+                className="app-segmented-segment shrink-0 rounded-r-full px-2.5 py-2 text-slate-500 hover:text-slate-700"
                 title="Customize view button labels and order"
                 aria-label="Customize view buttons"
               >
@@ -886,249 +1153,16 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setColumnDropdownOpen(false);
-                    if (customViewDropdownOpen) {
-                      setCustomViewDropdownOpen(false);
-                    } else {
-                      openCustomDropdown();
-                    }
-                  }}
-                  className={`rounded-r-xl px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
-                    activePreset === 'custom'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-700 hover:bg-slate-200'
-                  }`}
-                  aria-expanded={customViewDropdownOpen}
-                  aria-haspopup="menu"
-                >
-                  Custom
-                  <span className="text-xs opacity-80">▾</span>
-                </button>
-                {customViewDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      aria-hidden
-                      onClick={closeCustomDropdown}
-                    />
-                    <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-[20rem] flex flex-col bg-white border border-slate-200 rounded-xl shadow-lg">
-                      <button
-                        type="button"
-                        onClick={selectCurrentSelection}
-                        className={`w-full px-3 py-2 text-sm text-left ${
-                          activePreset === 'custom' && !activeCustomViewId
-                            ? 'bg-indigo-50 text-indigo-800 font-medium'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        Current selection
-                      </button>
-                      {savedCustomViews.length > 0 ? (
-                        <>
-                          <p className="px-3 pt-2 pb-1 text-xs font-medium text-slate-500 uppercase tracking-wide">
-                            Saved views
-                          </p>
-                          <div className="overflow-y-auto flex-1 min-h-0 max-h-48">
-                            {savedCustomViews.map((view) => (
-                              <div
-                                key={view.id}
-                                className={`flex items-center gap-1 px-3 py-2 text-sm ${
-                                  activeCustomViewId === view.id
-                                    ? 'bg-indigo-50 text-indigo-800 font-medium'
-                                    : 'text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => applySavedCustomView(view)}
-                                  className="flex-1 min-w-0 text-left truncate"
-                                >
-                                  {view.name}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeSavedCustomView(view.id);
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-red-600 rounded shrink-0"
-                                  title="Delete view"
-                                  aria-label={`Delete ${view.name}`}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <p className="px-3 py-2 text-sm text-slate-500">No saved views yet.</p>
-                      )}
-                      <div className="border-t border-slate-200 p-2 shrink-0">
-                        {saveViewOpen ? (
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={saveViewName}
-                              onChange={(e) => setSaveViewName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') addSavedCustomView(saveViewName);
-                                if (e.key === 'Escape') setSaveViewOpen(false);
-                              }}
-                              placeholder="View name"
-                              className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              onClick={() => addSavedCustomView(saveViewName)}
-                              disabled={!saveViewName.trim()}
-                              className="px-2 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setSaveViewOpen(false); setSaveViewName(''); }}
-                              className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setSaveViewOpen(true)}
-                            className="w-full px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg text-left"
-                          >
-                            Save current columns as view…
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="relative flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLayoutOptions((o) => !o);
-                  if (!showLayoutOptions) {
-                    setColumnDropdownOpen(false);
-                    setCustomViewDropdownOpen(false);
-                  }
-                }}
-                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700 inline-flex items-center gap-1.5"
-                aria-expanded={showLayoutOptions}
-                aria-haspopup="menu"
-              >
-                Layout options
-                <span className="text-xs text-slate-500">▾</span>
-              </button>
-              {showLayoutOptions && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    aria-hidden
-                    onClick={() => {
-                      setShowLayoutOptions(false);
-                      setColumnDropdownOpen(false);
-                      setCustomViewDropdownOpen(false);
-                    }}
-                  />
-                  <div className="absolute right-0 top-full mt-1 z-50 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-3 space-y-3">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Layout &amp; columns
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs text-slate-600">
-                        Use presets for common views, or customize which columns are visible and pinned.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setColumnDropdownOpen((o) => !o);
-                            setCustomViewDropdownOpen(false);
-                          }}
-                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
-                        >
-                          Choose columns
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (customViewDropdownOpen) {
-                              setCustomViewDropdownOpen(false);
-                            } else {
-                              openCustomDropdown();
-                            }
-                          }}
-                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
-                        >
-                          Saved views
-                        </button>
-                        <button
-                          type="button"
-                          onClick={resetColumnWidths}
-                          className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700"
-                        >
-                          Reset widths
-                        </button>
-                      </div>
-                    </div>
-                    {columnDropdownOpen && (
-                      <div className="mt-2 max-h-48 overflow-y-auto border-t border-slate-100 pt-2">
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                          Columns
-                        </p>
-                        {REVIEW_TABLE_COLUMNS.filter((col) => col.id !== 'compareCheckbox').map((col) => (
-                          <div key={col.id} className="flex items-center gap-2 px-1 py-1 hover:bg-slate-50 rounded">
-                            <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                              <input
-                                type="checkbox"
-                                checked={visibleColumnIds.includes(col.id)}
-                                onChange={() => toggleColumn(col.id)}
-                                className="rounded border-slate-300"
-                                aria-label={col.label ? `Show ${col.label}` : 'Show column'}
-                              />
-                              <span className="text-sm text-slate-700 truncate">{col.label || '—'}</span>
-                            </label>
-                            <label className="flex items-center gap-1 shrink-0 cursor-pointer" title="Freeze column">
-                              <span className="text-xs text-slate-500">Pin</span>
-                              <input
-                                type="checkbox"
-                                checked={frozenColumnIds.includes(col.id)}
-                                disabled={!visibleColumnIds.includes(col.id)}
-                                onChange={() => toggleFrozenColumn(col.id)}
-                                className="rounded border-slate-300 disabled:opacity-50"
-                                aria-label={col.label ? `Freeze ${col.label}` : 'Freeze column'}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
             </div>
             <button
               type="button"
               onClick={() => setCompareModalOpen(true)}
               disabled={selectedForCompare.length < 2}
-              className={`px-3 py-2 text-sm font-medium rounded-xl ${
+              className={
                 selectedForCompare.length >= 2
-                  ? 'bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 hover:border-indigo-700'
-                  : 'border border-slate-300 text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+                  ? 'app-btn-primary'
+                  : 'app-btn-secondary opacity-60 cursor-not-allowed hover:translate-y-0 hover:shadow-sm'
+              }
               title={selectedForCompare.length < 2 ? 'Select 2–4 providers to compare' : 'Compare selected providers'}
             >
               Compare {selectedForCompare.length > 0 ? `(${selectedForCompare.length})` : ''}
@@ -1137,13 +1171,13 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               <button
                 type="button"
                 onClick={() => setExportDropdownOpen((o) => !o)}
-                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700 inline-flex items-center gap-1.5"
+                className="app-btn-secondary inline-flex items-center gap-1.5"
                 aria-expanded={exportDropdownOpen}
                 aria-haspopup="menu"
                 title="Export table"
               >
                 Export
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -1154,14 +1188,14 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                     aria-hidden
                     onClick={() => setExportDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-50 min-w-[10rem] py-1 bg-white border border-slate-200 rounded-xl shadow-lg">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[10rem] py-1 app-dropdown-panel">
                     <button
                       type="button"
                       onClick={() => {
                         handleExportCsv();
                         setExportDropdownOpen(false);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-t-xl"
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg transition-colors"
                     >
                       Export as CSV
                     </button>
@@ -1171,7 +1205,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                         handleExportXlsx();
                         setExportDropdownOpen(false);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-b-xl"
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg transition-colors"
                     >
                       Export as XLSX
                     </button>
@@ -1182,40 +1216,23 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               </>
             )}
           </div>
-        </div>
-        <div className="px-5 pt-3">
-          <button
-            type="button"
-            onClick={() => setShowHowItWorks((open) => !open)}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 hover:text-slate-900"
-          >
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] text-slate-600 bg-white">
-              i
-            </span>
-            {showHowItWorks ? 'Hide how this works' : 'How this review works'}
-          </button>
-          {showHowItWorks && (
-            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-700 space-y-1.5">
-              <p>
-                Recommended increases are calculated from your merit matrix, experience band guardrails, and active
-                Compensation Policy Engine rules, using the current cycle&apos;s effective date.
-              </p>
-              <p>
-                Use the filters below to focus on a population, and color cues to see who is below, in, or above their
-                experience band targets. Update review status and override amounts directly in the grid where needed.
-              </p>
-              <p>
-                Budget usage is based on the total increase across visible providers compared with the cycle budget
-                target.
-              </p>
-            </div>
-          )}
+          </div>
         </div>
         <SalaryReviewSummaryBar
           summaryTotals={summaryTotals}
-          budgetAmount={budgetAmount}
-          budgetWarningThresholdPercent={budgetWarningThresholdPercent}
           breakdown={summaryBreakdown}
+          budgetUsage={
+            headerBudgetUsagePercent != null &&
+            budgetAmount != null &&
+            Number.isFinite(budgetAmount) &&
+            budgetAmount > 0
+              ? {
+                  percentOfBudget: headerBudgetUsagePercent,
+                  budgetAmount,
+                  isWarning: headerBudgetIsWarning,
+                }
+              : undefined
+          }
         />
         <div className="shrink-0 px-5">
           <SalaryReviewFilterBar
@@ -1225,7 +1242,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
             totalCount={records.length}
             filteredCount={filteredRecords.length}
             rightAction={
-              <>
+              <div className="flex items-center gap-2">
                 {equitySuggestionsApplyCount > 0 && (
                   <button
                     type="button"
@@ -1255,7 +1272,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                     )}
                   </button>
                 ) : null}
-              </>
+              </div>
             }
           />
         </div>
@@ -1761,7 +1778,6 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
         <ProviderCompareModal
           providerIds={selectedForCompare}
           records={records}
-          marketResolver={marketResolver}
           experienceBands={experienceBands}
           onClose={() => setCompareModalOpen(false)}
           onClearSelection={clearCompareSelection}

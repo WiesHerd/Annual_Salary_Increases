@@ -40,11 +40,47 @@
   }
 
   .app-btn-primary {
-    @apply px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+    @apply px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold shadow-md shadow-indigo-500/25 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200;
   }
 
   .app-btn-secondary {
-    @apply px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors;
+    @apply px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow hover:-translate-y-px active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all duration-200;
+  }
+
+  /* Toolbar dropdown trigger – same as secondary but with a bit more presence */
+  .app-btn-toolbar {
+    @apply app-btn-secondary;
+  }
+
+  /* Silicon Valley–style: minimal in-panel actions, no heavy border */
+  .app-btn-ghost {
+    @apply px-3 py-1.5 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-colors;
+  }
+
+  .app-btn-ghost-sm {
+    @apply px-2.5 py-1.5 text-xs font-medium text-slate-600 rounded-md hover:bg-slate-100 hover:ring-1 hover:ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-150;
+  }
+
+  /* Pill segmented control: track + elevated selected pill */
+  .app-segmented-track {
+    @apply flex rounded-full bg-slate-200/80 p-0.5 shadow-inner;
+  }
+
+  .app-segmented-segment {
+    @apply relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 text-slate-600;
+  }
+
+  .app-segmented-segment:hover {
+    @apply text-slate-800;
+  }
+
+  .app-segmented-segment-active {
+    @apply bg-white text-indigo-600 font-semibold shadow-md ring-1 ring-slate-200/80;
+  }
+
+  /* Floating dropdown/panel – more depth */
+  .app-dropdown-panel {
+    @apply bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50;
   }
 
   .app-icon-btn {

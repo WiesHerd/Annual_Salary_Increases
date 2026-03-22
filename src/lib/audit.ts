@@ -3,6 +3,8 @@
  * Tracks what changed, when, and by whom for enterprise audit compliance.
  */
 
+import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
+
 export type AuditEntityType = 'provider' | 'market' | 'evaluation' | 'payment';
 
 export interface AuditEntry {
@@ -35,11 +37,7 @@ export function appendAuditEntry(
   const entries = loadAuditEntries();
   entries.push(full);
   const trimmed = entries.slice(-MAX_ENTRIES);
-  try {
-    localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(trimmed));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(STORAGE_KEY_AUDIT, JSON.stringify(trimmed));
 }
 
 /** Load all audit entries, optionally filtered. */
@@ -49,7 +47,7 @@ export function loadAuditEntries(options?: {
   limit?: number;
 }): AuditEntry[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_AUDIT);
+    const raw = migratedStorageGetItem(STORAGE_KEY_AUDIT);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];

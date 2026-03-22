@@ -1,7 +1,7 @@
 /**
- * Card-based Import screen. Upload cards for Provider, Market survey, Evaluations, Payments.
- * No data tables — user navigates to Data browser to view records.
- * Uses app design tokens for consistent look and feel.
+ * Import screen — wizard-first pattern.
+ * The page IS the type selector. Clicking a tile launches the 4-step upload wizard directly.
+ * Data status (row counts) lives in the Data Browser tab labels.
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -96,95 +96,80 @@ interface ImportCardsProps {
   onNavigateToBrowser: (tab?: DataBrowserTab) => void;
 }
 
-const TEMPLATES: Record<string, string> = {
-  provider: '/sample-providers.csv',
-  market: '/sample-market.csv',
-  payments: '/sample-payments.csv',
-  evaluation: '/sample-evaluations.csv',
-};
-
-/** Shared icon container - light green to match reference */
-const ICON_WRAPPER = 'rounded-lg bg-emerald-100 p-2.5 text-emerald-700 shrink-0';
+const ICON_BG = 'rounded-xl bg-emerald-100 p-3.5 text-emerald-700 shrink-0 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-700';
 const ICON_SIZE = 'w-7 h-7';
 
-function CardIcon({ type }: { type: UploadCardType }) {
-  const cls = ICON_SIZE;
-  switch (type) {
-    case 'provider':
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      );
-    case 'market':
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      );
-    case 'evaluation':
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-      );
-    case 'payments':
-      return (
-        <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
+const TILES = [
+  {
+    type: 'provider' as const,
+    title: 'Provider',
+    description: 'Roster with compensation, wRVUs, and plan details',
+    icon: (
+      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+  },
+  {
+    type: 'market' as const,
+    title: 'Market survey',
+    description: 'Benchmark percentiles (TCC, wRVU, CF) by specialty',
+    icon: (
+      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
+    type: 'evaluation' as const,
+    title: 'Evaluations',
+    description: 'Performance scores and increase percentages by provider',
+    icon: (
+      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    type: 'payments' as const,
+    title: 'Payments',
+    description: 'Supplemental payment records by provider',
+    icon: (
+      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+] as const;
 
-export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
+export function ImportCards({ onNavigateToBrowser: _onNavigateToBrowser }: ImportCardsProps) {
   const [cycleId, setCycleId] = useState('FY2025');
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState('physicians');
   const [modalOpen, setModalOpen] = useState<UploadCardType | null>(null);
   const [addSurveyModalOpen, setAddSurveyModalOpen] = useState(false);
-  const [surveyDropdownOpen, setSurveyDropdownOpen] = useState(false);
+  const [surveyPickerOpen, setSurveyPickerOpen] = useState(false);
   const [surveySearch, setSurveySearch] = useState('');
-  const surveyDropdownRef = useRef<HTMLDivElement>(null);
   const surveySearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (surveyDropdownRef.current && !surveyDropdownRef.current.contains(e.target as Node)) {
-        setSurveyDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handle);
-    return () => document.removeEventListener('click', handle);
-  }, []);
-
-  useEffect(() => {
-    if (surveyDropdownOpen) {
+    if (surveyPickerOpen) {
       setSurveySearch('');
       queueMicrotask(() => surveySearchRef.current?.focus());
     }
-  }, [surveyDropdownOpen]);
+  }, [surveyPickerOpen]);
 
   const {
-    records,
     addFromUpload,
     replaceFromUpload,
-    clearAll,
     marketSurveys,
     surveyMetadata,
     addMarketFromUpload,
     replaceMarketFromUpload,
-    clearMarket,
     addSurveySlot,
-    evaluationRows,
     addEvaluationFromUpload,
     replaceEvaluationFromUpload,
-    clearEvaluations,
-    payments,
     addPaymentsFromUpload,
     replacePaymentsFromUpload,
-    clearPayments,
     loaded,
   } = useAppState();
 
@@ -197,7 +182,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     replaceStreamDataFromUpload,
   } = useCustomStreams();
 
-  const [customStreamView, setCustomStreamView] = useState<'list' | 'add' | { upload: string }>('list');
+  const [customStreamView, setCustomStreamView] = useState<'list' | { upload: string }>('list');
   const [addStreamModalOpen, setAddStreamModalOpen] = useState(false);
 
   const surveyIds = useMemo(() => {
@@ -214,8 +199,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
       return label.includes(q) || id.toLowerCase().includes(q);
     });
   }, [surveyIds, surveySearch, surveyMetadata]);
-
-  const marketRowCount = marketSurveys[selectedMarketSurveyId]?.length ?? 0;
 
   const handleProviderUpload = (result: ProviderUploadResult, cycle: string, mode: 'replace' | 'add') => {
     if (mode === 'replace') replaceFromUpload(result, cycle);
@@ -241,13 +224,10 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     replaceStreamDataFromUpload(streamId, result, mode);
   };
 
-  const handleDownloadTemplate = (type: UploadCardType) => {
-    const url = TEMPLATES[type];
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = url.split('/').pop() ?? 'template.csv';
-    a.click();
+  const openCustomStreams = () => {
+    setModalOpen('custom');
+    setCustomStreamView('list');
+    setAddStreamModalOpen(false);
   };
 
   if (!loaded) {
@@ -258,268 +238,167 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     );
   }
 
-  const cardBase = 'app-card flex flex-col p-6 min-h-0';
-  const footerDivider = 'border-t border-slate-100 mt-auto pt-3';
-  const footerIcon = 'w-5 h-5';
-  const ViewDataIcon = () => (
-    <svg className={footerIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-  );
-  const DownloadIcon = () => (
-    <svg className={footerIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-    </svg>
-  );
   const TrashIcon = () => (
-    <svg className={footerIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M16 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-    </svg>
-  );
-
-  const AddStreamIcon = () => (
-    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 4v16m8-8H4" />
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
     </svg>
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Import Data</h1>
-          <p className="text-slate-600 mt-1 max-w-xl">
-            Upload provider, market, and compensation data. Each upload uses a guided flow: select file → map columns → preview & validate → import.
-          </p>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Page header */}
+      <div>
+        <h1 className="text-xl font-semibold text-slate-800">Import data</h1>
+        <p className="text-sm text-slate-500 mt-1">Select the type of data you want to import.</p>
+      </div>
+
+      {/* 2×2 type-selector tile grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {TILES.map(({ type, title, description, icon }) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => {
+              if (type === 'market') {
+                setSurveyPickerOpen(true);
+              } else {
+                setModalOpen(type);
+              }
+            }}
+            className="group flex items-start gap-5 rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition-all hover:border-indigo-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+          >
+            <div className={ICON_BG}>{icon}</div>
+            <div className="min-w-0 pt-0.5 space-y-1.5">
+              <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{title}</p>
+              <p className="text-sm leading-relaxed text-slate-500">{description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Custom stream — full-width tile */}
+      <button
+        type="button"
+        onClick={openCustomStreams}
+        className="group flex w-full items-center gap-5 rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition-all hover:border-indigo-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+      >
+        <div className={ICON_BG}>
+          <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
         </div>
-        <button
-          type="button"
-          onClick={() => { setModalOpen('custom'); setCustomStreamView('list'); setAddStreamModalOpen(false); }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">Custom stream</p>
+          <p className="text-sm leading-relaxed text-slate-500">Upload or manage additional data streams — risk scores, quality metrics, and more</p>
+        </div>
+        <svg className="w-5 h-5 shrink-0 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      <p className="text-xs text-slate-400">{UPLOAD_FORMAT_HINT}</p>
+
+      {/* Survey picker — shown before market wizard to select target survey */}
+      {surveyPickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Select survey"
+          onClick={() => setSurveyPickerOpen(false)}
         >
-          <AddStreamIcon />
-          Add new data stream
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 grid-rows-2 gap-6">
-        {/* Provider card */}
-        <div className={cardBase}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={ICON_WRAPPER}>
-                <CardIcon type="provider" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-slate-800">Provider Upload</h2>
-                <p className="text-sm text-slate-500 mt-0.5">{records.length} rows loaded</p>
-                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
-              </div>
+          <div
+            className="app-card shadow-xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-100 shrink-0">
+              <h3 className="text-lg font-semibold text-slate-800">Choose target survey</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Which survey slot should this file be imported into?</p>
+              <input
+                ref={surveySearchRef}
+                type="search"
+                value={surveySearch}
+                onChange={(e) => setSurveySearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search surveys…"
+                aria-label="Search surveys"
+                className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
             </div>
-            <button type="button" onClick={() => setModalOpen('provider')} className="app-btn-primary shrink-0">
-              Choose File
-            </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => handleDownloadTemplate('provider')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-              Download template
-            </button>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
-          </div>
-          <div className={`flex items-center gap-2 ${footerDivider}`}>
-            <button type="button" onClick={() => handleDownloadTemplate('provider')} className="app-action-btn" title="Download sample template" aria-label="Download template">
-              <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => onNavigateToBrowser('provider')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
-              <ViewDataIcon />
-            </button>
-            <button type="button" onClick={clearAll} className="app-action-btn-danger ml-auto" title="Clear all" aria-label="Clear all" disabled={records.length === 0}>
-              <TrashIcon />
-            </button>
+            <ul
+              role="listbox"
+              className="flex-1 overflow-y-auto py-2 min-h-0"
+              aria-label="Survey list"
+            >
+              {filteredSurveyIds.length === 0 ? (
+                <li className="px-4 py-3 text-sm text-slate-500">No matches</li>
+              ) : (
+                filteredSurveyIds.map((id) => (
+                  <li key={id} role="option" aria-selected={selectedMarketSurveyId === id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMarketSurveyId(id);
+                        setSurveyPickerOpen(false);
+                        setModalOpen('market');
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        selectedMarketSurveyId === id
+                          ? 'bg-indigo-50 text-indigo-700 font-medium'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {getSurveyLabel(id, surveyMetadata)}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="p-4 border-t border-slate-100 flex justify-between items-center shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSurveyPickerOpen(false);
+                  setAddSurveyModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add survey
+              </button>
+              <button type="button" onClick={() => setSurveyPickerOpen(false)} className="app-btn-secondary">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Market survey card */}
-        <div className={cardBase}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={ICON_WRAPPER}>
-                <CardIcon type="market" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold text-slate-800">Survey upload</h2>
-                <div ref={surveyDropdownRef} className="relative mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSurveyDropdownOpen((o) => !o)}
-                    className="flex items-center gap-1.5 min-w-0 max-w-full px-2.5 py-1.5 text-left text-sm font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-colors"
-                    aria-expanded={surveyDropdownOpen}
-                    aria-haspopup="listbox"
-                  >
-                    <span className="truncate text-slate-800">{getSurveyLabel(selectedMarketSurveyId, surveyMetadata)}</span>
-                    <svg className="w-4 h-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {surveyDropdownOpen && (
-                    <div className="absolute left-0 top-full mt-0.5 z-50 min-w-[200px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 p-2">
-                        <input
-                          ref={surveySearchRef}
-                          type="search"
-                          value={surveySearch}
-                          onChange={(e) => setSurveySearch(e.target.value)}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          placeholder="Search surveys…"
-                          aria-label="Search surveys"
-                          className="w-full rounded border border-slate-200 px-2.5 py-1.5 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <ul
-                        role="listbox"
-                        className="max-h-52 overflow-y-auto py-1"
-                        aria-label="Select survey"
-                      >
-                        {filteredSurveyIds.length === 0 ? (
-                          <li className="px-3 py-2 text-sm text-slate-500">No matches</li>
-                        ) : (
-                          filteredSurveyIds.map((id) => (
-                            <li key={id} role="option" aria-selected={selectedMarketSurveyId === id}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedMarketSurveyId(id);
-                                  setSurveyDropdownOpen(false);
-                                }}
-                                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                                  selectedMarketSurveyId === id
-                                    ? 'bg-indigo-50 text-indigo-700 font-medium'
-                                    : 'text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                {getSurveyLabel(id, surveyMetadata)}
-                              </button>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm text-slate-500 mt-1">{marketRowCount} rows loaded</p>
-                <button
-                  type="button"
-                  onClick={() => setAddSurveyModalOpen(true)}
-                  className="mt-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  + Add new survey slot
-                </button>
-                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
-              </div>
-            </div>
-            <button type="button" onClick={() => setModalOpen('market')} className="app-btn-primary shrink-0">
-              Choose File
-            </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => handleDownloadTemplate('market')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-              Download template
-            </button>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
-          </div>
-          <div className={`flex items-center gap-2 ${footerDivider}`}>
-            <button type="button" onClick={() => handleDownloadTemplate('market')} className="app-action-btn" title="Download template" aria-label="Download template">
-              <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => onNavigateToBrowser('market')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
-              <ViewDataIcon />
-            </button>
-            <button type="button" onClick={() => clearMarket(selectedMarketSurveyId)} className="app-action-btn-danger ml-auto" title="Clear survey" aria-label="Clear survey" disabled={marketRowCount === 0}>
-              <TrashIcon />
-            </button>
-          </div>
+      {addSurveyModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add survey slot"
+          onClick={() => setAddSurveyModalOpen(false)}
+        >
+          <AddSurveyModal
+            existingIds={surveyIds}
+            onClose={() => setAddSurveyModalOpen(false)}
+            onAdd={(surveyId, label) => {
+              if (addSurveySlot(surveyId, label)) {
+                setSelectedMarketSurveyId(surveyId);
+              }
+              setAddSurveyModalOpen(false);
+              setModalOpen('market');
+            }}
+          />
         </div>
+      )}
 
-        {/* Evaluation card */}
-        <div className={cardBase}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={ICON_WRAPPER}>
-                <CardIcon type="evaluation" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-slate-800">Evaluations</h2>
-                <p className="text-sm text-slate-500 mt-0.5">{evaluationRows.length} rows loaded</p>
-                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
-              </div>
-            </div>
-            <button type="button" onClick={() => setModalOpen('evaluation')} className="app-btn-primary shrink-0">
-              Choose File
-            </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => handleDownloadTemplate('evaluation')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-              Download template
-            </button>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
-          </div>
-          <div className={`flex items-center gap-2 ${footerDivider}`}>
-            <button type="button" onClick={() => handleDownloadTemplate('evaluation')} className="app-action-btn" title="Download sample template" aria-label="Download template">
-              <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => onNavigateToBrowser('evaluation')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
-              <ViewDataIcon />
-            </button>
-            <button type="button" onClick={clearEvaluations} className="app-action-btn-danger ml-auto" title="Clear all" aria-label="Clear all" disabled={evaluationRows.length === 0}>
-              <TrashIcon />
-            </button>
-          </div>
-        </div>
-
-        {/* Payments card */}
-        <div className={cardBase}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className={ICON_WRAPPER}>
-                <CardIcon type="payments" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-slate-800">Payments</h2>
-                <p className="text-sm text-slate-500 mt-0.5">{payments.length} rows loaded</p>
-                <span className="inline-block mt-1 text-xs font-medium text-indigo-600/90">Guided import · 4 steps</span>
-              </div>
-            </div>
-            <button type="button" onClick={() => setModalOpen('payments')} className="app-btn-primary shrink-0">
-              Choose File
-            </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => handleDownloadTemplate('payments')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-              Download template
-            </button>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs text-slate-500">{UPLOAD_FORMAT_HINT}</span>
-          </div>
-          <div className={`flex items-center gap-2 ${footerDivider}`}>
-            <button type="button" onClick={() => handleDownloadTemplate('payments')} className="app-action-btn" title="Download template" aria-label="Download template">
-              <DownloadIcon />
-            </button>
-            <button type="button" onClick={() => onNavigateToBrowser('payments')} className="app-action-btn" title="View in Data browser" aria-label="View in Data browser">
-              <ViewDataIcon />
-            </button>
-            <button type="button" onClick={clearPayments} className="app-action-btn-danger ml-auto" title="Clear all" aria-label="Clear all" disabled={payments.length === 0}>
-              <TrashIcon />
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Upload modals */}
+      {/* Upload wizard modals */}
       {modalOpen === 'provider' && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
@@ -541,11 +420,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               />
             </div>
             <div className="px-5 pb-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModalOpen(null)}
-                className="app-btn-secondary"
-              >
+              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
                 Close
               </button>
             </div>
@@ -568,17 +443,13 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
             <div className="p-5">
               <MarketUpload
                 surveyId={selectedMarketSurveyId}
-                surveyLabel={SURVEY_LABELS[selectedMarketSurveyId] ?? selectedMarketSurveyId}
+                surveyLabel={getSurveyLabel(selectedMarketSurveyId, surveyMetadata)}
                 onUpload={handleMarketUpload}
                 onDone={() => setModalOpen(null)}
               />
             </div>
             <div className="px-5 pb-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModalOpen(null)}
-                className="app-btn-secondary"
-              >
+              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
                 Close
               </button>
             </div>
@@ -602,36 +473,11 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               <EvaluationUpload onUpload={handleEvaluationUpload} onDone={() => setModalOpen(null)} />
             </div>
             <div className="px-5 pb-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModalOpen(null)}
-                className="app-btn-secondary"
-              >
+              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
                 Close
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {addSurveyModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add survey slot"
-          onClick={() => setAddSurveyModalOpen(false)}
-        >
-          <AddSurveyModal
-            existingIds={surveyIds}
-            onClose={() => setAddSurveyModalOpen(false)}
-            onAdd={(surveyId, label) => {
-              if (addSurveySlot(surveyId, label)) {
-                setSelectedMarketSurveyId(surveyId);
-              }
-              setAddSurveyModalOpen(false);
-            }}
-          />
         </div>
       )}
 
@@ -651,11 +497,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               <PaymentsUpload onUpload={handlePaymentsUpload} onDone={() => setModalOpen(null)} />
             </div>
             <div className="px-5 pb-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModalOpen(null)}
-                className="app-btn-secondary"
-              >
+              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
                 Close
               </button>
             </div>

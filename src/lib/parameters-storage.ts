@@ -27,6 +27,8 @@ import {
   SAMPLE_CF_BY_SPECIALTY,
   SAMPLE_PROVIDER_TYPE_TO_SURVEY,
 } from './parameters-sample-data';
+import { migratedStorageGetItem, migratedStorageSetItem, migratedStorageRemoveItem } from './migrated-local-storage';
+import { parseCyclesFromStorage } from './schemas/persisted-data';
 
 const KEY_CYCLES = 'tcc-cycles';
 const KEY_MERIT_MATRIX = 'tcc-merit-matrix';
@@ -42,7 +44,7 @@ const KEY_CF_BY_SPECIALTY = 'tcc-cf-by-specialty';
 
 function loadJson<T extends unknown[]>(key: string, defaultValue: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return defaultValue;
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return defaultValue;
@@ -53,15 +55,20 @@ function loadJson<T extends unknown[]>(key: string, defaultValue: T): T {
 }
 
 function saveJson<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(key, JSON.stringify(value));
 }
 
 export function loadCycles(): Cycle[] {
-  return loadJson(KEY_CYCLES, SAMPLE_CYCLES);
+  try {
+    const raw = migratedStorageGetItem(KEY_CYCLES);
+    if (!raw) return SAMPLE_CYCLES;
+    const parsed = JSON.parse(raw) as unknown;
+    const validated = parseCyclesFromStorage(parsed);
+    if (validated == null || validated.length === 0) return SAMPLE_CYCLES;
+    return validated;
+  } catch {
+    return SAMPLE_CYCLES;
+  }
 }
 
 export function saveCycles(rows: Cycle[]): void {
@@ -120,7 +127,7 @@ function isAppCombinedGroupRow(r: unknown): r is AppCombinedGroupRow {
 /** Migrate legacy survey specialty mapping (1:1) to app combined groups (many:1). */
 function migrateFromLegacySurveyMapping(): AppCombinedGroupRow[] | null {
   try {
-    const raw = localStorage.getItem('tcc-app-benchmark-mapping');
+    const raw = migratedStorageGetItem('tcc-app-benchmark-mapping');
     if (!raw) return null;
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -152,16 +159,12 @@ function migrateLegacyAppCombinedGroups(): SurveySpecialtyMappingSet | null {
   if (migrated) {
     const set: SurveySpecialtyMappingSet = { [DEFAULT_SURVEY_ID]: { appCombinedGroups: migrated } };
     saveSurveySpecialtyMappingSet(set);
-    try {
-      localStorage.removeItem('tcc-app-benchmark-mapping');
-      localStorage.removeItem(KEY_APP_COMBINED_GROUPS);
-    } catch {
-      // ignore
-    }
+    migratedStorageRemoveItem('tcc-app-benchmark-mapping');
+    migratedStorageRemoveItem(KEY_APP_COMBINED_GROUPS);
     return set;
   }
   try {
-    const raw = localStorage.getItem(KEY_APP_COMBINED_GROUPS);
+    const raw = migratedStorageGetItem(KEY_APP_COMBINED_GROUPS);
     if (!raw) return null;
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -169,11 +172,7 @@ function migrateLegacyAppCombinedGroups(): SurveySpecialtyMappingSet | null {
     if (!isAppCombinedGroupRow(first)) return null;
     const set: SurveySpecialtyMappingSet = { [DEFAULT_SURVEY_ID]: { appCombinedGroups: data as AppCombinedGroupRow[] } };
     saveSurveySpecialtyMappingSet(set);
-    try {
-      localStorage.removeItem(KEY_APP_COMBINED_GROUPS);
-    } catch {
-      // ignore
-    }
+    migratedStorageRemoveItem(KEY_APP_COMBINED_GROUPS);
     return set;
   } catch {
     return null;
@@ -184,7 +183,7 @@ export function loadSurveySpecialtyMappingSet(): SurveySpecialtyMappingSet {
   const migrated = migrateLegacyAppCombinedGroups();
   if (migrated) return migrated;
   try {
-    const raw = localStorage.getItem(KEY_SURVEY_SPECIALTY_MAPPING);
+    const raw = migratedStorageGetItem(KEY_SURVEY_SPECIALTY_MAPPING);
     if (!raw) return { [DEFAULT_SURVEY_ID]: { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS } };
     const data = JSON.parse(raw) as unknown;
     if (typeof data !== 'object' || data === null) return { [DEFAULT_SURVEY_ID]: { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS } };
@@ -197,11 +196,7 @@ export function loadSurveySpecialtyMappingSet(): SurveySpecialtyMappingSet {
 }
 
 export function saveSurveySpecialtyMappingSet(set: SurveySpecialtyMappingSet): void {
-  try {
-    localStorage.setItem(KEY_SURVEY_SPECIALTY_MAPPING, JSON.stringify(set));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(KEY_SURVEY_SPECIALTY_MAPPING, JSON.stringify(set));
 }
 
 /** Get APP combined groups for a survey (backward compat). */
@@ -220,7 +215,7 @@ export function saveAppCombinedGroups(surveyId: string, rows: AppCombinedGroupRo
 
 export function loadProviderTypeToSurveyMapping(): ProviderTypeToSurveyMapping {
   try {
-    const raw = localStorage.getItem(KEY_PROVIDER_TYPE_TO_SURVEY);
+    const raw = migratedStorageGetItem(KEY_PROVIDER_TYPE_TO_SURVEY);
     if (!raw) return SAMPLE_PROVIDER_TYPE_TO_SURVEY;
     const data = JSON.parse(raw) as unknown;
     if (typeof data !== 'object' || data === null) return SAMPLE_PROVIDER_TYPE_TO_SURVEY;
@@ -231,11 +226,7 @@ export function loadProviderTypeToSurveyMapping(): ProviderTypeToSurveyMapping {
 }
 
 export function saveProviderTypeToSurveyMapping(mapping: ProviderTypeToSurveyMapping): void {
-  try {
-    localStorage.setItem(KEY_PROVIDER_TYPE_TO_SURVEY, JSON.stringify(mapping));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(KEY_PROVIDER_TYPE_TO_SURVEY, JSON.stringify(mapping));
 }
 
 export function loadBudgetSettings(): BudgetSettingsRow[] {

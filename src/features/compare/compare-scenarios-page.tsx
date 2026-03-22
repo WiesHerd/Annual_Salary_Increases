@@ -491,7 +491,6 @@ export function CompareScenariosPage() {
               <ProviderCompareModal
                 providerIds={selectedForCompare}
                 records={records}
-                marketResolver={marketResolver}
                 experienceBands={experienceBands ?? []}
                 onClose={() => setCompareModalOpen(false)}
                 onClearSelection={() => setSelectedForCompare([])}

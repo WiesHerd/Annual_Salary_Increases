@@ -217,6 +217,7 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState<number>(50);
   const [page, setPage] = useState(1);
+  const [goToPageInput, setGoToPageInput] = useState('');
 
   const options = useMemo(() => {
     const ptSet = new Set<string>();
@@ -308,7 +309,6 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
     );
   }
 
-  const [goToPageInput, setGoToPageInput] = useState('');
   const handleGoToPage = () => {
     const num = parseInt(goToPageInput.trim(), 10);
     if (!Number.isNaN(num) && num >= 1 && num <= totalPages) setPage(num);

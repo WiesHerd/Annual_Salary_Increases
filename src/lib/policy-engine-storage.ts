@@ -5,6 +5,7 @@
 
 import type { AnnualIncreasePolicy, CustomCompensationModel, PolicyModelConfig } from '../types/compensation-policy';
 import type { TierTable } from '../types/tier-table';
+import { migratedStorageGetItem, migratedStorageSetItem, migratedStorageRemoveItem } from './migrated-local-storage';
 const KEY_POLICIES = 'tcc-policy-engine-policies';
 const KEY_CUSTOM_MODELS = 'tcc-policy-engine-custom-models';
 const KEY_TIER_TABLES = 'tcc-policy-engine-tier-tables';
@@ -13,7 +14,7 @@ const KEY_MIGRATED_CUSTOM_MODELS = 'tcc-policy-engine-migrated-custom-models';
 const KEY_ADDED_CARDIOLOGY_3TIER = 'tcc-policy-engine-added-cardiology-3tier';
 function loadJson<T>(key: string, defaultValue: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = migratedStorageGetItem(key);
     if (!raw) return defaultValue;
     const data = JSON.parse(raw) as unknown;
     return (data ?? defaultValue) as T;
@@ -23,11 +24,7 @@ function loadJson<T>(key: string, defaultValue: T): T {
 }
 
 function saveJson<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+  migratedStorageSetItem(key, JSON.stringify(value));
 }
 
 /** Convert a custom model to a CUSTOM_MODEL policy. */
@@ -73,7 +70,7 @@ export function migrateCustomModelsToPolicies(
   if (typeof localStorage === 'undefined') return { policies, customModels };
   if (customModels.length === 0) return { policies, customModels };
   try {
-    if (localStorage.getItem(KEY_MIGRATED_CUSTOM_MODELS) === '1') {
+    if (migratedStorageGetItem(KEY_MIGRATED_CUSTOM_MODELS) === '1') {
       return { policies, customModels: [] };
     }
     const existingIds = new Set(policies.map((p) => p.id));
@@ -87,7 +84,7 @@ export function migrateCustomModelsToPolicies(
     const merged = [...policies, ...migrated];
     saveJson(KEY_POLICIES, merged);
     saveJson(KEY_CUSTOM_MODELS, []);
-    localStorage.setItem(KEY_MIGRATED_CUSTOM_MODELS, '1');
+    migratedStorageSetItem(KEY_MIGRATED_CUSTOM_MODELS, '1');
     return { policies: merged, customModels: [] };
   } catch {
     return { policies, customModels };
@@ -276,13 +273,13 @@ export function loadPolicies(): AnnualIncreasePolicy[] {
       saveJson(KEY_POLICIES, policies);
     } else {
       const hasCardiologyExample = policies.some((p) => p.id === CARDIOLOGY_3TIER_EXAMPLE_ID);
-      if (!hasCardiologyExample && localStorage.getItem(KEY_ADDED_CARDIOLOGY_3TIER) !== '1') {
+      if (!hasCardiologyExample && migratedStorageGetItem(KEY_ADDED_CARDIOLOGY_3TIER) !== '1') {
         const demo = getDemoPolicies();
         const cardiology = demo.find((p) => p.id === CARDIOLOGY_3TIER_EXAMPLE_ID);
         if (cardiology) {
           policies = [...policies, cardiology];
           saveJson(KEY_POLICIES, policies);
-          localStorage.setItem(KEY_ADDED_CARDIOLOGY_3TIER, '1');
+          migratedStorageSetItem(KEY_ADDED_CARDIOLOGY_3TIER, '1');
         }
       }
     }
@@ -358,13 +355,13 @@ export function saveTierTables(tables: TierTable[]): void {
 }
 
 export function loadActiveMatrixId(): string | null {
-  const v = localStorage.getItem(KEY_ACTIVE_MATRIX_ID);
+  const v = migratedStorageGetItem(KEY_ACTIVE_MATRIX_ID);
   return v || null;
 }
 
 export function saveActiveMatrixId(id: string | null): void {
-  if (id == null) localStorage.removeItem(KEY_ACTIVE_MATRIX_ID);
-  else localStorage.setItem(KEY_ACTIVE_MATRIX_ID, id);
+  if (id == null) migratedStorageRemoveItem(KEY_ACTIVE_MATRIX_ID);
+  else migratedStorageSetItem(KEY_ACTIVE_MATRIX_ID, id);
 }
 
 const SAMPLE_CUSTOM_MODELS: CustomCompensationModel[] = [

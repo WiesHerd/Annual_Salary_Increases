@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { EChartsOption } from 'echarts';
 import {
+  assignExperienceScatterLabelLayouts,
   buildExperienceSalaryChartData,
   type ExperienceSalaryGroupBy,
 } from '../../lib/experience-salary-chart-data';
@@ -44,17 +45,31 @@ export function ExperienceSalaryTrendChart({
     [records, groupBy]
   );
 
+  const labelLayoutByEmployeeId = useMemo(
+    () => assignExperienceScatterLabelLayouts(chartData.allPoints),
+    [chartData.allPoints]
+  );
+
   const hasData = chartData.allPoints.length > 0;
 
   const option = useMemo((): EChartsOption => {
     const series = chartData.series.map((s, idx) => ({
       name: s.name,
       type: 'scatter' as const,
-      data: s.points.map((p) => ({
-        value: [p.yoe, p.salaryAt1Fte],
-        name: p.providerName?.trim() || p.employeeId || '—',
-        groupLabel: p.groupLabel,
-      })),
+      data: s.points.map((p) => {
+        const layout = labelLayoutByEmployeeId.get(p.employeeId);
+        return {
+          value: [p.yoe, p.salaryAt1Fte] as [number, number],
+          name: p.providerName?.trim() || p.employeeId || '—',
+          groupLabel: p.groupLabel,
+          label: layout
+            ? {
+                position: layout.position,
+                offset: layout.offset,
+              }
+            : { position: 'right' as const },
+        };
+      }),
       symbolSize: 14,
       itemStyle: {
         color: SERIES_COLORS[idx % SERIES_COLORS.length],
@@ -75,6 +90,7 @@ export function ExperienceSalaryTrendChart({
       label: {
         show: true,
         position: 'right' as const,
+        distance: 6,
         formatter: (params: unknown) => (params as { data?: { name?: string } })?.data?.name ?? '—',
         fontSize: 12,
         fontWeight: 500,
@@ -85,8 +101,8 @@ export function ExperienceSalaryTrendChart({
     return {
       backgroundColor: '#f8fafc',
       grid: {
-        left: 100,
-        right: 140,
+        left: 108,
+        right: 148,
         top: 28,
         bottom: 52,
         containLabel: false,
@@ -150,7 +166,7 @@ export function ExperienceSalaryTrendChart({
       },
       series,
     };
-  }, [chartData]);
+  }, [chartData, labelLayoutByEmployeeId]);
 
   if (!hasData) {
     return (

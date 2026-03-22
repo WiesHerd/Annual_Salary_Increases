@@ -200,7 +200,10 @@ export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules,
                     <input
                       type="number"
                       value={r.priority}
-                      onChange={(e) => update(r.id, { priority: Number(e.target.value) ?? 0 })}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        update(r.id, { priority: Number.isFinite(n) ? n : 0 });
+                      }}
                       className="w-20 px-2 py-1.5 text-sm border border-slate-300 rounded-lg text-right tabular-nums"
                     />
                   </td>
