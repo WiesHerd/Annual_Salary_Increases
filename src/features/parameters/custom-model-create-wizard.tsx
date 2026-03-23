@@ -371,13 +371,13 @@ export function CustomModelCreateWizard({
               {selectedType.id === 'YOE_TIER_TABLE' && (
                 <div className="space-y-2">
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="min-w-full border-collapse">
-                      <thead className="bg-slate-50">
+                    <table className="app-settings-table min-w-full border-collapse">
+                      <thead>
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Increase %</th>
+                          <th>Label</th>
+                          <th className="text-right">Min YOE</th>
+                          <th className="text-right">Max YOE</th>
+                          <th className="text-right">Increase %</th>
                           <th className="w-12" />
                         </tr>
                       </thead>
@@ -460,13 +460,13 @@ export function CustomModelCreateWizard({
               {selectedType.id === 'YOE_TIER_BASE_SALARY' && (
                 <div className="space-y-2">
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="min-w-full border-collapse">
-                      <thead className="bg-slate-50">
+                    <table className="app-settings-table min-w-full border-collapse">
+                      <thead>
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Base salary</th>
+                          <th>Label</th>
+                          <th className="text-right">Min YOE</th>
+                          <th className="text-right">Max YOE</th>
+                          <th className="text-right">Base salary</th>
                           <th className="w-12" />
                         </tr>
                       </thead>

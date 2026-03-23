@@ -102,7 +102,7 @@ export function CustomStreamsTable({ definitions, getStreamData }: CustomStreams
                   <thead>
                     <tr>
                       {columns.map((col) => (
-                        <th key={col} className="text-left whitespace-nowrap">
+                        <th key={col} className="text-left">
                           {col}
                         </th>
                       ))}

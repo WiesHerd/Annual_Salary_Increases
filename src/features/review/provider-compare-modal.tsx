@@ -239,20 +239,20 @@ function CompareTable({ providers }: CompareTableProps) {
               <col key={p.Employee_ID} style={{ width: `${providerColPct}%` }} />
             ))}
           </colgroup>
-          <thead className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/90 backdrop-blur-md">
-            <tr>
-              <th className="px-3 py-3 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] border-b border-slate-200">
+            <tr className="bg-neutral-50">
+              <th className="px-3 py-3 text-left align-top text-[11px] font-semibold uppercase tracking-wide text-neutral-600 whitespace-normal break-words leading-tight transition-colors hover:bg-neutral-100">
                 Metric
               </th>
               {providers.map((p) => (
                 <th
                   key={p.Employee_ID}
-                  className="px-3 py-3 text-right align-bottom font-semibold text-slate-900"
+                  className="px-3 py-3 text-right align-top text-[11px] font-semibold uppercase tracking-wide text-neutral-600 whitespace-normal break-words leading-tight transition-colors hover:bg-neutral-100"
                 >
-                  <div className="truncate leading-tight" title={p.Provider_Name ?? p.Employee_ID}>
+                  <div className="break-words leading-tight text-slate-900 normal-case font-semibold" title={p.Provider_Name ?? p.Employee_ID}>
                     {p.Provider_Name ?? p.Employee_ID}
                   </div>
-                  <div className="mt-1 truncate text-[12px] font-normal text-slate-500">
+                  <div className="mt-1 break-words text-[11px] font-normal text-slate-500 normal-case">
                     {p.Specialty ?? '—'}
                   </div>
                 </th>

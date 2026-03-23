@@ -25,6 +25,54 @@ export const DEFAULT_SPECIALTY_MAP_FILTERS: SpecialtyMapFilters = {
   matchedMarkets: [],
 };
 
+/** Quick status chips (Salary review–style). */
+export type SpecialtyMapPresetId = 'all' | 'needs-mapping' | 'matched' | 'override' | 'direct';
+
+const EMPTY_DIMENSIONS: Pick<
+  SpecialtyMapFilters,
+  'specialties' | 'providerTypes' | 'benchmarkGroups' | 'matchedMarkets'
+> = {
+  specialties: [],
+  providerTypes: [],
+  benchmarkGroups: [],
+  matchedMarkets: [],
+};
+
+export function getSpecialtyMapPresetFilters(presetId: SpecialtyMapPresetId): Partial<SpecialtyMapFilters> {
+  switch (presetId) {
+    case 'all':
+      return { ...DEFAULT_SPECIALTY_MAP_FILTERS };
+    case 'needs-mapping':
+      return { statuses: ['needs-mapping'], ...EMPTY_DIMENSIONS };
+    case 'matched':
+      return { statuses: ['mapped', 'override'], ...EMPTY_DIMENSIONS };
+    case 'override':
+      return { statuses: ['override'], ...EMPTY_DIMENSIONS };
+    case 'direct':
+      return { statuses: ['mapped'], ...EMPTY_DIMENSIONS };
+    default:
+      return {};
+  }
+}
+
+/** Highlight active chip when filters match a preset (ignores search text). */
+export function getActiveSpecialtyMapPresetId(filters: SpecialtyMapFilters): SpecialtyMapPresetId | null {
+  const hasDimension =
+    filters.specialties.length > 0 ||
+    filters.providerTypes.length > 0 ||
+    filters.benchmarkGroups.length > 0 ||
+    filters.matchedMarkets.length > 0;
+  if (hasDimension) return null;
+
+  const { statuses } = filters;
+  if (statuses.length === 0) return 'all';
+  if (statuses.length === 1 && statuses[0] === 'needs-mapping') return 'needs-mapping';
+  if (statuses.length === 1 && statuses[0] === 'override') return 'override';
+  if (statuses.length === 1 && statuses[0] === 'mapped') return 'direct';
+  if (statuses.length === 2 && statuses.includes('mapped') && statuses.includes('override')) return 'matched';
+  return null;
+}
+
 const SEARCH_FIELDS: (keyof ProviderRecord)[] = [
   'Provider_Name',
   'Employee_ID',

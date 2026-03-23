@@ -1,15 +1,17 @@
 /**
  * App-level selected budget cycle. Persists to sessionStorage so both
  * Layout (sidebar dropdown) and Salary Review (budget resolution) stay in sync.
- * Syncs to first cycle when the stored id is no longer in the cycles list.
+ * Syncs to the preferred cycle (newest effective date) when the stored id is invalid.
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { safeSessionStorageSetItem } from '../lib/safe-local-storage';
+import { getPreferredCycleId } from '../lib/cycle-defaults';
+import type { Cycle } from '../types/cycle';
 
 const STORAGE_KEY_REVIEW_CYCLE = 'salary-review-cycle-id';
 
-export function useSelectedCycle(cycles: { id: string }[]) {
+export function useSelectedCycle(cycles: Cycle[]) {
   const [selectedCycleId, setSelectedCycleIdState] = useState<string>(() => {
     try {
       return sessionStorage.getItem(STORAGE_KEY_REVIEW_CYCLE) ?? '';
@@ -27,7 +29,7 @@ export function useSelectedCycle(cycles: { id: string }[]) {
     if (cycles.length === 0) return;
     const valid = cycles.some((c) => c.id === selectedCycleId);
     if (valid) return;
-    const next = cycles[0]?.id ?? '';
+    const next = getPreferredCycleId(cycles) ?? '';
     if (next !== selectedCycleId) {
       setSelectedCycleIdState(next);
       safeSessionStorageSetItem(STORAGE_KEY_REVIEW_CYCLE, next);

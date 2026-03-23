@@ -6,9 +6,12 @@
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketRow } from '../../types/market';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { ExperienceBandSurveyContext } from '../../types/market-survey-config';
+import { getBandMarketDollarRange } from '../experience-band-dollar-range';
 import {
-  getExperienceBandAlignment,
-  getTargetTccRange,
+  findMatchingExperienceBand,
+  getExperienceBandAlignmentForProvider,
+  getTargetTccRangeForProvider,
 } from './recalculate-provider-row';
 
 export interface EquityRecommendation {
@@ -93,46 +96,72 @@ export function getSuggestedBaseForTargetTcc(
 export function getEquityRecommendation(
   record: ProviderRecord,
   experienceBands: ExperienceBand[],
-  marketRow?: MarketRow
+  marketRow?: MarketRow,
+  experienceBandSurveyContext?: ExperienceBandSurveyContext
 ): EquityRecommendation | undefined {
   if (experienceBands.length === 0) return undefined;
 
-  const yoe = record.Years_of_Experience ?? record.Total_YOE;
   const tccPercentile = record.Proposed_TCC_Percentile ?? record.Current_TCC_Percentile;
-  const alignment = getExperienceBandAlignment(yoe, tccPercentile, experienceBands);
-  const targetRange = getTargetTccRange(yoe, experienceBands);
+  const alignment = getExperienceBandAlignmentForProvider(
+    record,
+    tccPercentile,
+    experienceBands,
+    marketRow,
+    experienceBandSurveyContext
+  );
+  const targetRange = getTargetTccRangeForProvider(
+    record,
+    experienceBands,
+    marketRow,
+    experienceBandSurveyContext
+  );
 
   if (alignment === undefined) return undefined;
 
   const targetDetail =
-    targetRange !== '—' ? `Target: ${targetRange} percentile at 1.0 FTE. Comparisons use compensation at 1.0 FTE.` : undefined;
+    targetRange !== '—' ? `Target band: ${targetRange}. Comparisons use TCC at 1.0 FTE.` : undefined;
 
   if (alignment === 'below') {
-    const band = experienceBands.find((b) => yoe != null && yoe >= b.minYoe && yoe <= b.maxYoe);
-    const targetLow = band?.targetTccPercentileLow;
-    const suggestedTccAt1Fte =
-      targetLow != null
-        ? (marketRow ? getMarketTccAtPercentileFromRow(marketRow, targetLow) : getMarketTccAtPercentile(record, targetLow))
-        : undefined;
+    const band = findMatchingExperienceBand(record, experienceBands, experienceBandSurveyContext);
+    const dollar = band ? getBandMarketDollarRange(band, record, marketRow) : undefined;
+    const tcc1 = record.Proposed_TCC_at_1FTE ?? record.Current_TCC_at_1FTE;
+    const usedDollarAlignment =
+      dollar != null && tcc1 != null && Number.isFinite(tcc1);
 
+    let suggestedTccAt1Fte: number | undefined;
     let suggestedBaseAtFte: number | undefined;
     let suggestedIncreaseAmount: number | undefined;
-    if (
-      band?.suggestBaseToHitTarget &&
-      suggestedTccAt1Fte != null &&
-      Number.isFinite(suggestedTccAt1Fte)
-    ) {
-      const suggested = getSuggestedBaseForTargetTcc(record, suggestedTccAt1Fte);
-      if (suggested) {
-        suggestedBaseAtFte = suggested.suggestedBaseAtFte;
-        suggestedIncreaseAmount = suggested.suggestedIncreaseAmount;
+
+    if (usedDollarAlignment && dollar && band) {
+      const targetMid = dollar.midpoint;
+      suggestedTccAt1Fte = targetMid;
+      if (band.suggestBaseToHitDollarRangeMidpoint) {
+        const suggested = getSuggestedBaseForTargetTcc(record, targetMid);
+        if (suggested) {
+          suggestedBaseAtFte = suggested.suggestedBaseAtFte;
+          suggestedIncreaseAmount = suggested.suggestedIncreaseAmount;
+        }
+      }
+    } else if (band) {
+      const targetLow = band.targetTccPercentileLow;
+      const atLow =
+        targetLow != null
+          ? (marketRow ? getMarketTccAtPercentileFromRow(marketRow, targetLow) : getMarketTccAtPercentile(record, targetLow))
+          : undefined;
+      suggestedTccAt1Fte = atLow != null && Number.isFinite(atLow) ? atLow : undefined;
+      if (band.suggestBaseToHitTarget && suggestedTccAt1Fte != null) {
+        const suggested = getSuggestedBaseForTargetTcc(record, suggestedTccAt1Fte);
+        if (suggested) {
+          suggestedBaseAtFte = suggested.suggestedBaseAtFte;
+          suggestedIncreaseAmount = suggested.suggestedIncreaseAmount;
+        }
       }
     }
 
     return {
       action: 'Consider increase to bring compensation to experience band target.',
       detail: targetDetail,
-      suggestedTccAt1Fte: suggestedTccAt1Fte != null && Number.isFinite(suggestedTccAt1Fte) ? suggestedTccAt1Fte : undefined,
+      suggestedTccAt1Fte,
       suggestedBaseAtFte,
       suggestedIncreaseAmount,
     };

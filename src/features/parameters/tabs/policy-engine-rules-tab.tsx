@@ -43,6 +43,7 @@ import {
   deleteUserTemplate,
   type UserPolicyTemplate,
 } from '../../../lib/policy-library-storage';
+import { parametersPrimaryButtonClass, parametersSectionHeadingClass } from '../parameters-tab-ui';
 
 const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[] = [
   { value: 0, label: '1st (Highest)', isFallback: false },
@@ -525,7 +526,7 @@ export function PolicyEngineRulesTab({
       <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-xl font-semibold text-slate-800">Policy library</h3>
+            <h3 className={parametersSectionHeadingClass}>Policy library</h3>
             <button
               type="button"
               onClick={() => setOrderHelpOpen((v) => !v)}
@@ -542,7 +543,7 @@ export function PolicyEngineRulesTab({
           <p className="text-sm text-slate-600 mt-0.5">
             {policies.length > 0
               ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit or duplicate.`
-              : 'Start with a recipe from â€œAdd from libraryâ€ or create a new policy.'}
+              : 'Start with a recipe from "Add from library" or create a new policy.'}
           </p>
           {orderHelpOpen && (
             <p className="text-xs text-slate-500 mt-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
@@ -658,11 +659,7 @@ export function PolicyEngineRulesTab({
                 document.body
               )}
           </div>
-          <button
-            type="button"
-            onClick={handleCreatePolicy}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-700"
-          >
+          <button type="button" onClick={handleCreatePolicy} className={parametersPrimaryButtonClass}>
             Create new
           </button>
         </div>
@@ -679,24 +676,31 @@ export function PolicyEngineRulesTab({
               title="Click to save and close editor"
             />
           )}
-          <table className="min-w-full border-collapse">
-            <thead className="sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
-              <tr className="bg-neutral-50">
-                <th className="px-2 py-3 text-center text-[11px] font-semibold text-neutral-600 uppercase tracking-wide w-14" title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback).">Order</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Name</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Type</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Target population</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">Priority</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide" title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
-                <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Last updated</th>
-                <th className="w-24 px-2 py-3" />
+          <table className="app-settings-table min-w-full border-collapse">
+            <thead>
+              <tr>
+                <th
+                  className="text-center w-14"
+                  title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback)."
+                >
+                  Order
+                </th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Target population</th>
+                <th className="min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">
+                  Priority
+                </th>
+                <th title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
+                <th>Last updated</th>
+                <th className="w-24" />
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {policies.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
-                    No policies. Click â€œCreate Policyâ€ to create one.
+                    No policies. Click &quot;Create new&quot; to create one.
                   </td>
                 </tr>
               ) : (

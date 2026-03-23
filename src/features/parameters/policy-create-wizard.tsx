@@ -773,7 +773,7 @@ export function PolicyCreateWizard({
                 <div>
                   <h3 className="text-sm font-medium text-slate-700 mb-2">Tier increase % (YOE range → %)</h3>
                   <div className="border border-slate-200 rounded-xl overflow-x-auto">
-                    <table className="w-full border-collapse table-fixed" style={{ minWidth: 420 }}>
+                    <table className="app-settings-table w-full border-collapse table-fixed" style={{ minWidth: 420 }}>
                       <colgroup>
                         <col style={{ width: '32%' }} />
                         <col style={{ width: '14%' }} />
@@ -781,13 +781,13 @@ export function PolicyCreateWizard({
                         <col style={{ width: '18%' }} />
                         <col style={{ width: '48px' }} />
                       </colgroup>
-                      <thead className="bg-slate-50">
+                      <thead>
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Increase %</th>
-                          <th className="w-12 px-2 py-2" />
+                          <th>Label</th>
+                          <th className="text-right">Min YOE</th>
+                          <th className="text-right">Max YOE</th>
+                          <th className="text-right">Increase %</th>
+                          <th className="w-12" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -857,7 +857,7 @@ export function PolicyCreateWizard({
                 <div>
                   <h3 className="text-sm font-medium text-slate-700 mb-2">Tier base salary (YOE range → $)</h3>
                   <div className="border border-slate-200 rounded-xl overflow-x-auto">
-                    <table className="w-full border-collapse table-fixed" style={{ minWidth: 480 }}>
+                    <table className="app-settings-table w-full border-collapse table-fixed" style={{ minWidth: 480 }}>
                       <colgroup>
                         <col style={{ width: '26%' }} />
                         <col style={{ width: '12%' }} />
@@ -865,13 +865,13 @@ export function PolicyCreateWizard({
                         <col style={{ width: '22%' }} />
                         <col style={{ width: '48px' }} />
                       </colgroup>
-                      <thead className="bg-slate-50">
+                      <thead>
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                          <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Base salary</th>
-                          <th className="w-12 px-2 py-2" />
+                          <th>Label</th>
+                          <th className="text-right">Min YOE</th>
+                          <th className="text-right">Max YOE</th>
+                          <th className="text-right">Base salary</th>
+                          <th className="w-12" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -999,12 +999,12 @@ export function PolicyCreateWizard({
               <p className="text-sm text-slate-600 mb-4">Preview how this policy will change recommended increases.</p>
               <p className="font-medium text-slate-800 mb-2">Affected providers: {previewImpact.affected}</p>
               <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 sticky top-0">
+                <table className="app-settings-table min-w-full text-sm">
+                  <thead>
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Provider</th>
-                      <th className="px-3 py-2 text-right font-semibold text-slate-600">Before</th>
-                      <th className="px-3 py-2 text-right font-semibold text-slate-600">After</th>
+                      <th>Provider</th>
+                      <th className="text-right">Before</th>
+                      <th className="text-right">After</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

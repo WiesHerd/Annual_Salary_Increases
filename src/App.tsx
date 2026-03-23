@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Layout, type AppView } from './components/layout';
 import { DataPage, type DataTab } from './features/data/data-page';
 import { SalaryReviewPage } from './features/review/salary-review-page';
@@ -42,14 +42,34 @@ function App() {
     setView('data-browser');
   };
 
+  const openProviderTypeSurveyInParameters = useCallback(() => {
+    const u = new URL(window.location.href);
+    u.searchParams.set('tab', 'provider-type-survey');
+    u.hash = '#parameters';
+    window.history.replaceState(null, '', `${u.pathname}${u.search}${u.hash}`);
+    setView('parameters');
+  }, []);
+
   const sidebarHidden = view === 'salary-review' && salaryReviewFullScreen;
   const contentNoPadding = sidebarHidden;
 
   return (
     <Layout currentView={view} onNavigate={setView} sidebarHidden={sidebarHidden} contentNoPadding={contentNoPadding}>
       {view === 'import' && <DataPage focus="import" onNavigateToBrowser={handleNavigateToBrowser} />}
-      {view === 'data-browser' && <DataPage focus="browse" initialTab={dataBrowserTab} />}
-      {view === 'specialty-map' && <DataPage focus="browse" standaloneTab="specialty-map" />}
+      {view === 'data-browser' && (
+        <DataPage
+          focus="browse"
+          initialTab={dataBrowserTab}
+          onOpenProviderTypeSurvey={openProviderTypeSurveyInParameters}
+        />
+      )}
+      {view === 'specialty-map' && (
+        <DataPage
+          focus="browse"
+          standaloneTab="specialty-map"
+          onOpenProviderTypeSurvey={openProviderTypeSurveyInParameters}
+        />
+      )}
       {view === 'salary-review' && (
         <SalaryReviewPage
           onNavigateToImport={() => setView('import')}

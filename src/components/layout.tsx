@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useParametersState } from '../hooks/use-parameters-state';
 import { useSelectedCycle } from '../hooks/use-selected-cycle';
+import { getPreferredCycleId, sortCyclesNewestFirst } from '../lib/cycle-defaults';
 
 export type AppView = 'import' | 'data-browser' | 'specialty-map' | 'salary-review' | 'compare' | 'parameters' | 'help';
 
@@ -101,6 +102,8 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
   const [collapsed, setCollapsed] = useState(false);
   const { cycles } = useParametersState();
   const [selectedCycleId, setSelectedCycleId] = useSelectedCycle(cycles);
+  const cyclesForSelect = sortCyclesNewestFirst(cycles);
+  const fallbackCycleId = getPreferredCycleId(cycles) ?? '';
 
   return (
     <div className="min-h-screen flex bg-[#f8fafc]">
@@ -180,12 +183,12 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
                     Merit cycle
                   </span>
                   <select
-                    value={selectedCycleId || (cycles[0]?.id ?? '')}
+                    value={selectedCycleId || fallbackCycleId}
                     onChange={(e) => setSelectedCycleId(e.target.value)}
                     className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
                     aria-label="Select merit cycle"
                   >
-                    {cycles.map((c) => (
+                    {cyclesForSelect.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label}
                       </option>

@@ -873,7 +873,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 </button>
               </div>
               <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
-                <table className="w-full border-collapse table-fixed">
+                <table className="app-settings-table w-full border-collapse table-fixed">
                   <colgroup>
                     <col style={{ width: '32%' }} />
                     <col style={{ width: '14%' }} />
@@ -881,13 +881,13 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                     <col style={{ width: '18%' }} />
                     <col style={{ width: '48px' }} />
                   </colgroup>
-                  <thead className="bg-slate-50">
+                  <thead>
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Increase %</th>
-                      <th className="w-12 px-2 py-2" />
+                      <th>Label</th>
+                      <th className="text-right">Min YOE</th>
+                      <th className="text-right">Max YOE</th>
+                      <th className="text-right">Increase %</th>
+                      <th className="w-12" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -966,7 +966,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 </button>
               </div>
               <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
-                <table className="w-full border-collapse table-fixed">
+                <table className="app-settings-table w-full border-collapse table-fixed">
                   <colgroup>
                     <col style={{ width: '26%' }} />
                     <col style={{ width: '12%' }} />
@@ -974,13 +974,13 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                     <col style={{ width: '22%' }} />
                     <col style={{ width: '48px' }} />
                   </colgroup>
-                  <thead className="bg-slate-50">
+                  <thead>
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Label</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Min YOE</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Max YOE</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">Base salary</th>
-                      <th className="w-12 px-2 py-2" />
+                      <th>Label</th>
+                      <th className="text-right">Min YOE</th>
+                      <th className="text-right">Max YOE</th>
+                      <th className="text-right">Base salary</th>
+                      <th className="w-12" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

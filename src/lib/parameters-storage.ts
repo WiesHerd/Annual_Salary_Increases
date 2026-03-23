@@ -22,7 +22,7 @@ import {
   SAMPLE_PCP_TIER_SETTINGS,
   SAMPLE_PCP_APP_RULES,
   SAMPLE_PLAN_ASSIGNMENT_RULES,
-  SAMPLE_APP_COMBINED_GROUPS,
+  SAMPLE_SURVEY_SPECIALTY_MAPPING_SET,
   SAMPLE_BUDGET_SETTINGS,
   SAMPLE_CF_BY_SPECIALTY,
   SAMPLE_PROVIDER_TYPE_TO_SURVEY,
@@ -179,19 +179,38 @@ function migrateLegacyAppCombinedGroups(): SurveySpecialtyMappingSet | null {
   }
 }
 
+function cloneSurveySpecialtyMappingSet(source: SurveySpecialtyMappingSet): SurveySpecialtyMappingSet {
+  return JSON.parse(JSON.stringify(source)) as SurveySpecialtyMappingSet;
+}
+
+/** Fill missing survey keys or empty group lists from demo defaults (non-destructive for saved groups). */
+function mergeSurveyMappingDefaults(set: SurveySpecialtyMappingSet): SurveySpecialtyMappingSet {
+  const out = cloneSurveySpecialtyMappingSet(set);
+  for (const [surveyId, def] of Object.entries(SAMPLE_SURVEY_SPECIALTY_MAPPING_SET)) {
+    const cur = out[surveyId]?.appCombinedGroups;
+    if (!cur || cur.length === 0) {
+      const seeded = cloneSurveySpecialtyMappingSet({ [surveyId]: def });
+      out[surveyId] = seeded[surveyId]!;
+    }
+  }
+  if (!out[DEFAULT_SURVEY_ID]) {
+    out[DEFAULT_SURVEY_ID] = { appCombinedGroups: [] };
+  }
+  return out;
+}
+
 export function loadSurveySpecialtyMappingSet(): SurveySpecialtyMappingSet {
   const migrated = migrateLegacyAppCombinedGroups();
-  if (migrated) return migrated;
+  if (migrated) return mergeSurveyMappingDefaults(migrated);
   try {
     const raw = migratedStorageGetItem(KEY_SURVEY_SPECIALTY_MAPPING);
-    if (!raw) return { [DEFAULT_SURVEY_ID]: { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS } };
+    if (!raw) return cloneSurveySpecialtyMappingSet(SAMPLE_SURVEY_SPECIALTY_MAPPING_SET);
     const data = JSON.parse(raw) as unknown;
-    if (typeof data !== 'object' || data === null) return { [DEFAULT_SURVEY_ID]: { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS } };
-    const set = data as SurveySpecialtyMappingSet;
-    if (!set[DEFAULT_SURVEY_ID]) set[DEFAULT_SURVEY_ID] = { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS };
-    return set;
+    if (typeof data !== 'object' || data === null)
+      return cloneSurveySpecialtyMappingSet(SAMPLE_SURVEY_SPECIALTY_MAPPING_SET);
+    return mergeSurveyMappingDefaults(data as SurveySpecialtyMappingSet);
   } catch {
-    return { [DEFAULT_SURVEY_ID]: { appCombinedGroups: SAMPLE_APP_COMBINED_GROUPS } };
+    return cloneSurveySpecialtyMappingSet(SAMPLE_SURVEY_SPECIALTY_MAPPING_SET);
   }
 }
 
@@ -203,7 +222,7 @@ export function saveSurveySpecialtyMappingSet(set: SurveySpecialtyMappingSet): v
 export function loadAppCombinedGroups(surveyId?: string): AppCombinedGroupRow[] {
   const set = loadSurveySpecialtyMappingSet();
   const id = surveyId ?? DEFAULT_SURVEY_ID;
-  return set[id]?.appCombinedGroups ?? SAMPLE_APP_COMBINED_GROUPS;
+  return set[id]?.appCombinedGroups ?? SAMPLE_SURVEY_SPECIALTY_MAPPING_SET[id]?.appCombinedGroups ?? [];
 }
 
 /** Save APP combined groups for a survey. */
@@ -214,15 +233,31 @@ export function saveAppCombinedGroups(surveyId: string, rows: AppCombinedGroupRo
 }
 
 export function loadProviderTypeToSurveyMapping(): ProviderTypeToSurveyMapping {
+  let stored: ProviderTypeToSurveyMapping = {};
   try {
     const raw = migratedStorageGetItem(KEY_PROVIDER_TYPE_TO_SURVEY);
-    if (!raw) return SAMPLE_PROVIDER_TYPE_TO_SURVEY;
-    const data = JSON.parse(raw) as unknown;
-    if (typeof data !== 'object' || data === null) return SAMPLE_PROVIDER_TYPE_TO_SURVEY;
-    return data as ProviderTypeToSurveyMapping;
+    if (raw) {
+      const data = JSON.parse(raw) as unknown;
+      if (typeof data === 'object' && data !== null) stored = data as ProviderTypeToSurveyMapping;
+    }
   } catch {
-    return SAMPLE_PROVIDER_TYPE_TO_SURVEY;
+    stored = {};
   }
+  const merged: ProviderTypeToSurveyMapping = { ...stored };
+  for (const [providerType, surveyId] of Object.entries(SAMPLE_PROVIDER_TYPE_TO_SURVEY)) {
+    const cur = merged[providerType];
+    if (cur == null || String(cur).trim() === '') {
+      merged[providerType] = surveyId;
+    }
+  }
+  // Legacy sample routed APP/MHT to physicians; correct when still on that stale value.
+  if (merged['Mental Health Therapist'] === 'physicians') {
+    merged['Mental Health Therapist'] = 'mental-health-therapists';
+  }
+  for (const pt of ['NP', 'PA', 'APP'] as const) {
+    if (merged[pt] === 'physicians') merged[pt] = 'apps';
+  }
+  return merged;
 }
 
 export function saveProviderTypeToSurveyMapping(mapping: ProviderTypeToSurveyMapping): void {

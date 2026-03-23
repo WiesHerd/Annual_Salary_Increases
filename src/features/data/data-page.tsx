@@ -23,9 +23,17 @@ interface DataPageProps {
   initialTab?: DataTab;
   /** When set, render only this tab without the tab bar (e.g. standalone Specialty Map from nav). */
   standaloneTab?: DataTab;
+  /** Navigate to Parameters → Provider type → Market survey (Specialty map empty states). */
+  onOpenProviderTypeSurvey?: () => void;
 }
 
-export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, standaloneTab }: DataPageProps) {
+export function DataPage({
+  focus = 'browse',
+  onNavigateToBrowser,
+  initialTab,
+  standaloneTab,
+  onOpenProviderTypeSurvey,
+}: DataPageProps) {
   const [activeTab, setActiveTab] = useState<DataTab>(standaloneTab ?? initialTab ?? 'provider');
   const {
     records,
@@ -104,17 +112,15 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
     <div className="space-y-6">
       {showTabBar && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
-            {TABS.map(({ id, label }) => (
+          <div className="app-segmented-track w-fit flex flex-wrap">
+            {TABS.map(({ id, label }, idx) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setActiveTab(id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === id
-                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
+                className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
+                  idx === TABS.length - 1 ? 'rounded-r-full' : ''
+                } ${activeTab === id ? 'app-segmented-segment-active' : ''}`}
               >
                 {label}
               </button>
@@ -168,7 +174,13 @@ export function DataPage({ focus = 'browse', onNavigateToBrowser, initialTab, st
       )}
 
       {activeTab === 'specialty-map' && (
-        <SpecialtyMap records={records} marketSurveys={marketSurveys} surveyMetadata={surveyMetadata} setRecords={setRecords} />
+        <SpecialtyMap
+          records={records}
+          marketSurveys={marketSurveys}
+          surveyMetadata={surveyMetadata}
+          setRecords={setRecords}
+          onOpenProviderTypeSurvey={onOpenProviderTypeSurvey}
+        />
       )}
 
       {activeTab === 'payments' && (

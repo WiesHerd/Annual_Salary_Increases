@@ -23,29 +23,38 @@ const SUMMARY_HINTS = {
     'Only current (pre-recommendation) TCC percentiles are available for the listed providers—no proposed average yet.',
   avgWrvu:
     'Average productivity (wRVU) market percentile across providers in the current table view.',
-  avgPctIncrease:
-    'Straight average of each listed provider’s percent change in base salary. Anyone without a current base salary is left out of this average.',
+  avgBasePctChange:
+    'Straight average of each listed provider’s percent change in base salary (increases and decreases). Anyone without a current base salary is left out of this average.',
   budgetUse:
     'Share of the cycle budget used by aggregate base pay changes in the current table. Hover for exact dollars. The next card shows the same total as full currency.',
 } as const;
 
 const iconCls = 'w-5 h-5 shrink-0';
 
+/** Shared “trending up” chart stroke (TCC tile + positive avg base %). */
+const summaryTrendUpIcon = (
+  <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+  </svg>
+);
+
 /** Icons for summary cards (Heroicons outline). */
 const SummaryIcons = {
-  tcc: (
-    <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-    </svg>
-  ),
+  tcc: summaryTrendUpIcon,
   baseSalary: (
     <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
     </svg>
   ),
-  percent: (
-    <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+  trendUp: summaryTrendUpIcon,
+  trendDown: (
+    <svg className={`${iconCls} rotate-180`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  ),
+  flatTrend: (
+    <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
     </svg>
   ),
   chartBars: (
@@ -156,7 +165,7 @@ function SummaryCard({
       </div>
       <div className="min-h-0 min-w-0 flex-1 text-center">
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
-        <div className={`mt-0.5 truncate tabular-nums text-sm font-semibold ${valueClassName}`}>{value}</div>
+        <div className={`mt-0.5 truncate tabular-nums text-base font-semibold ${valueClassName}`}>{value}</div>
         {subline != null && <div className="mt-0.5 text-[11px] leading-snug text-slate-500">{subline}</div>}
       </div>
     </div>
@@ -225,7 +234,13 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                 className="flex h-full min-h-0 min-w-0 w-full flex-col justify-center gap-1.5 rounded-md border border-slate-200/90 bg-white px-2.5 py-2 shadow-sm outline-none"
               >
                 <div className="flex min-h-0 min-w-0 flex-1 items-center gap-1.5">
-                  <div className="flex shrink-0 items-center justify-center rounded-md bg-emerald-100 p-1 text-emerald-700">
+                  <div
+                    className={`flex shrink-0 items-center justify-center rounded-md p-1 ${
+                      pctBudget <= 0
+                        ? 'bg-slate-200/90 text-slate-600'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
                     {SummaryIcons.budget}
                   </div>
                   <div className="min-h-0 min-w-0 flex-1 text-center">
@@ -233,7 +248,7 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                       Budget use
                     </span>
                     <div
-                      className={`mt-0.5 truncate tabular-nums text-sm font-semibold ${
+                      className={`mt-0.5 truncate tabular-nums text-base font-semibold ${
                         pctBudget > 100
                           ? 'text-red-600'
                           : budgetUsage.isWarning
@@ -287,7 +302,15 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
             hint={SUMMARY_HINTS.baseSalaryChange}
             value={
               hasBaseSalaryData ? (
-                <span className="text-slate-900">
+                <span
+                  className={
+                    totalIncrease > 0
+                      ? 'text-emerald-600'
+                      : totalIncrease < 0
+                        ? 'text-rose-600'
+                        : 'text-slate-500'
+                  }
+                >
                   {totalIncrease > 0 ? '+' : ''}
                   {formatCurrencyTwoDecimals(totalIncrease)}
                 </span>
@@ -392,13 +415,38 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
 
           {hasAvgPercentIncrease && avgPercentIncrease != null && (
             <SummaryMetricTile>
-            <SummaryCard
-              icon={SummaryIcons.percent}
-              iconBgClassName="bg-teal-100 text-teal-700"
-              label="Avg % increase"
-              hint={SUMMARY_HINTS.avgPctIncrease}
-              value={<span className="text-slate-900">{avgPercentIncrease.toFixed(1)}%</span>}
-            />
+              <SummaryCard
+                icon={
+                  avgPercentIncrease > 0
+                    ? SummaryIcons.trendUp
+                    : avgPercentIncrease < 0
+                      ? SummaryIcons.trendDown
+                      : SummaryIcons.flatTrend
+                }
+                iconBgClassName={
+                  avgPercentIncrease > 0
+                    ? 'bg-teal-100 text-teal-700'
+                    : avgPercentIncrease < 0
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-slate-200 text-slate-600'
+                }
+                label="Avg base % change"
+                hint={SUMMARY_HINTS.avgBasePctChange}
+                value={
+                  <span
+                    className={
+                      avgPercentIncrease > 0
+                        ? 'text-emerald-600'
+                        : avgPercentIncrease < 0
+                          ? 'text-rose-600'
+                          : 'text-slate-500'
+                    }
+                  >
+                    {avgPercentIncrease > 0 ? '+' : ''}
+                    {avgPercentIncrease.toFixed(1)}%
+                  </span>
+                }
+              />
             </SummaryMetricTile>
           )}
         </div>
@@ -441,27 +489,25 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
             ))}
           </div>
           <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+            <table className="app-settings-table min-w-full border-collapse text-sm">
+              <thead>
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
-                    {DIMENSION_TABS.find((t) => t.id === breakdownTab)?.label.replace('By ', '')}
-                  </th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Providers</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Base change</th>
+                  <th>{DIMENSION_TABS.find((t) => t.id === breakdownTab)?.label.replace('By ', '')}</th>
+                  <th className="text-right">Providers</th>
+                  <th className="text-right">Base change</th>
                   {hasTccData && (
                     <>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Current TCC</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Proposed TCC</th>
+                      <th className="text-right">Current TCC</th>
+                      <th className="text-right">Proposed TCC</th>
                     </>
                   )}
                   {hasPercentileData && (
                     <>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Avg current %ile</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Avg proposed %ile</th>
+                      <th className="text-right">Avg current %ile</th>
+                      <th className="text-right">Avg proposed %ile</th>
                     </>
                   )}
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">% of total</th>
+                  <th className="text-right">% of total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

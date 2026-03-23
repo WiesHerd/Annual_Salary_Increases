@@ -63,16 +63,16 @@ export function PlanAssignmentTab({ planAssignmentRules, setPlanAssignmentRules,
         </button>
       </div>
       <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="min-w-full border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-200">
+        <table className="app-settings-table min-w-full border-collapse">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Provider Type</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Division</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Department</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Job code</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Benchmark group</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Assigned plan type</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Priority</th>
+              <th>Provider Type</th>
+              <th>Division</th>
+              <th>Department</th>
+              <th>Job code</th>
+              <th>Benchmark group</th>
+              <th>Assigned plan type</th>
+              <th className="text-right">Priority</th>
               <th className="w-20" />
             </tr>
           </thead>

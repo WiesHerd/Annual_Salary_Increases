@@ -8,7 +8,7 @@ import type { ProviderRecord } from '../../types/provider';
 import { ReviewStatus } from '../../types/enums';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
 import {
-  getExperienceBandAlignment,
+  getExperienceBandAlignmentForProvider,
   recalculateProviderRow,
 } from '../../lib/calculations/recalculate-provider-row';
 import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
@@ -157,7 +157,8 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     return () => clearTimeout(t);
   }, [selectedEmployeeId]);
 
-  const { marketResolver, evaluationResults, policySourceByEmployeeId } = useSalaryReviewPolicyEngine({
+  const { marketResolver, evaluationResults, policySourceByEmployeeId, experienceBandSurveyContext } =
+    useSalaryReviewPolicyEngine({
     records,
     setRecords,
     marketSurveys,
@@ -345,12 +346,20 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   }, []);
 
   const filteredRecords = useMemo(
-    () => applyFilters(records, filters, experienceBands, policySourceByEmployeeId),
-    [records, filters, experienceBands, policySourceByEmployeeId]
+    () =>
+      applyFilters(records, filters, experienceBands, policySourceByEmployeeId, experienceBandSurveyContext),
+    [records, filters, experienceBands, policySourceByEmployeeId, experienceBandSurveyContext]
   );
   const filterOptions = useMemo(
-    () => deriveFilterOptionsCascading(records, filters, experienceBands, policySourceByEmployeeId),
-    [records, filters, experienceBands, policySourceByEmployeeId]
+    () =>
+      deriveFilterOptionsCascading(
+        records,
+        filters,
+        experienceBands,
+        policySourceByEmployeeId,
+        experienceBandSurveyContext
+      ),
+    [records, filters, experienceBands, policySourceByEmployeeId, experienceBandSurveyContext]
   );
 
   const summaryTotals = useMemo(() => computeSummary(filteredRecords), [filteredRecords]);
@@ -387,15 +396,45 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   }, [budgetWarningThresholdPercent, headerBudgetUsagePercent]);
 
   const sortedRecords = useMemo(() => {
+    const bandOpts = (r: (typeof filteredRecords)[0]) => {
+      const mk = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+      return {
+        marketRow: mk ? marketResolver(r, mk) : undefined,
+        experienceBandSurveyContext,
+      };
+    };
     return [...filteredRecords].sort((a, b) => {
-      const aVal = getReviewCellSortValue(a, sortKey, experienceBands, evaluationResults.get(a.Employee_ID), cfBySpecialty);
-      const bVal = getReviewCellSortValue(b, sortKey, experienceBands, evaluationResults.get(b.Employee_ID), cfBySpecialty);
+      const aVal = getReviewCellSortValue(
+        a,
+        sortKey,
+        experienceBands,
+        evaluationResults.get(a.Employee_ID),
+        cfBySpecialty,
+        bandOpts(a)
+      );
+      const bVal = getReviewCellSortValue(
+        b,
+        sortKey,
+        experienceBands,
+        evaluationResults.get(b.Employee_ID),
+        cfBySpecialty,
+        bandOpts(b)
+      );
       let cmp = 0;
       if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
       else cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filteredRecords, sortKey, sortDir, experienceBands, evaluationResults, cfBySpecialty]);
+  }, [
+    filteredRecords,
+    sortKey,
+    sortDir,
+    experienceBands,
+    evaluationResults,
+    cfBySpecialty,
+    marketResolver,
+    experienceBandSurveyContext,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -410,6 +449,11 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     () => (selectedEmployeeId ? records.find((r) => r.Employee_ID === selectedEmployeeId) ?? null : null),
     [records, selectedEmployeeId]
   );
+  const selectedMarketRow = useMemo(() => {
+    if (!selectedRecord) return undefined;
+    const k = (selectedRecord.Market_Specialty_Override ?? selectedRecord.Specialty ?? selectedRecord.Benchmark_Group ?? '').trim();
+    return k ? marketResolver(selectedRecord, k) : undefined;
+  }, [selectedRecord, marketResolver]);
   const selectedEnrichment = useMemo(
     () => (selectedRecord ? enrichReviewDetail(selectedRecord) : null),
     [selectedRecord]
@@ -510,29 +554,43 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
         record: merged,
         marketRow,
         experienceBands,
+        experienceBandSurveyContext,
         meritMatrixRows: meritMatrix,
         policyResult,
         cfBySpecialty,
       });
       setRecords(records.map((r) => (r.Employee_ID === employeeId ? next : r)));
     },
-    [records, setRecords, marketResolver, experienceBands, meritMatrix, evaluationResults, cfBySpecialty]
+    [
+      records,
+      setRecords,
+      marketResolver,
+      experienceBands,
+      experienceBandSurveyContext,
+      meritMatrix,
+      evaluationResults,
+      cfBySpecialty,
+    ]
   );
 
   const equitySuggestionsApplyCount = useMemo(() => {
     return filteredRecords.filter((r) => {
-      const rec = getEquityRecommendation(r, experienceBands);
+      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
+      const rec = getEquityRecommendation(r, experienceBands, marketRow, experienceBandSurveyContext);
       return (
         rec?.suggestedIncreaseAmount != null &&
         Number.isFinite(rec.suggestedIncreaseAmount)
       );
     }).length;
-  }, [filteredRecords, experienceBands]);
+  }, [filteredRecords, experienceBands, marketResolver, experienceBandSurveyContext]);
 
   const handleApplyAllEquitySuggestions = useCallback(() => {
     const updates = new Map<string, number>();
     for (const r of filteredRecords) {
-      const rec = getEquityRecommendation(r, experienceBands);
+      const matchKey = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+      const marketRow = matchKey ? marketResolver(r, matchKey) : undefined;
+      const rec = getEquityRecommendation(r, experienceBands, marketRow, experienceBandSurveyContext);
       if (
         rec?.suggestedIncreaseAmount != null &&
         Number.isFinite(rec.suggestedIncreaseAmount)
@@ -553,6 +611,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
           record: merged,
           marketRow,
           experienceBands,
+          experienceBandSurveyContext,
           meritMatrixRows: meritMatrix,
           policyResult,
           cfBySpecialty,
@@ -565,6 +624,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     setRecords,
     marketResolver,
     experienceBands,
+    experienceBandSurveyContext,
     meritMatrix,
     evaluationResults,
     cfBySpecialty,
@@ -1160,12 +1220,21 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               disabled={selectedForCompare.length < 2}
               className={
                 selectedForCompare.length >= 2
-                  ? 'app-btn-primary'
-                  : 'app-btn-secondary opacity-60 cursor-not-allowed hover:translate-y-0 hover:shadow-sm'
+                  ? 'app-btn-secondary inline-flex items-center gap-1.5'
+                  : 'app-btn-secondary inline-flex items-center gap-1.5 opacity-60 cursor-not-allowed hover:translate-y-0 hover:shadow-sm'
               }
-              title={selectedForCompare.length < 2 ? 'Select 2–4 providers to compare' : 'Compare selected providers'}
+              title={
+                selectedForCompare.length < 2
+                  ? 'Select 2–4 providers to compare'
+                  : `Compare ${selectedForCompare.length} selected provider${selectedForCompare.length !== 1 ? 's' : ''}`
+              }
+              aria-label={
+                selectedForCompare.length < 2
+                  ? 'Compare — select 2 to 4 providers using row checkboxes'
+                  : `Compare ${selectedForCompare.length} selected provider${selectedForCompare.length !== 1 ? 's' : ''}`
+              }
             >
-              Compare {selectedForCompare.length > 0 ? `(${selectedForCompare.length})` : ''}
+              Compare
             </button>
             <div className="relative">
               <button
@@ -1404,8 +1473,15 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
                 {paginatedRecords.map((r) => {
-                  const yoe = r.Years_of_Experience ?? r.Total_YOE;
-                  const bandAlignment = getExperienceBandAlignment(yoe, r.Current_TCC_Percentile, experienceBands);
+                  const matchKeyRow = (r.Market_Specialty_Override ?? r.Specialty ?? r.Benchmark_Group ?? '').trim();
+                  const marketRowForBand = matchKeyRow ? marketResolver(r, matchKeyRow) : undefined;
+                  const bandAlignment = getExperienceBandAlignmentForProvider(
+                    r,
+                    r.Proposed_TCC_Percentile ?? r.Current_TCC_Percentile,
+                    experienceBands,
+                    marketRowForBand,
+                    experienceBandSurveyContext
+                  );
                   const rowAlignmentClass =
                     bandAlignment === 'below'
                       ? 'bg-amber-50/50'
@@ -1420,7 +1496,17 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                     } ${rowAlignmentClass}`}
                   >
                     {visibleColumns.map((col, colIndex) => {
-                      const value = getReviewCellValue(r, col.id, experienceBands, evaluationResults.get(r.Employee_ID), cfBySpecialty);
+                      const value = getReviewCellValue(
+                        r,
+                        col.id,
+                        experienceBands,
+                        evaluationResults.get(r.Employee_ID),
+                        cfBySpecialty,
+                        {
+                          marketRow: marketRowForBand,
+                          experienceBandSurveyContext,
+                        }
+                      );
                       const display = formatReviewCellValue(value, col.format);
                       const isEditable = col.editable && col.id !== 'notesIndicator';
                       const isNotes = col.id === 'notesIndicator';
@@ -1756,6 +1842,8 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
               provider={selectedRecord}
               enrichment={selectedEnrichment}
               experienceBands={experienceBands}
+              experienceBandSurveyContext={experienceBandSurveyContext}
+              marketRow={selectedMarketRow}
               policyResult={selectedEmployeeId ? evaluationResults.get(selectedEmployeeId) ?? null : null}
               onClose={handleCloseDrawer}
               onSelectPrev={handleSelectPrev}

@@ -5,6 +5,7 @@
 
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketRow } from '../../types/market';
+import { getEffectiveYoe } from '../effective-yoe';
 
 export interface PolicyFacts {
   employeeId: string;
@@ -35,6 +36,8 @@ export interface PolicyFacts {
   providerTypeLower?: string;
   specialtyLower?: string;
   divisionLower?: string;
+  /** Raw APP years of experience when present on the row. */
+  appYoe?: number;
 }
 
 /**
@@ -44,7 +47,7 @@ export function buildFactsFromRecord(
   record: ProviderRecord,
   options?: { marketRow?: MarketRow }
 ): PolicyFacts {
-  const yoe = record.Years_of_Experience ?? record.Total_YOE;
+  const yoe = getEffectiveYoe(record);
   const tccPercentile =
     record.Current_TCC_Percentile ??
     (options?.marketRow && record.Current_TCC_at_1FTE != null
@@ -64,6 +67,8 @@ export function buildFactsFromRecord(
     jobCode: record.Job_Code,
     yoe: yoe != null && Number.isFinite(yoe) ? yoe : undefined,
     totalYoe: record.Total_YOE,
+    appYoe:
+      record.APP_YOE != null && Number.isFinite(record.APP_YOE) ? record.APP_YOE : undefined,
     currentFte: record.Current_FTE,
     clinicalFte: record.Clinical_FTE,
     evaluationScore:

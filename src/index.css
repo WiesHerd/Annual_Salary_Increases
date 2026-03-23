@@ -116,11 +116,35 @@
     @apply bg-neutral-50;
   }
   .app-data-table th {
-    @apply px-2 py-2.5 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none;
+    @apply relative px-2 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 whitespace-normal break-words leading-tight align-top transition-colors hover:bg-neutral-100;
   }
   .app-data-table th.sortable {
-    @apply cursor-pointer hover:bg-neutral-100 transition-colors;
+    @apply cursor-pointer;
   }
+
+  /* Parameters, wizards, and other non–app-data-table grids — match Salary Review header typography & wrapping */
+  .app-settings-table thead {
+    @apply sticky top-0 z-20 bg-neutral-50 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] border-b border-slate-200;
+  }
+  .app-settings-table thead tr {
+    @apply bg-neutral-50;
+  }
+  .app-settings-table th {
+    @apply px-4 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 text-left whitespace-normal break-words leading-tight align-middle transition-colors hover:bg-neutral-100;
+  }
+  /* Beat th+type specificity so header alignment utilities work (numeric cols, actions). */
+  .app-settings-table th.text-right {
+    text-align: right;
+  }
+  .app-settings-table th.text-center {
+    text-align: center;
+  }
+
+  /* Opaque rows so sticky thead reads cleanly when body scrolls inside a max-height panel */
+  .app-settings-table tbody tr {
+    @apply bg-white;
+  }
+
   .app-data-table tbody {
     @apply bg-white divide-y divide-slate-100;
   }

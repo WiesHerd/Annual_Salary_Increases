@@ -379,15 +379,21 @@ export function CompareScenariosTable({
                   <th
                     key={colId}
                     style={{ width: widthPx, minWidth: widthPx, maxWidth: widthPx }}
-                    className={`relative px-2 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors overflow-hidden whitespace-nowrap ${
+                    className={`relative px-2 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 hover:bg-neutral-100 transition-colors overflow-hidden whitespace-normal ${
                       colId === 'compareCheckbox' ? 'cursor-default text-left' : sortable ? 'cursor-pointer' : ''
                     } ${rightAlign ? 'text-right' : 'text-left'} ${resizingColumnIndex === index ? 'select-none' : ''}`}
                     onClick={colId === 'compareCheckbox' ? undefined : sortable ? () => handleSort(colId) : undefined}
                     title={colId === 'compareCheckbox' ? 'Select 2–4 providers to compare in detail' : undefined}
                   >
-                    <span className={`flex items-center gap-1 min-w-0 ${rightAlign ? 'justify-end' : ''}`}>
-                      {getHeaderContent(colId)}
-                    </span>
+                    {colId === 'compareCheckbox' ? (
+                      getHeaderContent(colId)
+                    ) : (
+                      <span className={`flex items-start gap-1 min-w-0 ${rightAlign ? 'justify-end' : ''}`}>
+                        <span className={`min-w-0 break-words leading-tight ${rightAlign ? 'text-right' : 'text-left'}`}>
+                          {getHeaderContent(colId)}
+                        </span>
+                      </span>
+                    )}
                     <span
                       role="separator"
                       aria-label={`Resize column`}

@@ -4,6 +4,7 @@
  */
 
 import type { ProviderRecord } from '../types/provider';
+import { getEffectiveYoe } from './effective-yoe';
 
 export type ExperienceSalaryGroupBy = 'population' | 'specialty' | 'division' | 'none';
 
@@ -71,11 +72,6 @@ export function assignExperienceScatterLabelLayouts(
   return result;
 }
 
-function getYoe(record: ProviderRecord): number | undefined {
-  const yoe = record.Years_of_Experience ?? record.Total_YOE;
-  return yoe != null && Number.isFinite(yoe) ? yoe : undefined;
-}
-
 /**
  * Base salary normalized to 1.0 FTE for trend comparison.
  * Prefer proposed; fallback to current when proposed is missing.
@@ -121,7 +117,7 @@ export function buildExperienceSalaryChartData(
   const allPoints: ExperienceSalaryPoint[] = [];
 
   for (const r of records) {
-    const yoe = getYoe(r);
+    const yoe = getEffectiveYoe(r);
     const salaryAt1Fte = getSalaryAt1Fte(r);
     if (yoe == null || salaryAt1Fte == null) continue;
 

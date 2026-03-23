@@ -12,6 +12,7 @@ import type { PlanAssignmentRuleRow } from '../types/plan-assignment-row';
 import type { AppCombinedGroupRow } from '../types/app-combined-group';
 import type { BudgetSettingsRow } from '../types/budget-settings';
 import type { CfBySpecialtyRow } from '../types/cf-by-specialty';
+import type { SurveySpecialtyMappingSet } from '../types/market-survey-config';
 import { CompensationPlanType } from '../types/enums';
 
 export const SAMPLE_CYCLES: Cycle[] = [
@@ -28,6 +29,66 @@ export const SAMPLE_MERIT_MATRIX: MeritMatrixRow[] = [
 ];
 
 export const SAMPLE_EXPERIENCE_BANDS: ExperienceBand[] = [
+  {
+    id: 'band-app-med',
+    label: 'APP — Medical (inpatient/outpatient blend)',
+    minYoe: 0,
+    maxYoe: 25,
+    targetTccPercentileLow: 45,
+    targetTccPercentileHigh: 65,
+    populationScope: ['NP', 'PA'],
+    specialtyScope: ['APP Medical (combined)'],
+  },
+  {
+    id: 'band-app-neo',
+    label: 'APP — Neonatal',
+    minYoe: 0,
+    maxYoe: 25,
+    targetTccPercentileLow: 50,
+    targetTccPercentileHigh: 70,
+    populationScope: ['NP', 'PA'],
+    specialtyScope: ['APP Neonatal combined'],
+  },
+  {
+    id: 'band-app-psych',
+    label: 'APP — Psychiatry (shared benchmark)',
+    minYoe: 0,
+    maxYoe: 25,
+    targetTccPercentileLow: 48,
+    targetTccPercentileHigh: 62,
+    populationScope: ['NP', 'PA'],
+    specialtyScope: ['NP:PA Combined Psychiatry'],
+  },
+  {
+    id: 'band-app-amb',
+    label: 'APP — Primary / ambulatory',
+    minYoe: 0,
+    maxYoe: 25,
+    targetTccPercentileLow: 40,
+    targetTccPercentileHigh: 60,
+    populationScope: ['NP', 'PA'],
+    specialtyScope: ['APP Primary / Ambulatory'],
+  },
+  {
+    id: 'band-mht-out',
+    label: 'MHT — Outpatient benchmark cohort',
+    minYoe: 0,
+    maxYoe: 30,
+    targetTccPercentileLow: 40,
+    targetTccPercentileHigh: 55,
+    populationScope: ['Mental Health Therapist'],
+    specialtyScope: ['MHT Outpatient benchmark'],
+  },
+  {
+    id: 'band-mht-int',
+    label: 'MHT — Integrated behavioral health',
+    minYoe: 0,
+    maxYoe: 30,
+    targetTccPercentileLow: 45,
+    targetTccPercentileHigh: 60,
+    populationScope: ['Mental Health Therapist'],
+    specialtyScope: ['MHT Integrated care'],
+  },
   { id: 'band-1', label: '0–2 YOE', minYoe: 0, maxYoe: 2, targetTccPercentileLow: 25, targetTccPercentileHigh: 50, suggestBaseToHitTarget: true },
   { id: 'band-2', label: '3–5 YOE', minYoe: 3, maxYoe: 5, targetTccPercentileLow: 50, targetTccPercentileHigh: 75 },
   { id: 'band-3', label: '6–10 YOE', minYoe: 6, maxYoe: 10, targetTccPercentileLow: 50, targetTccPercentileHigh: 75 },
@@ -56,20 +117,68 @@ export const SAMPLE_PLAN_ASSIGNMENT_RULES: PlanAssignmentRuleRow[] = [
   { id: 'plan-5', jobCode: 'HOURLY-*', assignedPlanType: CompensationPlanType.Hourly, priority: 100 },
 ];
 
-/** APP combined groups: blend multiple survey specialties into one benchmark (many-to-one). */
-export const SAMPLE_APP_COMBINED_GROUPS: AppCombinedGroupRow[] = [
-  {
-    id: 'cg-1',
-    combinedGroupName: 'Medical Specialty Combined',
-    surveySpecialties: ['Medical Inpatient', 'Medical Outpatient', 'Medical Specialty'],
+/**
+ * Per-survey APP / MHT combined groups (demo). Names match experience-band specialtyScope when using cohort buckets.
+ * Physicians survey has no combined groups in the demo.
+ */
+export const SAMPLE_SURVEY_SPECIALTY_MAPPING_SET: SurveySpecialtyMappingSet = {
+  physicians: { appCombinedGroups: [] },
+  apps: {
+    appCombinedGroups: [
+      {
+        id: 'cg-app-medical',
+        combinedGroupName: 'APP Medical (combined)',
+        surveySpecialties: ['Medical Inpatient', 'Medical Outpatient', 'Medical Specialty'],
+        providerSpecialties: ['Endocrinology NP', 'Hospitalist NP'],
+      },
+      {
+        id: 'cg-app-primary',
+        combinedGroupName: 'APP Primary / Ambulatory',
+        surveySpecialties: ['Primary Care APP'],
+        providerSpecialties: ['Pediatrics', 'Family Practice NP'],
+      },
+      {
+        id: 'cg-app-neo',
+        combinedGroupName: 'APP Neonatal combined',
+        surveySpecialties: ['Neonatal APP'],
+        providerSpecialties: ['Neonatology', 'Neonatal'],
+      },
+      {
+        id: 'cg-app-psych',
+        combinedGroupName: 'NP:PA Combined Psychiatry',
+        surveySpecialties: ['Psychiatry'],
+        providerSpecialties: ['Psychiatric NP', 'Psychiatric PA'],
+      },
+    ],
   },
-  { id: 'cg-2', combinedGroupName: 'NP:PA Combined Psychiatry', surveySpecialties: ['Psychiatry'] },
-];
+  'mental-health-therapists': {
+    appCombinedGroups: [
+      {
+        id: 'cg-mht-out',
+        combinedGroupName: 'MHT Outpatient benchmark',
+        surveySpecialties: ['Outpatient MHT'],
+        providerSpecialties: ['Mental Health Therapist', 'Licensed Professional Counselor'],
+      },
+      {
+        id: 'cg-mht-int',
+        combinedGroupName: 'MHT Integrated care',
+        surveySpecialties: ['Integrated Behavioral Health'],
+        providerSpecialties: ['Integrated Behavioral Health'],
+      },
+    ],
+  },
+};
+
+/** @deprecated Use SAMPLE_SURVEY_SPECIALTY_MAPPING_SET['apps'].appCombinedGroups */
+export const SAMPLE_APP_COMBINED_GROUPS: AppCombinedGroupRow[] =
+  SAMPLE_SURVEY_SPECIALTY_MAPPING_SET.apps?.appCombinedGroups ?? [];
 
 /** Provider_Type → survey ID mapping. */
 export const SAMPLE_PROVIDER_TYPE_TO_SURVEY: Record<string, string> = {
   Physician: 'physicians',
-  APP: 'physicians',
+  APP: 'apps',
+  NP: 'apps',
+  PA: 'apps',
   'Mental Health Therapist': 'mental-health-therapists',
 };
 

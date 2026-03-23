@@ -29,7 +29,7 @@ describe('getEquityRecommendation', () => {
     const rec = getEquityRecommendation(makeRecord({ Current_TCC_Percentile: 10, Proposed_TCC_Percentile: 10 }), BANDS);
     expect(rec).toBeDefined();
     expect(rec!.action).toContain('Consider increase');
-    expect(rec!.detail).toContain('1.0 FTE');
+    expect(rec!.detail).toMatch(/Target band:|1\.0 FTE/);
   });
 
   it('returns "in" recommendation when percentile is within band target', () => {

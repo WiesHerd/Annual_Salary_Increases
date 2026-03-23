@@ -55,14 +55,14 @@ export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules, options }: PcpAppR
         </button>
       </div>
       <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="min-w-full border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-200">
+        <table className="app-settings-table min-w-full border-collapse">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Division</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Fixed target</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Default current CF</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Default proposed CF</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Allow override</th>
+              <th>Division</th>
+              <th className="text-right">Fixed target</th>
+              <th className="text-right">Default current CF</th>
+              <th className="text-right">Default proposed CF</th>
+              <th>Allow override</th>
               <th className="w-20" />
             </tr>
           </thead>

@@ -1,17 +1,31 @@
 /**
- * Filter bar for Specialty map: search, collapsible dimension filters.
- * Layout matches Salary Review: flat sticky bar, no inset panel.
+ * Filter bar for Specialty map — same structure as Salary review: search row, quick chips,
+ * count, collapsible dimension dropdowns.
  */
 
+import type { ReactNode } from 'react';
 import { useState, useRef, useEffect } from 'react';
 import type { SpecialtyMapFilters } from '../../lib/specialty-map-filters';
 import type { MappingStatus } from '../../lib/specialty-map-filters';
+import {
+  getSpecialtyMapPresetFilters,
+  getActiveSpecialtyMapPresetId,
+  type SpecialtyMapPresetId,
+} from '../../lib/specialty-map-filters';
 
 const STATUS_LABELS: Record<MappingStatus, string> = {
   mapped: 'Mapped',
   'needs-mapping': 'Needs mapping',
   override: 'Override set',
 };
+
+const PRESETS: { id: SpecialtyMapPresetId; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'needs-mapping', label: 'Needs mapping' },
+  { id: 'matched', label: 'Matched' },
+  { id: 'direct', label: 'Direct' },
+  { id: 'override', label: 'Override' },
+];
 
 export interface SpecialtyMapFilterBarProps {
   filters: SpecialtyMapFilters;
@@ -24,6 +38,7 @@ export interface SpecialtyMapFilterBarProps {
   };
   totalCount: number;
   filteredCount: number;
+  rightAction?: ReactNode;
 }
 
 function MultiSelectDropdown({
@@ -99,7 +114,9 @@ function MultiSelectDropdown({
         <span className="text-neutral-400 text-[10px]">▾</span>
       </button>
       {open && (
-        <div className={`absolute left-0 top-full mt-1 z-40 max-h-72 flex flex-col bg-white rounded-xl shadow-lg border border-neutral-200/90 overflow-hidden ${dropdownClassName}`}>
+        <div
+          className={`absolute left-0 top-full mt-1 z-40 max-h-72 flex flex-col bg-white rounded-xl shadow-lg border border-neutral-200/90 overflow-hidden ${dropdownClassName}`}
+        >
           <div className="p-2 border-b border-neutral-100 shrink-0">
             <input
               ref={searchInputRef}
@@ -143,13 +160,25 @@ function MultiSelectDropdown({
   );
 }
 
+const DIMENSION_KEYS = [
+  { key: 'specialties' as const, label: 'Specialty', optionsKey: 'specialties' as const, dropdownClassName: 'w-64' },
+  { key: 'providerTypes' as const, label: 'Provider type', optionsKey: 'providerTypes' as const },
+  { key: 'benchmarkGroups' as const, label: 'Benchmark group', optionsKey: 'benchmarkGroups' as const, dropdownClassName: 'w-64' },
+  { key: 'matchedMarkets' as const, label: 'Matched market', optionsKey: 'matchedMarkets' as const, dropdownClassName: 'w-64' },
+] as const;
+
+const STATUS_OPTIONS: MappingStatus[] = ['mapped', 'needs-mapping', 'override'];
+
 export function SpecialtyMapFilterBar({
   filters,
   onFiltersChange,
   filterOptions,
   totalCount,
   filteredCount,
+  rightAction,
 }: SpecialtyMapFilterBarProps) {
+  const activePreset = getActiveSpecialtyMapPresetId(filters);
+
   const hasAnyFilter =
     (filters.searchText ?? '').trim() !== '' ||
     filters.statuses.length > 0 ||
@@ -164,7 +193,21 @@ export function SpecialtyMapFilterBar({
     (filters.providerTypes.length > 0 ? 1 : 0) +
     (filters.benchmarkGroups.length > 0 ? 1 : 0) +
     (filters.matchedMarkets.length > 0 ? 1 : 0);
+
   const [filtersExpanded, setFiltersExpanded] = useState(activeDimensionCount > 0);
+
+  const setPreset = (presetId: SpecialtyMapPresetId) => {
+    const next = getSpecialtyMapPresetFilters(presetId);
+    if (presetId === 'all') {
+      onFiltersChange(next as SpecialtyMapFilters);
+    } else {
+      onFiltersChange({
+        ...filters,
+        ...next,
+        searchText: filters.searchText ?? '',
+      } as SpecialtyMapFilters);
+    }
+  };
 
   const clearAll = () => {
     onFiltersChange({
@@ -177,34 +220,49 @@ export function SpecialtyMapFilterBar({
     });
   };
 
-  const statusOptions: MappingStatus[] = ['mapped', 'needs-mapping', 'override'];
+  const setDimension = <K extends keyof SpecialtyMapFilters>(key: K, value: SpecialtyMapFilters[K]) => {
+    onFiltersChange({ ...filters, [key]: value });
+  };
 
   return (
     <div className="sticky top-0 z-30 py-4 bg-white/98 backdrop-blur-sm">
-      {/* Row 1: Search + result count + clear — flat layout like Salary Review (no inset panel) */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md">
+        <div className="relative min-w-0 w-40 sm:w-48 shrink-0">
           <input
             type="search"
             value={filters.searchText ?? ''}
             onChange={(e) => onFiltersChange({ ...filters, searchText: e.target.value })}
-            onKeyDown={(e) => e.key === 'Escape' && onFiltersChange({ ...filters, searchText: '' })}
-            placeholder="Search by name, ID, specialty, benchmark group…"
-            className="w-full pl-3 pr-9 py-2 text-[13px] rounded-lg bg-neutral-50 border border-neutral-200/80 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300/50 focus:bg-white transition-colors placeholder:text-neutral-400"
+            onKeyDown={(e) => e.key === 'Escape' && (e.currentTarget.value = '')}
+            placeholder="Search…"
+            className="w-full pl-2.5 pr-7 py-1.5 text-[13px] rounded-lg bg-neutral-50 border border-neutral-200/80 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300/50 focus:bg-white transition-colors placeholder:text-neutral-400"
             aria-label="Search providers"
           />
           {(filters.searchText ?? '').trim() !== '' && (
             <button
               type="button"
               onClick={() => onFiltersChange({ ...filters, searchText: '' })}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-neutral-200 text-neutral-500"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-neutral-200 text-neutral-500"
               aria-label="Clear search"
             >
               ×
             </button>
           )}
         </div>
-        <span className="text-[13px] text-neutral-500 shrink-0 tabular-nums">
+        {PRESETS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setPreset(id)}
+            className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors shrink-0 ${
+              activePreset === id
+                ? 'bg-neutral-900 text-white'
+                : 'text-neutral-600 bg-neutral-100 hover:bg-neutral-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="text-[13px] text-neutral-500 shrink-0">
           <span className="font-medium text-neutral-700">{filteredCount}</span>
           <span className="text-neutral-400"> / {totalCount} providers</span>
         </span>
@@ -217,9 +275,9 @@ export function SpecialtyMapFilterBar({
             Clear all
           </button>
         )}
+        {rightAction != null && <div className="ml-auto shrink-0">{rightAction}</div>}
       </div>
 
-      {/* Row 2: Collapsible dimension filters */}
       <div className="mt-3">
         <button
           type="button"
@@ -241,38 +299,21 @@ export function SpecialtyMapFilterBar({
           <div className="flex flex-wrap gap-1.5 mt-2">
             <MultiSelectDropdown
               label="Status"
-              options={statusOptions}
+              options={STATUS_OPTIONS}
               selected={filters.statuses}
-              onChange={(selected) => onFiltersChange({ ...filters, statuses: selected as MappingStatus[] })}
+              onChange={(selected) => setDimension('statuses', selected as MappingStatus[])}
               getOptionLabel={(v) => STATUS_LABELS[v as MappingStatus]}
             />
-            <MultiSelectDropdown
-              label="Specialty"
-              options={filterOptions.specialties}
-              selected={filters.specialties}
-              onChange={(selected) => onFiltersChange({ ...filters, specialties: selected })}
-              dropdownClassName="w-64"
-            />
-            <MultiSelectDropdown
-              label="Provider type"
-              options={filterOptions.providerTypes}
-              selected={filters.providerTypes}
-              onChange={(selected) => onFiltersChange({ ...filters, providerTypes: selected })}
-            />
-            <MultiSelectDropdown
-              label="Benchmark group"
-              options={filterOptions.benchmarkGroups}
-              selected={filters.benchmarkGroups}
-              onChange={(selected) => onFiltersChange({ ...filters, benchmarkGroups: selected })}
-              dropdownClassName="w-64"
-            />
-            <MultiSelectDropdown
-              label="Matched market"
-              options={filterOptions.matchedMarkets}
-              selected={filters.matchedMarkets}
-              onChange={(selected) => onFiltersChange({ ...filters, matchedMarkets: selected })}
-              dropdownClassName="w-64"
-            />
+            {DIMENSION_KEYS.map((item) => (
+              <MultiSelectDropdown
+                key={item.key}
+                label={item.label}
+                options={filterOptions[item.optionsKey]}
+                selected={filters[item.key]}
+                onChange={(selected) => setDimension(item.key, selected)}
+                dropdownClassName={'dropdownClassName' in item ? item.dropdownClassName : undefined}
+              />
+            ))}
           </div>
         )}
       </div>

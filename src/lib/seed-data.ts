@@ -5,12 +5,14 @@
 
 import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
+import type { MarketSurveySet } from '../types/market-survey-config';
 import type { ParsedPaymentRow, EvaluationJoinRow } from '../types/upload';
 
 export function getSeedProviderRecords(): ProviderRecord[] {
   return [
     {
       Employee_ID: 'EXT001',
+      Provider_Type: 'Physician',
       Provider_Name: 'Jane Smith',
       Primary_Division: 'Cardiology',
       Department: 'Cardiology',
@@ -52,6 +54,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT002',
+      Provider_Type: 'Physician',
       Provider_Name: 'John Doe',
       Primary_Division: 'Hospitalist',
       Department: 'Internal Medicine',
@@ -90,6 +93,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT003',
+      Provider_Type: 'Physician',
       Provider_Name: 'Maria Garcia',
       Primary_Division: 'General Pediatrics',
       Department: 'Family Medicine',
@@ -128,6 +132,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT004',
+      Provider_Type: 'Physician',
       Provider_Name: 'Robert Lee',
       Primary_Division: 'Orthopedics',
       Department: 'Orthopedics',
@@ -166,6 +171,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT005',
+      Provider_Type: 'NP',
       Provider_Name: 'Susan Chen',
       Primary_Division: 'General Pediatrics',
       Department: 'Pediatrics',
@@ -183,6 +189,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
       Normalized_WRVUs: 4600,
       WRVU_Percentile: 55,
       Years_of_Experience: 6,
+      APP_YOE: 6,
       Evaluation_Score: 4,
       Default_Increase_Percent: 3.5,
       Applied_Increase_Percent: 3.5,
@@ -201,6 +208,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT006',
+      Provider_Type: 'Physician',
       Provider_Name: 'David Kim',
       Primary_Division: 'Emergency Medicine',
       Department: 'Emergency Medicine',
@@ -237,6 +245,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT007',
+      Provider_Type: 'Mental Health Therapist',
       Provider_Name: 'Emily Walsh',
       Primary_Division: 'Behavioral Health',
       Department: 'Behavioral Health',
@@ -270,9 +279,121 @@ export function getSeedProviderRecords(): ProviderRecord[] {
       Market_WRVU_75: 1400,
       Market_WRVU_90: 1650,
     },
+    {
+      Employee_ID: 'EXT016',
+      Provider_Type: 'NP',
+      Provider_Name: 'Riley Park',
+      Primary_Division: 'Endocrinology',
+      Department: 'Endocrinology',
+      Specialty: 'Endocrinology NP',
+      Population: 'Advanced Practice Provider',
+      Compensation_Plan: 'salary',
+      Cycle: 'FY2025',
+      Current_FTE: 1,
+      Clinical_FTE: 1,
+      Current_Base_Salary: 118000,
+      Current_TCC: 118000,
+      Current_Target_WRVUs: 2800,
+      Current_TCC_Percentile: 48,
+      Prior_Year_WRVUs: 2750,
+      Normalized_WRVUs: 2750,
+      WRVU_Percentile: 46,
+      Years_of_Experience: 5,
+      APP_YOE: 5,
+      Evaluation_Score: 4,
+      Default_Increase_Percent: 3.5,
+      Applied_Increase_Percent: 3.5,
+      Proposed_Base_Salary: 122130,
+      Proposed_TCC: 122130,
+      Proposed_TCC_Percentile: 48,
+      Review_Status: 'draft',
+      Market_TCC_25: 105000,
+      Market_TCC_50: 122000,
+      Market_TCC_75: 138000,
+      Market_TCC_90: 155000,
+      Market_WRVU_25: 2200,
+      Market_WRVU_50: 2800,
+      Market_WRVU_75: 3400,
+      Market_WRVU_90: 4000,
+    },
+    {
+      Employee_ID: 'EXT017',
+      Provider_Type: 'NP',
+      Provider_Name: 'Jamie Ortiz',
+      Primary_Division: 'Hospitalist',
+      Department: 'Internal Medicine',
+      Specialty: 'Hospitalist NP',
+      Population: 'Advanced Practice Provider',
+      Compensation_Plan: 'salary',
+      Cycle: 'FY2025',
+      Current_FTE: 1,
+      Clinical_FTE: 1,
+      Current_Base_Salary: 125000,
+      Current_TCC: 128000,
+      Current_Target_WRVUs: 3000,
+      Current_TCC_Percentile: 52,
+      Prior_Year_WRVUs: 2950,
+      Normalized_WRVUs: 2950,
+      WRVU_Percentile: 50,
+      Years_of_Experience: 7,
+      APP_YOE: 7,
+      Evaluation_Score: 3,
+      Default_Increase_Percent: 3,
+      Applied_Increase_Percent: 3,
+      Proposed_Base_Salary: 128750,
+      Proposed_TCC: 131800,
+      Proposed_TCC_Percentile: 52,
+      Review_Status: 'draft',
+      Market_TCC_25: 105000,
+      Market_TCC_50: 122000,
+      Market_TCC_75: 138000,
+      Market_TCC_90: 155000,
+      Market_WRVU_25: 2200,
+      Market_WRVU_50: 2800,
+      Market_WRVU_75: 3400,
+      Market_WRVU_90: 4000,
+    },
+    {
+      Employee_ID: 'EXT018',
+      Provider_Type: 'PA',
+      Provider_Name: 'Drew Coleman',
+      Primary_Division: 'Behavioral Health',
+      Department: 'Psychiatry',
+      Specialty: 'Psychiatric PA',
+      Population: 'Advanced Practice Provider',
+      Compensation_Plan: 'salary',
+      Cycle: 'FY2025',
+      Current_FTE: 1,
+      Clinical_FTE: 1,
+      Current_Base_Salary: 112000,
+      Current_TCC: 112000,
+      Current_Target_WRVUs: 2400,
+      Current_TCC_Percentile: 55,
+      Prior_Year_WRVUs: 2380,
+      Normalized_WRVUs: 2380,
+      WRVU_Percentile: 54,
+      Years_of_Experience: 4,
+      APP_YOE: 4,
+      Evaluation_Score: 4,
+      Default_Increase_Percent: 3.25,
+      Applied_Increase_Percent: 3.25,
+      Proposed_Base_Salary: 115640,
+      Proposed_TCC: 115640,
+      Proposed_TCC_Percentile: 55,
+      Review_Status: 'draft',
+      Market_TCC_25: 95000,
+      Market_TCC_50: 108000,
+      Market_TCC_75: 125000,
+      Market_TCC_90: 142000,
+      Market_WRVU_25: 1900,
+      Market_WRVU_50: 2400,
+      Market_WRVU_75: 2900,
+      Market_WRVU_90: 3400,
+    },
     // ─── Edge-case providers for testing ────────────────────────────────────
     {
       Employee_ID: 'EXT008',
+      Provider_Type: 'Physician',
       Provider_Name: 'Alex Rivera',
       Primary_Division: 'Cardiology',
       Department: 'Cardiology',
@@ -312,6 +433,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT009',
+      Provider_Type: 'Physician',
       Provider_Name: 'Jordan Blake',
       Primary_Division: 'Orthopedics',
       Department: 'Orthopedics',
@@ -350,6 +472,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT010',
+      Provider_Type: 'Physician',
       Provider_Name: 'Sam Foster',
       Primary_Division: 'Hospitalist',
       Department: 'Internal Medicine',
@@ -387,6 +510,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT011',
+      Provider_Type: 'Physician',
       Provider_Name: 'Casey Morgan',
       Primary_Division: 'General Pediatrics',
       Department: 'Family Medicine',
@@ -426,6 +550,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT012',
+      Provider_Type: 'Physician',
       Provider_Name: 'Robin Hayes',
       Primary_Division: 'Cardiology',
       Department: 'Cardiology',
@@ -463,6 +588,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT013',
+      Provider_Type: 'Physician',
       Provider_Name: 'Quinn Ellis',
       Primary_Division: 'Hospitalist',
       Department: 'Internal Medicine',
@@ -500,6 +626,7 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT014',
+      Provider_Type: 'NP',
       Provider_Name: 'Taylor Reed',
       Primary_Division: 'Neonatology',
       Department: 'Neonatology',
@@ -537,11 +664,12 @@ export function getSeedProviderRecords(): ProviderRecord[] {
     },
     {
       Employee_ID: 'EXT015',
+      Provider_Type: 'Mental Health Therapist',
       Provider_Name: 'Morgan Tate',
       Primary_Division: 'Behavioral Health',
       Department: 'Behavioral Health',
-      Specialty: 'Mental Health Therapist',
-      Benchmark_Group: 'Mental Health Therapist',
+      Specialty: 'Integrated Behavioral Health',
+      Benchmark_Group: 'Integrated Behavioral Health',
       Population: 'Mental Health Therapist',
       Compensation_Plan: 'salary',
       Cycle: 'FY2025',
@@ -563,14 +691,14 @@ export function getSeedProviderRecords(): ProviderRecord[] {
       Proposed_TCC_Percentile: 92,
       Proposed_Compa_Ratio: 1.21,
       Review_Status: 'in_review',
-      Market_TCC_25: 72000,
-      Market_TCC_50: 82000,
-      Market_TCC_75: 95000,
-      Market_TCC_90: 110000,
-      Market_WRVU_25: 1000,
-      Market_WRVU_50: 1200,
+      Market_TCC_25: 82000,
+      Market_TCC_50: 95000,
+      Market_TCC_75: 108000,
+      Market_TCC_90: 122000,
+      Market_WRVU_25: 1100,
+      Market_WRVU_50: 1250,
       Market_WRVU_75: 1400,
-      Market_WRVU_90: 1650,
+      Market_WRVU_90: 1580,
     },
   ];
 }
@@ -580,10 +708,75 @@ export function getSeedReviewRecords(): ProviderRecord[] {
   return getSeedProviderRecords();
 }
 
-export function getSeedMarketSurveys(): Record<string, MarketRow[]> {
-  return { physicians: getSeedMarketData() };
+/** APP / NP / PA market benchmarks (granular rows; combined groups blend subsets). */
+export function getSeedAppMarketRows(): MarketRow[] {
+  return [
+    {
+      specialty: 'Medical Inpatient',
+      tccPercentiles: { 25: 108000, 50: 125000, 75: 142000, 90: 158000 },
+      wrvuPercentiles: { 25: 2100, 50: 2700, 75: 3200, 90: 3800 },
+      cfPercentiles: { 25: 44, 50: 46, 75: 48, 90: 52 },
+    },
+    {
+      specialty: 'Medical Outpatient',
+      tccPercentiles: { 25: 102000, 50: 118000, 75: 132000, 90: 148000 },
+      wrvuPercentiles: { 25: 2000, 50: 2600, 75: 3100, 90: 3600 },
+      cfPercentiles: { 25: 43, 50: 45, 75: 47, 90: 50 },
+    },
+    {
+      specialty: 'Medical Specialty',
+      tccPercentiles: { 25: 105000, 50: 120000, 75: 136000, 90: 152000 },
+      wrvuPercentiles: { 25: 2150, 50: 2750, 75: 3300, 90: 3900 },
+      cfPercentiles: { 25: 44, 50: 46, 75: 48, 90: 51 },
+    },
+    {
+      specialty: 'Primary Care APP',
+      tccPercentiles: { 25: 100000, 50: 118000, 75: 132000, 90: 148000 },
+      wrvuPercentiles: { 25: 2800, 50: 3600, 75: 4400, 90: 5200 },
+      cfPercentiles: { 25: 42, 50: 44, 75: 46, 90: 48 },
+    },
+    {
+      specialty: 'Neonatal APP',
+      tccPercentiles: { 25: 112000, 50: 128000, 75: 145000, 90: 162000 },
+      wrvuPercentiles: { 25: 2300, 50: 3000, 75: 3700, 90: 4400 },
+      cfPercentiles: { 25: 40, 50: 42, 75: 44, 90: 46 },
+    },
+    {
+      specialty: 'Psychiatry',
+      tccPercentiles: { 25: 95000, 50: 108000, 75: 125000, 90: 142000 },
+      wrvuPercentiles: { 25: 1900, 50: 2400, 75: 2900, 90: 3400 },
+      cfPercentiles: { 25: 41, 50: 43, 75: 45, 90: 48 },
+    },
+  ];
 }
 
+/** Mental health therapist survey rows (combined groups can bucket titles). */
+export function getSeedMhtMarketRows(): MarketRow[] {
+  return [
+    {
+      specialty: 'Outpatient MHT',
+      tccPercentiles: { 25: 68000, 50: 78000, 75: 90000, 90: 102000 },
+      wrvuPercentiles: { 25: 980, 50: 1150, 75: 1320, 90: 1500 },
+      cfPercentiles: { 25: 62, 50: 65, 75: 68, 90: 70 },
+    },
+    {
+      specialty: 'Integrated Behavioral Health',
+      tccPercentiles: { 25: 82000, 50: 95000, 75: 108000, 90: 122000 },
+      wrvuPercentiles: { 25: 1100, 50: 1250, 75: 1400, 90: 1580 },
+      cfPercentiles: { 25: 63, 50: 66, 75: 69, 90: 72 },
+    },
+  ];
+}
+
+export function getSeedMarketSurveys(): MarketSurveySet {
+  return {
+    physicians: getSeedMarketData(),
+    apps: getSeedAppMarketRows(),
+    'mental-health-therapists': getSeedMhtMarketRows(),
+  };
+}
+
+/** Physician-focused MGMA-style rows (APP/MHT use separate surveys). */
 export function getSeedMarketData(): MarketRow[] {
   return [
     { specialty: 'Cardiology', tccPercentiles: { 25: 380000, 50: 450000, 75: 520000, 90: 600000 }, wrvuPercentiles: { 25: 5500, 50: 6500, 75: 7500, 90: 9000 }, cfPercentiles: { 25: 58, 50: 62, 75: 65, 90: 70 } },
@@ -592,8 +785,6 @@ export function getSeedMarketData(): MarketRow[] {
     { specialty: 'Orthopedics', tccPercentiles: { 25: 400000, 50: 520000, 75: 620000, 90: 750000 }, wrvuPercentiles: { 25: 6000, 50: 7200, 75: 8500, 90: 10000 }, cfPercentiles: { 25: 58, 50: 62, 75: 65, 90: 72 } },
     { specialty: 'Pediatrics', tccPercentiles: { 25: 250000, 50: 310000, 75: 370000, 90: 440000 }, wrvuPercentiles: { 25: 3600, 50: 4600, 75: 5600, 90: 6800 }, cfPercentiles: { 25: 54, 50: 56, 75: 58, 90: 62 } },
     { specialty: 'Emergency Medicine', tccPercentiles: { 25: 320000, 50: 435000, 75: 520000, 90: 620000 }, wrvuPercentiles: { 25: 4800, 50: 6200, 75: 7500, 90: 9000 }, cfPercentiles: { 25: 56, 50: 60, 75: 64, 90: 68 } },
-    { specialty: 'Mental Health Therapist', tccPercentiles: { 25: 72000, 50: 82000, 75: 95000, 90: 110000 }, wrvuPercentiles: { 25: 1000, 50: 1200, 75: 1400, 90: 1650 }, cfPercentiles: { 25: 65, 50: 68, 75: 70, 90: 72 } },
-    { specialty: 'Neonatal', tccPercentiles: { 25: 115000, 50: 135000, 75: 158000, 90: 185000 }, wrvuPercentiles: { 25: 2400, 50: 3200, 75: 4000, 90: 4800 }, cfPercentiles: { 25: 42, 50: 44, 75: 46, 90: 50 } },
   ];
 }
 
@@ -618,6 +809,9 @@ export function getSeedEvaluationRows(): EvaluationJoinRow[] {
     { Employee_ID: 'EXT013', Evaluation_Score: 3.5, Performance_Category: 'Meets', Default_Increase_Percent: 3 },
     { Employee_ID: 'EXT014', Evaluation_Score: 1, Performance_Category: 'Below', Default_Increase_Percent: 0.5 },
     { Employee_ID: 'EXT015', Evaluation_Score: 4, Performance_Category: 'Strongly Meets', Default_Increase_Percent: 3.75 },
+    { Employee_ID: 'EXT016', Evaluation_Score: 4, Performance_Category: 'Strongly Meets', Default_Increase_Percent: 3.75 },
+    { Employee_ID: 'EXT017', Evaluation_Score: 3, Performance_Category: 'Meets', Default_Increase_Percent: 3 },
+    { Employee_ID: 'EXT018', Evaluation_Score: 4, Performance_Category: 'Strongly Meets', Default_Increase_Percent: 3.75 },
   ];
 }
 
@@ -640,6 +834,9 @@ export function getSeedPayments(): ParsedPaymentRow[] {
     { providerKey: 'EXT013', amount: 18333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
     { providerKey: 'EXT014', amount: 12333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
     { providerKey: 'EXT015', amount: 9000, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
+    { providerKey: 'EXT016', amount: 9833, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
+    { providerKey: 'EXT017', amount: 10417, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
+    { providerKey: 'EXT018', amount: 9333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
   ];
 }
 
@@ -654,11 +851,12 @@ export function getDemoData(): {
   payments: ParsedPaymentRow[];
   evaluationRows: EvaluationJoinRow[];
 } {
-  const marketRows = getSeedMarketData();
+  const marketSurveys = getSeedMarketSurveys();
+  const marketRows = Object.values(marketSurveys).flat();
   return {
     providerRecords: getSeedProviderRecords(),
     marketRows,
-    marketSurveys: { physicians: marketRows },
+    marketSurveys,
     payments: getSeedPayments(),
     evaluationRows: getSeedEvaluationRows(),
   };

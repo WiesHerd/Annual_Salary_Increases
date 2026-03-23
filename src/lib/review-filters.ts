@@ -5,9 +5,10 @@
 
 import type { ProviderRecord } from '../types/provider';
 import type { ExperienceBand } from '../types/experience-band';
+import type { ExperienceBandSurveyContext } from '../types/market-survey-config';
 import {
-  getExperienceBandAlignment,
-  getExperienceBandLabel,
+  getExperienceBandAlignmentForProvider,
+  getExperienceBandLabelForProvider,
 } from './calculations/recalculate-provider-row';
 import { getReviewStatusBucket } from '../types/enums';
 import { safeSessionStorageSetItem } from './safe-local-storage';
@@ -75,20 +76,22 @@ function selectedSetMatches(value: string | undefined, selected: string[]): bool
   return selected.includes(normalized);
 }
 
-function getYoe(record: ProviderRecord): number | undefined {
-  return record.Years_of_Experience ?? record.Total_YOE;
+function tccPercentileForBandAlignment(record: ProviderRecord): number | undefined {
+  return record.Proposed_TCC_Percentile ?? record.Current_TCC_Percentile;
 }
 
 /**
  * Apply filters to a list of provider records. Returns a new array (does not mutate).
  * Pass experienceBandsConfig when filtering by experience band (band labels are derived from YOE + config).
  * Pass policySourceByEmployeeId when filtering by policy source (from live evaluation results).
+ * Pass experienceBandSurveyContext so APP combined-group names in band scope match granular specialties.
  */
 export function applyFilters(
   records: ProviderRecord[],
   filters: SalaryReviewFilters,
   experienceBandsConfig?: ExperienceBand[],
-  policySourceByEmployeeId?: Map<string, string>
+  policySourceByEmployeeId?: Map<string, string>,
+  experienceBandSurveyContext?: ExperienceBandSurveyContext
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
 
@@ -114,15 +117,17 @@ export function applyFilters(
       experienceBandsConfig &&
       experienceBandsConfig.length > 0
     ) {
-      const bandLabel = getExperienceBandLabel(getYoe(r), experienceBandsConfig);
+      const bandLabel = getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext);
       if (!selectedSetMatches(bandLabel, filters.experienceBands)) return false;
     }
 
     if (filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
-      const alignment = getExperienceBandAlignment(
-        getYoe(r),
-        r.Current_TCC_Percentile,
-        experienceBandsConfig
+      const alignment = getExperienceBandAlignmentForProvider(
+        r,
+        tccPercentileForBandAlignment(r),
+        experienceBandsConfig,
+        undefined,
+        experienceBandSurveyContext
       );
       const display =
         alignment === 'below'
@@ -342,7 +347,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
 export function deriveFilterOptions(
   records: ProviderRecord[],
   experienceBandsConfig?: ExperienceBand[],
-  policySourceByEmployeeId?: Map<string, string>
+  policySourceByEmployeeId?: Map<string, string>,
+  experienceBandSurveyContext?: ExperienceBandSurveyContext
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -382,11 +388,13 @@ export function deriveFilterOptions(
     const policySource = policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name;
     add(policySources, policySource);
     if (experienceBandsConfig?.length) {
-      add(experienceBands, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
-      const alignment = getExperienceBandAlignment(
-        getYoe(r),
-        r.Current_TCC_Percentile,
-        experienceBandsConfig
+      add(experienceBands, getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext));
+      const alignment = getExperienceBandAlignmentForProvider(
+        r,
+        tccPercentileForBandAlignment(r),
+        experienceBandsConfig,
+        undefined,
+        experienceBandSurveyContext
       );
       const display =
         alignment === 'below'
@@ -449,7 +457,8 @@ function applyFiltersExceptDimension(
   filters: SalaryReviewFilters,
   excludeDimension: DimensionKey,
   experienceBandsConfig?: ExperienceBand[],
-  policySourceByEmployeeId?: Map<string, string>
+  policySourceByEmployeeId?: Map<string, string>,
+  experienceBandSurveyContext?: ExperienceBandSurveyContext
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
   return records.filter((r) => {
@@ -471,11 +480,17 @@ function applyFiltersExceptDimension(
     if (excludeDimension !== 'populations' && filters.populations.length > 0 && !selectedSetMatches(r.Population, filters.populations))
       return false;
     if (excludeDimension !== 'experienceBands' && filters.experienceBands.length > 0 && experienceBandsConfig?.length) {
-      const bandLabel = getExperienceBandLabel(getYoe(r), experienceBandsConfig);
+      const bandLabel = getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext);
       if (!selectedSetMatches(bandLabel, filters.experienceBands)) return false;
     }
     if (excludeDimension !== 'bandAlignments' && filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
-      const alignment = getExperienceBandAlignment(getYoe(r), r.Current_TCC_Percentile, experienceBandsConfig);
+      const alignment = getExperienceBandAlignmentForProvider(
+        r,
+        tccPercentileForBandAlignment(r),
+        experienceBandsConfig,
+        undefined,
+        experienceBandSurveyContext
+      );
       const display =
         alignment === 'below'
           ? 'Below target'
@@ -512,7 +527,8 @@ export function deriveFilterOptionsCascading(
   records: ProviderRecord[],
   filters: SalaryReviewFilters,
   experienceBandsConfig?: ExperienceBand[],
-  policySourceByEmployeeId?: Map<string, string>
+  policySourceByEmployeeId?: Map<string, string>,
+  experienceBandSurveyContext?: ExperienceBandSurveyContext
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -546,7 +562,14 @@ export function deriveFilterOptionsCascading(
   };
 
   for (const { key, field } of DIMENSION_FIELDS) {
-    const subset = applyFiltersExceptDimension(records, filters, key, experienceBandsConfig, policySourceByEmployeeId);
+    const subset = applyFiltersExceptDimension(
+      records,
+      filters,
+      key,
+      experienceBandsConfig,
+      policySourceByEmployeeId,
+      experienceBandSurveyContext
+    );
     const set = new Set<string>();
     for (const r of subset) add(set, r[field] as string | undefined);
     result[key] = Array.from(set).sort(sort);
@@ -554,23 +577,50 @@ export function deriveFilterOptionsCascading(
 
   const statusSort = (a: string, b: string) =>
     a === 'In progress' ? -1 : b === 'In progress' ? 1 : a.localeCompare(b);
-  const subsetStatus = applyFiltersExceptDimension(records, filters, 'reviewStatuses', experienceBandsConfig, policySourceByEmployeeId);
+  const subsetStatus = applyFiltersExceptDimension(
+    records,
+    filters,
+    'reviewStatuses',
+    experienceBandsConfig,
+    policySourceByEmployeeId,
+    experienceBandSurveyContext
+  );
   const statusSet = new Set<string>();
   for (const r of subsetStatus) statusSet.add(getReviewStatusBucket(r.Review_Status));
   result.reviewStatuses = Array.from(statusSet).sort(statusSort);
 
   if (experienceBandsConfig?.length) {
-    const subset = applyFiltersExceptDimension(records, filters, 'experienceBands', experienceBandsConfig, policySourceByEmployeeId);
+    const subset = applyFiltersExceptDimension(
+      records,
+      filters,
+      'experienceBands',
+      experienceBandsConfig,
+      policySourceByEmployeeId,
+      experienceBandSurveyContext
+    );
     const set = new Set<string>();
-    for (const r of subset) add(set, getExperienceBandLabel(getYoe(r), experienceBandsConfig));
+    for (const r of subset) add(set, getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext));
     result.experienceBands = Array.from(set).sort(sort);
   }
 
   if (experienceBandsConfig?.length) {
-    const subset = applyFiltersExceptDimension(records, filters, 'bandAlignments', experienceBandsConfig, policySourceByEmployeeId);
+    const subset = applyFiltersExceptDimension(
+      records,
+      filters,
+      'bandAlignments',
+      experienceBandsConfig,
+      policySourceByEmployeeId,
+      experienceBandSurveyContext
+    );
     const set = new Set<string>();
     for (const r of subset) {
-      const alignment = getExperienceBandAlignment(getYoe(r), r.Current_TCC_Percentile, experienceBandsConfig);
+      const alignment = getExperienceBandAlignmentForProvider(
+        r,
+        tccPercentileForBandAlignment(r),
+        experienceBandsConfig,
+        undefined,
+        experienceBandSurveyContext
+      );
       const display =
         alignment === 'below'
           ? 'Below target'
@@ -584,7 +634,14 @@ export function deriveFilterOptionsCascading(
     result.bandAlignments = Array.from(set).sort(sort);
   }
 
-  const subsetPolicy = applyFiltersExceptDimension(records, filters, 'policySources', experienceBandsConfig, policySourceByEmployeeId);
+  const subsetPolicy = applyFiltersExceptDimension(
+    records,
+    filters,
+    'policySources',
+    experienceBandsConfig,
+    policySourceByEmployeeId,
+    experienceBandSurveyContext
+  );
   const policySet = new Set<string>();
   for (const r of subsetPolicy) {
     add(policySet, policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name);

@@ -12,7 +12,7 @@ import type { TierTable } from '../../types/tier-table';
 import type { MeritMatrixRow } from '../../types/merit-matrix-row';
 import type { ExperienceBand } from '../../types/experience-band';
 import type { CfBySpecialtyRow } from '../../types/cf-by-specialty';
-import type { MarketSurveySet } from '../../types/market-survey-config';
+import type { ExperienceBandSurveyContext, MarketSurveySet } from '../../types/market-survey-config';
 import type { Cycle } from '../../types/cycle';
 
 export function useSalaryReviewPolicyEngine(params: {
@@ -42,9 +42,20 @@ export function useSalaryReviewPolicyEngine(params: {
     cfBySpecialty,
   } = params;
 
+  const surveyMappings = useMemo(() => loadSurveySpecialtyMappingSet(), [marketSurveys]);
+  const providerTypeToSurvey = useMemo(() => loadProviderTypeToSurveyMapping(), [marketSurveys]);
+
   const marketResolver = useMemo(
-    () => buildMarketResolver(marketSurveys, loadSurveySpecialtyMappingSet(), loadProviderTypeToSurveyMapping()),
-    [marketSurveys]
+    () => buildMarketResolver(marketSurveys, surveyMappings, providerTypeToSurvey),
+    [marketSurveys, surveyMappings, providerTypeToSurvey]
+  );
+
+  const experienceBandSurveyContext = useMemo(
+    (): ExperienceBandSurveyContext => ({
+      surveyMappings,
+      providerTypeToSurvey,
+    }),
+    [surveyMappings, providerTypeToSurvey]
   );
 
   const asOfDate = useMemo(() => {
@@ -92,6 +103,7 @@ export function useSalaryReviewPolicyEngine(params: {
         record: r,
         marketRow,
         experienceBands,
+        experienceBandSurveyContext,
         meritMatrixRows: meritMatrix,
         policyResult,
         cfBySpecialty,
@@ -115,6 +127,7 @@ export function useSalaryReviewPolicyEngine(params: {
     tierTables,
     meritMatrix,
     experienceBands,
+    experienceBandSurveyContext,
     cfBySpecialty,
     marketResolver,
     cycles,
@@ -131,5 +144,5 @@ export function useSalaryReviewPolicyEngine(params: {
     return map;
   }, [records, evaluationResults]);
 
-  return { marketResolver, policyContext, evaluationResults, policySourceByEmployeeId };
+  return { marketResolver, policyContext, evaluationResults, policySourceByEmployeeId, experienceBandSurveyContext };
 }

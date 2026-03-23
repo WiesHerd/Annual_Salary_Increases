@@ -38,5 +38,14 @@ export type SurveySpecialtyMappingSet = Record<string, SurveySpecialtyMapping>;
 /** Provider_Type → survey ID mapping. */
 export type ProviderTypeToSurveyMapping = Record<string, string>;
 
+/**
+ * Survey mapping + provider-type routing for experience-band cohort matching.
+ * When set, a band's specialty scope can use APP combined group names from Data → Specialty map.
+ */
+export type ExperienceBandSurveyContext = {
+  surveyMappings: SurveySpecialtyMappingSet;
+  providerTypeToSurvey: ProviderTypeToSurveyMapping;
+};
+
 /** Per-provider market lookup: (provider, specialtyKey) => MarketRow. Uses Provider_Type to pick survey. */
 export type MarketResolver = (provider: ProviderRecord, key: string) => MarketRow | undefined;

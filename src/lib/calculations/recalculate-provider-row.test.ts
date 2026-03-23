@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { ProviderRecord } from '../../types/provider';
+import type { ExperienceBandSurveyContext } from '../../types/market-survey-config';
 import {
+  findMatchingExperienceBand,
   getExperienceBandAlignment,
+  getExperienceBandAlignmentForProvider,
   getExperienceBandLabel,
   getTargetTccRange,
 } from './recalculate-provider-row';
@@ -84,5 +88,101 @@ describe('getTargetTccRange', () => {
     expect(getTargetTccRange(undefined, BANDS)).toBe('—');
     expect(getTargetTccRange(100, BANDS)).toBe('—');
     expect(getTargetTccRange(5, [])).toBe('—');
+  });
+});
+
+describe('findMatchingExperienceBand', () => {
+  it('respects provider type scope (narrower bands should be listed first)', () => {
+    const bands: typeof BANDS = [
+      {
+        id: 'app',
+        label: 'APP early',
+        minYoe: 0,
+        maxYoe: 5,
+        targetTccPercentileLow: 40,
+        targetTccPercentileHigh: 60,
+        populationScope: ['NP', 'PA'],
+      },
+      ...BANDS,
+    ];
+    const np = {
+      Employee_ID: '1',
+      Provider_Type: 'NP',
+      Years_of_Experience: 10,
+      APP_YOE: 3,
+    } as ProviderRecord;
+    expect(findMatchingExperienceBand(np, bands)?.label).toBe('APP early');
+
+    const md = {
+      Employee_ID: '2',
+      Provider_Type: 'Physician',
+      Years_of_Experience: 3,
+    } as ProviderRecord;
+    expect(findMatchingExperienceBand(md, bands)?.label).toBe('3-5 YOE');
+  });
+
+  it('matches APP combined group name in specialty scope when provider specialty is in providerSpecialties', () => {
+    const ctx: ExperienceBandSurveyContext = {
+      surveyMappings: {
+        apps: {
+          appCombinedGroups: [
+            {
+              id: 'cg-1',
+              combinedGroupName: 'Ambulatory APP',
+              surveySpecialties: [],
+              providerSpecialties: ['Family Practice NP'],
+            },
+          ],
+        },
+      },
+      providerTypeToSurvey: { NP: 'apps' },
+    };
+    const bands: ExperienceBand[] = [
+      {
+        id: 'amb',
+        label: 'Amb APP band',
+        minYoe: 0,
+        maxYoe: 10,
+        targetTccPercentileLow: 25,
+        targetTccPercentileHigh: 75,
+        populationScope: ['NP'],
+        specialtyScope: ['Ambulatory APP'],
+      },
+    ];
+    const np: ProviderRecord = {
+      Employee_ID: '1',
+      Provider_Type: 'NP',
+      Specialty: 'Family Practice NP',
+      APP_YOE: 2,
+    } as ProviderRecord;
+    expect(findMatchingExperienceBand(np, bands, ctx)?.label).toBe('Amb APP band');
+    expect(findMatchingExperienceBand(np, bands)).toBeUndefined();
+  });
+});
+
+describe('getExperienceBandAlignmentForProvider', () => {
+  it('uses dollar range when configured and TCC at 1 FTE present', () => {
+    const bands = [
+      {
+        id: 'd',
+        label: 'D',
+        minYoe: 0,
+        maxYoe: 10,
+        targetTccPercentileLow: 25,
+        targetTccPercentileHigh: 75,
+        dollarRangeAnchorPercentile: 50,
+        dollarRangeMinSpreadPercent: 10,
+        dollarRangeMaxSpreadPercent: 10,
+      },
+    ];
+    const record = {
+      Employee_ID: '1',
+      Provider_Type: 'Physician',
+      Years_of_Experience: 2,
+      Current_TCC_at_1FTE: 99_000,
+      Proposed_TCC_Percentile: 50,
+      Market_TCC_50: 100_000,
+    } as ProviderRecord;
+    expect(getExperienceBandAlignmentForProvider(record, 50, bands)).toBe('in');
   });
 });

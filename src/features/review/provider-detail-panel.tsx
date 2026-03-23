@@ -6,12 +6,15 @@
 import type { ProviderRecord } from '../../types/provider';
 import type { TccComponent } from '../../types/provider-review-record';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { MarketRow } from '../../types/market';
+import type { ExperienceBandSurveyContext } from '../../types/market-survey-config';
 import type { PolicyEvaluationResult } from '../../types/compensation-policy';
 import { POLICY_STAGE_LABELS } from '../../types/compensation-policy';
+import { getEffectiveYoe } from '../../lib/effective-yoe';
 import {
-  getExperienceBandAlignment,
-  getExperienceBandLabel,
-  getTargetTccRange,
+  getExperienceBandAlignmentForProvider,
+  getExperienceBandLabelForProvider,
+  getTargetTccRangeForProvider,
   isLowFteForNormalization,
   FTE_NORMALIZATION_CAUTION_THRESHOLD,
 } from '../../lib/calculations/recalculate-provider-row';
@@ -28,6 +31,9 @@ interface ProviderDetailPanelProps {
   provider: ProviderRecord | null;
   enrichment?: ProviderDetailEnrichment | null;
   experienceBands?: ExperienceBand[];
+  /** Market row for the provider's specialty key (dollar-range alignment on bands). */
+  marketRow?: MarketRow;
+  experienceBandSurveyContext?: ExperienceBandSurveyContext;
   policyResult?: PolicyEvaluationResult | null;
   onClose?: () => void;
   onSelectPrev?: () => void;
@@ -42,6 +48,8 @@ export function ProviderDetailPanel({
   provider,
   enrichment,
   experienceBands = [],
+  marketRow,
+  experienceBandSurveyContext,
   policyResult,
   onClose,
   onSelectPrev,
@@ -77,11 +85,21 @@ export function ProviderDetailPanel({
   const tccPercentile = provider.Proposed_TCC_Percentile ?? provider.Current_TCC_Percentile ?? undefined;
   const markerPosition = tccPercentile != null ? ((tccPercentile - 25) / 65) * 100 : 0;
 
-  const yoe = provider.Years_of_Experience ?? provider.Total_YOE;
-  const experienceBandLabel = experienceBands.length ? getExperienceBandLabel(yoe, experienceBands) : null;
-  const targetTccRange = experienceBands.length ? getTargetTccRange(yoe, experienceBands) : null;
+  const yoe = getEffectiveYoe(provider);
+  const experienceBandLabel = experienceBands.length
+    ? getExperienceBandLabelForProvider(provider, experienceBands, experienceBandSurveyContext)
+    : null;
+  const targetTccRange = experienceBands.length
+    ? getTargetTccRangeForProvider(provider, experienceBands, marketRow, experienceBandSurveyContext)
+    : null;
   const bandAlignment = experienceBands.length
-    ? getExperienceBandAlignment(yoe, provider.Current_TCC_Percentile, experienceBands)
+    ? getExperienceBandAlignmentForProvider(
+        provider,
+        provider.Proposed_TCC_Percentile ?? provider.Current_TCC_Percentile,
+        experienceBands,
+        marketRow,
+        experienceBandSurveyContext
+      )
     : undefined;
   const alignmentLabel =
     bandAlignment === 'below'
@@ -201,6 +219,10 @@ export function ProviderDetailPanel({
           <section className="border-l-4 border-indigo-400 pl-3 -ml-0.5">
             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Experience band</h4>
             <div className="space-y-1.5 text-sm text-slate-700">
+              <div className="flex justify-between">
+                <span>Effective YOE</span>
+                <span className="tabular-nums">{yoe ?? '—'}</span>
+              </div>
               {experienceBandLabel != null && (
                 <div className="flex justify-between">
                   <span>Experience band</span>
@@ -208,9 +230,9 @@ export function ProviderDetailPanel({
                 </div>
               )}
               {targetTccRange != null && (
-                <div className="flex justify-between">
-                  <span>Target TCC range</span>
-                  <span className="tabular-nums">{targetTccRange}%</span>
+                <div className="flex justify-between gap-2">
+                  <span className="shrink-0">Target band</span>
+                  <span className="tabular-nums text-right min-w-0 break-words">{targetTccRange}</span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -232,7 +254,7 @@ export function ProviderDetailPanel({
 
         {/* Internal equity recommendation */}
         {experienceBands.length > 0 && (() => {
-          const rec = getEquityRecommendation(provider, experienceBands);
+          const rec = getEquityRecommendation(provider, experienceBands, marketRow, experienceBandSurveyContext);
           if (!rec) return null;
           const hasSuggestedBase =
             rec.suggestedBaseAtFte != null &&

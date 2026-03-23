@@ -113,9 +113,23 @@ export function CompareScenariosFilterBar({
             type="button"
             onClick={onOpenCompareModal}
             disabled={selectedForCompare.length < 2 || selectedForCompare.length > 4}
-            className="app-btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-sm shrink-0"
+            className="app-btn-secondary inline-flex items-center gap-1.5 text-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+            title={
+              selectedForCompare.length < 2
+                ? 'Select 2–4 providers to compare'
+                : selectedForCompare.length > 4
+                  ? 'Select at most 4 providers to compare'
+                  : `Compare ${selectedForCompare.length} selected provider${selectedForCompare.length !== 1 ? 's' : ''}`
+            }
+            aria-label={
+              selectedForCompare.length < 2
+                ? 'Compare — select 2 to 4 providers'
+                : selectedForCompare.length > 4
+                  ? 'Compare — select at most 4 providers'
+                  : `Compare ${selectedForCompare.length} selected provider${selectedForCompare.length !== 1 ? 's' : ''}`
+            }
           >
-            Compare selected ({selectedForCompare.length})
+            Compare
           </button>
         )}
         {hasAnyFilter && (

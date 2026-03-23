@@ -55,15 +55,15 @@ export function PcpTierTab({ pcpTierSettings, setPcpTierSettings, options }: Pcp
         </button>
       </div>
       <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="min-w-full border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-200">
+        <table className="app-settings-table min-w-full border-collapse">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Tier name</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Min YOE</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Max YOE</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Base salary</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Division</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Active</th>
+              <th>Tier name</th>
+              <th className="text-right">Min YOE</th>
+              <th className="text-right">Max YOE</th>
+              <th className="text-right">Base salary</th>
+              <th>Division</th>
+              <th>Active</th>
               <th className="w-20" />
             </tr>
           </thead>

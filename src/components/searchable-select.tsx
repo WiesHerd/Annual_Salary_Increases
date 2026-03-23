@@ -4,12 +4,21 @@
  * Renders the menu in a portal so it is not clipped by table cells (overflow-hidden) or scroll wrappers.
  */
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+
+/** Sectioned list (e.g. survey rows vs benchmark buckets). Search filters within each section. */
+export interface SearchableSelectOptionGroup {
+  heading: string;
+  options: string[];
+}
 
 export interface SearchableSelectProps {
   value: string;
-  options: string[];
+  /** Flat list; ignored when `optionGroups` is non-empty. */
+  options?: string[];
+  /** When set and non-empty, options are shown under headings instead of a single flat list. */
+  optionGroups?: SearchableSelectOptionGroup[];
   onChange: (value: string) => void;
   placeholder?: string;
   label?: string;
@@ -20,7 +29,8 @@ export interface SearchableSelectProps {
 
 export function SearchableSelect({
   value,
-  options,
+  options = [],
+  optionGroups,
   onChange,
   placeholder: _placeholder = '—',
   label,
@@ -80,10 +90,27 @@ export function SearchableSelect({
   }, [open]);
 
   const searchLower = search.trim().toLowerCase();
-  const filteredOptions =
-    searchLower === ''
+  const useGrouped = (optionGroups?.length ?? 0) > 0;
+
+  const filteredOptions = useMemo(() => {
+    if (useGrouped) return [];
+    return searchLower === ''
       ? options
       : options.filter((opt) => opt.toLowerCase().includes(searchLower));
+  }, [useGrouped, options, searchLower]);
+
+  const filteredGroups = useMemo(() => {
+    if (!useGrouped || !optionGroups) return null;
+    return optionGroups
+      .map((g) => ({
+        heading: g.heading,
+        options:
+          searchLower === ''
+            ? g.options
+            : g.options.filter((opt) => opt.toLowerCase().includes(searchLower)),
+      }))
+      .filter((g) => g.options.length > 0);
+  }, [useGrouped, optionGroups, searchLower]);
 
   return (
     <div ref={ref} className="relative">
@@ -139,7 +166,42 @@ export function SearchableSelect({
                   {emptyOptionLabel}
                 </button>
               </li>
-              {options.length === 0 ? (
+              {useGrouped ? (
+                filteredGroups && filteredGroups.length > 0 ? (
+                  filteredGroups.flatMap((group) => [
+                    <li key={`h:${group.heading}`} role="presentation" className="list-none">
+                      <div
+                        className="sticky top-0 z-[1] px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-gradient-to-b from-white from-85% to-transparent"
+                        aria-hidden
+                      >
+                        {group.heading}
+                      </div>
+                    </li>,
+                    ...group.options.map((opt) => {
+                      const isSelected = value === opt;
+                      return (
+                        <li key={`${group.heading}:${opt}`} role="option" aria-selected={isSelected}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onChange(opt);
+                              setOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 pl-4 ${isSelected ? 'bg-indigo-50 text-indigo-800' : 'text-slate-800'}`}
+                          >
+                            <span className="sr-only">{group.heading}: </span>
+                            {opt}
+                          </button>
+                        </li>
+                      );
+                    }),
+                  ])
+                ) : optionGroups?.every((g) => g.options.length === 0) ? (
+                  <li className="px-3 py-2 text-sm text-slate-500">No options—nothing to pick yet.</li>
+                ) : (
+                  <li className="px-3 py-2 text-sm text-slate-500">No matches</li>
+                )
+              ) : options.length === 0 ? (
                 <li className="px-3 py-2 text-sm text-slate-500">No options—nothing to pick yet.</li>
               ) : filteredOptions.length === 0 ? (
                 <li className="px-3 py-2 text-sm text-slate-500">No matches</li>

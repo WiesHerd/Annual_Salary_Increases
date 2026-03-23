@@ -7,6 +7,14 @@ import { SURVEY_LABELS, getSurveyLabel, DEFAULT_SURVEY_ID } from '../../../types
 import type { ParameterOptions } from '../../../lib/parameter-options';
 import type { ProviderTypeToSurveyMapping } from '../../../types/market-survey-config';
 import { SearchableSelect } from '../../../components/searchable-select';
+import {
+  parametersFieldInputClass,
+  parametersFieldSelectClass,
+  parametersPrimaryButtonClass,
+  parametersSectionDescriptionClass,
+  parametersSectionHeadingClass,
+  parametersTablePanelClass,
+} from '../parameters-tab-ui';
 
 interface ProviderTypeSurveyTabProps {
   options: ParameterOptions;
@@ -75,32 +83,29 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-slate-800">Provider type → Market survey</h3>
-        <p className="text-sm text-slate-600 mt-1">
-          Map each provider type to the market survey used for benchmarking. Physicians and APPs typically use the Physicians survey; Mental Health Therapists use the Mental Health Therapists survey.
-        </p>
-        {options.providerTypes.length === 0 && (
-          <p className="text-xs text-amber-700 mt-2">
-            Upload provider data in Data to see existing provider types. You can still add mappings for expected types.
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 max-w-2xl">
+          <h3 className={parametersSectionHeadingClass}>Provider type → Market survey</h3>
+          <p className={parametersSectionDescriptionClass}>
+            Map each provider type to the market survey used for benchmarking. Physicians and APPs typically use the
+            Physicians survey; Mental Health Therapists use the Mental Health Therapists survey.
           </p>
-        )}
-      </div>
-      <div className="flex justify-end mb-3">
-        <button
-          type="button"
-          onClick={addRow}
-          className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
-        >
+          {options.providerTypes.length === 0 && (
+            <p className="text-xs text-amber-700 mt-2">
+              Upload provider data in Data to see existing provider types. You can still add mappings for expected types.
+            </p>
+          )}
+        </div>
+        <button type="button" onClick={addRow} className={`${parametersPrimaryButtonClass} sm:mt-0.5`}>
           Add mapping
         </button>
       </div>
-      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="min-w-full border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-200">
+      <div className={parametersTablePanelClass}>
+        <table className="app-settings-table min-w-full border-collapse">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Provider type</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Market survey</th>
+              <th>Provider type</th>
+              <th>Market survey</th>
               <th className="w-20" />
             </tr>
           </thead>
@@ -130,7 +135,7 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
                           type="text"
                           value={providerType}
                           onChange={(e) => update(providerType, e.target.value, surveyId)}
-                          className="w-full min-w-[180px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+                          className={`w-full min-w-[180px] ${parametersFieldInputClass}`}
                           placeholder="e.g. Physician, APP"
                         />
                       )}
@@ -139,7 +144,7 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
                       <select
                         value={surveyId}
                         onChange={(e) => update(providerType, providerType, e.target.value)}
-                        className="w-full min-w-[200px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white"
+                        className={`w-full min-w-[200px] ${parametersFieldSelectClass}`}
                       >
                         {surveyOptions.map(({ id, label }) => (
                           <option key={id} value={id}>

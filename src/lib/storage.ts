@@ -7,7 +7,7 @@ import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 import type { MarketSurveySet } from '../types/market-survey-config';
 import type { ParsedPaymentRow, EvaluationJoinRow, CustomDataset } from '../types/upload';
-import { getSeedMarketData } from './seed-data';
+import { getSeedMarketSurveys } from './seed-data';
 import { DEFAULT_SURVEY_ID, type SurveyMetadata } from '../types/market-survey-config';
 import { migratedStorageGetItem, migratedStorageSetItem, migratedStorageRemoveItem } from './migrated-local-storage';
 import {
@@ -95,7 +95,7 @@ export function loadMarketSurveys(): MarketSurveySet {
   const migrated = migrateLegacyMarketData();
   if (migrated) return migrated;
   const raw = migratedStorageGetItem(STORAGE_KEY_MARKET_SURVEYS);
-  if (!raw) return { [DEFAULT_SURVEY_ID]: getSeedMarketData() };
+  if (!raw) return getSeedMarketSurveys();
   try {
     const parsed = JSON.parse(raw) as unknown;
     const validated = parseMarketSurveySetFromStorage(parsed);
@@ -105,7 +105,7 @@ export function loadMarketSurveys(): MarketSurveySet {
   }
   const data = loadJsonObject<MarketSurveySet>(STORAGE_KEY_MARKET_SURVEYS);
   if (data && typeof data === 'object') return data;
-  return { [DEFAULT_SURVEY_ID]: getSeedMarketData() };
+  return getSeedMarketSurveys();
 }
 
 export function saveMarketSurveys(surveys: MarketSurveySet): void {

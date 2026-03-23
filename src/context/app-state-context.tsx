@@ -29,14 +29,26 @@ import {
   saveCustomDatasets,
 } from '../lib/storage';
 import { appendAuditEntry } from '../lib/audit';
-import { getDemoData, getSeedProviderRecords, getSeedMarketData, getSeedPayments } from '../lib/seed-data';
+import { getDemoData, getSeedProviderRecords, getSeedMarketSurveys, getSeedPayments } from '../lib/seed-data';
 import {
   loadSurveySpecialtyMappingSet,
   loadProviderTypeToSurveyMapping,
   loadCycles,
+  saveSurveySpecialtyMappingSet,
+  saveProviderTypeToSurveyMapping,
+  saveExperienceBands,
 } from '../lib/parameters-storage';
+import {
+  SAMPLE_SURVEY_SPECIALTY_MAPPING_SET,
+  SAMPLE_PROVIDER_TYPE_TO_SURVEY,
+  SAMPLE_EXPERIENCE_BANDS,
+} from '../lib/parameters-sample-data';
+import type { SurveySpecialtyMappingSet } from '../types/market-survey-config';
+import type { ExperienceBand } from '../types/experience-band';
 import { mergeMarketIntoProvidersMulti, mergeEvaluationsIntoProviders, mergePaymentsIntoProviders } from '../lib/joins';
+import { inferMissingProviderTypes } from '../lib/infer-missing-provider-type';
 import { DEFAULT_CYCLE_ID } from '../lib/parse-file';
+import { getPreferredCycleId } from '../lib/cycle-defaults';
 import { safeLocalStorageSetItem } from '../lib/safe-local-storage';
 import { useParametersState } from './parameters-state-context';
 import { useSelectedCycle } from '../hooks/use-selected-cycle';
@@ -86,7 +98,11 @@ const AppStateContext = createContext<AppStateValue | null>(null);
 function AppStateProviderInner({ children }: { children: ReactNode }) {
   const { cycles } = useParametersState();
   const [selectedCycleId] = useSelectedCycle(cycles);
-  const paymentCycleId = selectedCycleId || cycles[0]?.id || loadCycles()[0]?.id || DEFAULT_CYCLE_ID;
+  const paymentCycleId =
+    selectedCycleId ||
+    getPreferredCycleId(cycles) ||
+    getPreferredCycleId(loadCycles()) ||
+    DEFAULT_CYCLE_ID;
 
   const [records, setRecords] = useState<ProviderRecord[]>([]);
   const [evaluationRows, setEvaluationRows] = useState<import('../types/upload').EvaluationJoinRow[]>([]);
@@ -119,10 +135,25 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       saveProviderRecords(recs);
       safeLocalStorageSetItem('asi-demo-mode', 'true');
     }
+    recs = inferMissingProviderTypes(recs);
     let surveys = loadMarketSurveys();
+    const seedMarketSurveys = getSeedMarketSurveys();
     if (Object.keys(surveys).length === 0 || (surveys[DEFAULT_SURVEY_ID]?.length === 0)) {
-      surveys = { [DEFAULT_SURVEY_ID]: getSeedMarketData() };
+      surveys = { ...seedMarketSurveys };
       saveMarketSurveys(surveys);
+    } else {
+      const merged = { ...surveys };
+      let backfill = false;
+      for (const [id, rows] of Object.entries(seedMarketSurveys)) {
+        if (!merged[id]?.length) {
+          merged[id] = rows;
+          backfill = true;
+        }
+      }
+      if (backfill) {
+        saveMarketSurveys(merged);
+        surveys = merged;
+      }
     }
     recs = mergeAll(recs, surveys);
     setRecords(recs);
@@ -367,6 +398,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     const merged = mergeAll(providerRecords, seedSurveys);
     saveProviderRecords(merged);
     saveMarketSurveys(seedSurveys);
+    saveSurveySpecialtyMappingSet(
+      JSON.parse(JSON.stringify(SAMPLE_SURVEY_SPECIALTY_MAPPING_SET)) as SurveySpecialtyMappingSet
+    );
+    saveProviderTypeToSurveyMapping({ ...SAMPLE_PROVIDER_TYPE_TO_SURVEY });
+    saveExperienceBands(JSON.parse(JSON.stringify(SAMPLE_EXPERIENCE_BANDS)) as ExperienceBand[]);
     savePayments(demoPay);
     saveEvaluationRows(demoEval);
     saveCustomDatasets([]);

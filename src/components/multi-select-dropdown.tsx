@@ -88,6 +88,13 @@ export function MultiSelectDropdown({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
+        title={
+          selected.length === 0
+            ? undefined
+            : selected.length === 1
+              ? selected[0]
+              : `${selected.length} selected: ${selected.join(', ')}`
+        }
         className={
           compact
             ? `inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors whitespace-nowrap border border-slate-200/80 bg-slate-50 text-slate-700 hover:bg-slate-100`

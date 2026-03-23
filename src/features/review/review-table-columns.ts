@@ -4,16 +4,25 @@
 
 import type { ProviderRecord } from '../../types/provider';
 import type { ExperienceBand } from '../../types/experience-band';
+import type { MarketRow } from '../../types/market';
+import type { ExperienceBandSurveyContext } from '../../types/market-survey-config';
 import type { PolicyEvaluationResult } from '../../types/compensation-policy';
 import type { CfBySpecialtyRow } from '../../types/cf-by-specialty';
 import { getEffectiveCfForProvider } from '../../lib/cf-resolver';
+import { getEffectiveYoe } from '../../lib/effective-yoe';
 import {
-  getExperienceBandAlignment,
-  getExperienceBandLabel,
-  getTargetTccRange,
+  getExperienceBandAlignmentForProvider,
+  getExperienceBandLabelForProvider,
+  getTargetTccRangeForProvider,
 } from '../../lib/calculations/recalculate-provider-row';
 import { getEquityRecommendation } from '../../lib/calculations/equity-recommendation';
 import { getReviewStatusLabel } from '../../types/enums';
+
+/** Per-row market + survey context for experience band / equity columns. */
+export type ReviewTableExperienceBandOptions = {
+  marketRow?: MarketRow;
+  experienceBandSurveyContext?: ExperienceBandSurveyContext;
+};
 
 export type ReviewTableColumnId =
   | 'compareCheckbox'
@@ -289,10 +298,11 @@ export function getReviewCellValue(
   columnId: ReviewTableColumnId,
   experienceBands: ExperienceBand[] = [],
   policyResult?: PolicyEvaluationResult,
-  cfBySpecialty?: CfBySpecialtyRow[]
+  cfBySpecialty?: CfBySpecialtyRow[],
+  bandOptions?: ReviewTableExperienceBandOptions
 ): string | number | undefined {
   const r = record;
-  const yoe = r.Years_of_Experience ?? r.Total_YOE;
+  const yoe = getEffectiveYoe(r);
   switch (columnId) {
     case 'compareCheckbox':
       return '';
@@ -309,7 +319,7 @@ export function getReviewCellValue(
     case 'yoe':
       return yoe ?? '—';
     case 'experienceBand':
-      return getExperienceBandLabel(yoe, experienceBands);
+      return getExperienceBandLabelForProvider(r, experienceBands, bandOptions?.experienceBandSurveyContext);
     case 'currentFte':
       return r.Current_FTE ?? '—';
     case 'clinicalFte':
@@ -359,16 +369,32 @@ export function getReviewCellValue(
     case 'proposedTccPercentile':
       return r.Proposed_TCC_Percentile ?? '—';
     case 'targetTccRange':
-      return getTargetTccRange(yoe, experienceBands);
+      return getTargetTccRangeForProvider(
+        r,
+        experienceBands,
+        bandOptions?.marketRow,
+        bandOptions?.experienceBandSurveyContext
+      );
     case 'bandAlignment': {
-      const alignment = getExperienceBandAlignment(yoe, r.Current_TCC_Percentile, experienceBands);
+      const alignment = getExperienceBandAlignmentForProvider(
+        r,
+        r.Proposed_TCC_Percentile ?? r.Current_TCC_Percentile,
+        experienceBands,
+        bandOptions?.marketRow,
+        bandOptions?.experienceBandSurveyContext
+      );
       if (alignment === 'below') return 'Below target';
       if (alignment === 'in') return 'In range';
       if (alignment === 'above') return 'Above target';
       return '—';
     }
     case 'equityRecommendation': {
-      const rec = getEquityRecommendation(r, experienceBands);
+      const rec = getEquityRecommendation(
+        r,
+        experienceBands,
+        bandOptions?.marketRow,
+        bandOptions?.experienceBandSurveyContext
+      );
       if (!rec) return '—';
       const suffix =
         rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte)
@@ -482,23 +508,29 @@ export function getReviewCellSortValue(
   columnId: ReviewTableColumnId,
   experienceBands: ExperienceBand[] = [],
   policyResult?: PolicyEvaluationResult,
-  cfBySpecialty?: CfBySpecialtyRow[]
+  cfBySpecialty?: CfBySpecialtyRow[],
+  bandOptions?: ReviewTableExperienceBandOptions
 ): number | string {
   if (columnId === 'compareCheckbox') return '';
   if (columnId === 'bandAlignment') {
-    const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty);
+    const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty, bandOptions);
     return getBandAlignmentSortOrder(String(v ?? ''));
   }
   if (columnId === 'equityRecommendation') {
-    const yoe = record.Years_of_Experience ?? record.Total_YOE;
     const tccPercentile = record.Proposed_TCC_Percentile ?? record.Current_TCC_Percentile;
-    const alignment = getExperienceBandAlignment(yoe, tccPercentile, experienceBands);
+    const alignment = getExperienceBandAlignmentForProvider(
+      record,
+      tccPercentile,
+      experienceBands,
+      bandOptions?.marketRow,
+      bandOptions?.experienceBandSurveyContext
+    );
     if (alignment === 'below') return 0;
     if (alignment === 'in') return 1;
     if (alignment === 'above') return 2;
     return 3;
   }
-  const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty);
+  const v = getReviewCellValue(record, columnId, experienceBands, policyResult, cfBySpecialty, bandOptions);
   if (typeof v === 'number') return v;
   return String(v ?? '');
 }
