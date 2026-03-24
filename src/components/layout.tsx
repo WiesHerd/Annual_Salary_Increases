@@ -106,10 +106,10 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
   const fallbackCycleId = getPreferredCycleId(cycles) ?? '';
 
   return (
-    <div className="min-h-screen flex bg-[#f8fafc]">
+    <div className="min-h-screen flex min-w-0 bg-[#f8fafc]">
       {!sidebarHidden && (
         <aside
-          className={`sticky top-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
+          className={`sticky top-0 shrink-0 self-start h-screen flex flex-col bg-white border-r border-slate-200 shadow-sm transition-[width] duration-200 ${
             collapsed ? 'w-[72px]' : 'w-64'
           }`}
         >
@@ -221,7 +221,11 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
       </aside>
       )}
 
-      <main className={`flex-1 min-h-0 flex flex-col overflow-auto ${contentNoPadding ? 'p-0' : 'p-6'}`}>{children}</main>
+      <main
+        className={`min-h-0 min-w-0 flex flex-1 flex-col overflow-auto ${contentNoPadding ? 'p-0' : 'p-6'}`}
+      >
+        {children}
+      </main>
     </div>
   );
 }

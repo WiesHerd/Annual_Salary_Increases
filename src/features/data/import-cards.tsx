@@ -344,7 +344,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
         {TILES.map(({ type, title, description, icon, templateKind }) => (
           <div
             key={type}
-            className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-indigo-300 hover:shadow-md overflow-hidden"
+            className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-indigo-300 hover:shadow-md overflow-hidden"
           >
             <button
               type="button"
@@ -355,7 +355,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                   setModalOpen(type);
                 }
               }}
-              className="group flex items-start gap-5 p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+              className="group flex flex-1 min-h-0 items-start gap-5 p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
             >
               <div className={ICON_BG}>{icon}</div>
               <div className="min-w-0 pt-0.5 space-y-1.5">

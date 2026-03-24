@@ -1,6 +1,6 @@
 /**
- * Bundled sample rows (providers, market, payments, evaluations) for offline demos.
- * Injected only when the user chooses "Load sample dataset" — not fetched from a server.
+ * Bundled sample rows (providers, market, payments, evaluations) for first-run / dev demos.
+ * AppStateProvider may auto-inject when local storage is empty and demo auto-seed is allowed — not fetched from a server.
  */
 
 import type { ProviderRecord } from '../types/provider';

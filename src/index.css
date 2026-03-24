@@ -52,7 +52,7 @@
     @apply app-btn-secondary;
   }
 
-  /* Silicon Valley–style: minimal in-panel actions, no heavy border */
+  /* Minimal in-panel actions */
   .app-btn-ghost {
     @apply px-3 py-1.5 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-colors;
   }
