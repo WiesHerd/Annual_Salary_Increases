@@ -74,6 +74,20 @@ export function DataPage({
     [marketSurveys],
   );
 
+  const hasOtherImportedData = useMemo(() => {
+    if (totalMarketRows > 0 || evaluationRows.length > 0 || payments.length > 0 || customDatasets.length > 0) {
+      return true;
+    }
+    if (customStreamDefinitions.length > 0) return true;
+    return false;
+  }, [
+    totalMarketRows,
+    evaluationRows.length,
+    payments.length,
+    customDatasets.length,
+    customStreamDefinitions.length,
+  ]);
+
   const TABS: { id: DataTab; label: string }[] = useMemo(() => [
     { id: 'provider', label: withCount('Provider data', records.length) },
     { id: 'market', label: withCount('Market survey', totalMarketRows) },
@@ -138,6 +152,7 @@ export function DataPage({
           onRemove={removeRecord}
           onClear={clearAll}
           onLoadSampleData={loadDemoData}
+          hasOtherImportedData={hasOtherImportedData}
           customDatasets={customDatasets}
           customStreamLookups={customStreamLookups}
         />

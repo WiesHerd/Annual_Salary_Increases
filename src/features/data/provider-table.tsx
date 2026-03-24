@@ -56,6 +56,8 @@ interface ProviderTableProps {
   customDatasets?: CustomDataset[];
   /** Optional: provider-linked custom streams to include in export. */
   customStreamLookups?: CustomStreamExportLookup[];
+  /** When true, empty state offers reset (e.g. market/payments still loaded). */
+  hasOtherImportedData?: boolean;
 }
 
 function extractOptions(records: ProviderRecord[], key: keyof ProviderRecord): string[] {
@@ -220,6 +222,7 @@ export function ProviderTable({
   onLoadSampleData,
   customDatasets,
   customStreamLookups,
+  hasOtherImportedData = false,
 }: ProviderTableProps) {
   const [editRecord, setEditRecord] = useState<ProviderRecord | null>(null);
   const [filters, setFilters] = useState<ProviderTableFilters>(DEFAULT_FILTERS);
@@ -327,26 +330,30 @@ export function ProviderTable({
 
   if (records.length === 0) {
     return (
-      <div className="app-card p-10 text-center max-w-lg mx-auto">
-        <p className="text-slate-800 font-medium">No provider records</p>
-        <p className="text-sm text-slate-500 mt-2">Upload from Import data, or load sample data to explore.</p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          {onLoadSampleData && (
-            <button
-              type="button"
-              onClick={onLoadSampleData}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-            >
-              Load sample data
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleClearAllImportedData}
-            className="rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-          >
-            Reset imported data
-          </button>
+      <div className="app-card flex min-h-[min(20rem,42vh)] items-center justify-center px-6 py-12 sm:px-10 sm:py-16">
+        <div className="text-center max-w-sm">
+          <p className="text-slate-800 font-medium">No provider records</p>
+          <p className="text-sm text-slate-500 mt-2">Import from Import data, or load sample data.</p>
+          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+            {onLoadSampleData && (
+              <button
+                type="button"
+                onClick={onLoadSampleData}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+              >
+                Load sample data
+              </button>
+            )}
+            {hasOtherImportedData && (
+              <button
+                type="button"
+                onClick={handleClearAllImportedData}
+                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+              >
+                Clear all imports
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
