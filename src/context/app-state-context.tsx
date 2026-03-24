@@ -15,7 +15,7 @@ import type {
 import type { MarketSurveySet } from '../types/market-survey-config';
 import { DEFAULT_SURVEY_ID } from '../types/market-survey-config';
 import {
-  loadProviderRecords,
+  loadProviderRecordsWithMeta,
   saveProviderRecords,
   loadMarketSurveys,
   saveMarketSurveys,
@@ -140,8 +140,10 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     const allowSeed = allowAutoSeedData();
 
-    let recs = loadProviderRecords();
-    if (recs.length === 0 && allowSeed) {
+    const { records: recsFromStorage, hasStoredProviderState } = loadProviderRecordsWithMeta();
+    let recs = recsFromStorage;
+    // Only inject sample providers when nothing was ever saved. Persisted `[]` means user cleared — never re-seed.
+    if (recs.length === 0 && allowSeed && !hasStoredProviderState) {
       recs = getSeedProviderRecords();
       saveProviderRecords(recs);
       safeLocalStorageSetItem('asi-demo-mode', 'true');

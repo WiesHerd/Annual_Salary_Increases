@@ -27,16 +27,36 @@ const STORAGE_KEY_PAYMENTS = 'tcc-payments';
 const STORAGE_KEY_EVALUATIONS = 'tcc-evaluation-rows';
 const STORAGE_KEY_CUSTOM_DATASETS = 'tcc-custom-datasets';
 
-export function loadProviderRecords(): ProviderRecord[] {
+export type LoadProviderRecordsMeta = {
+  records: ProviderRecord[];
+  /**
+   * True if the provider storage key existed (including explicit `[]`).
+   * False = first visit / nothing ever persisted — safe to auto-seed sample providers.
+   */
+  hasStoredProviderState: boolean;
+};
+
+export function loadProviderRecordsWithMeta(): LoadProviderRecordsMeta {
   try {
     const raw = migratedStorageGetItem(STORAGE_KEY_RECORDS);
-    if (!raw) return [];
+    if (raw == null || raw === '') {
+      return { records: [], hasStoredProviderState: false };
+    }
     const data = JSON.parse(raw) as unknown;
-    if (!Array.isArray(data)) return [];
-    return parseProviderRecordsFromStorage(data);
+    if (!Array.isArray(data)) {
+      return { records: [], hasStoredProviderState: true };
+    }
+    return {
+      records: parseProviderRecordsFromStorage(data),
+      hasStoredProviderState: true,
+    };
   } catch {
-    return [];
+    return { records: [], hasStoredProviderState: true };
   }
+}
+
+export function loadProviderRecords(): ProviderRecord[] {
+  return loadProviderRecordsWithMeta().records;
 }
 
 export function saveProviderRecords(records: ProviderRecord[]): void {
