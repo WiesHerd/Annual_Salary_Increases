@@ -11,6 +11,7 @@ import type {
 } from '../types/custom-stream';
 import type { CustomStreamData } from '../lib/custom-stream-storage';
 import {
+  ASI_CLEAR_ALL_APP_DATA_EVENT,
   loadCustomStreamDefinitions,
   saveCustomStreamDefinitions,
   loadCustomStreamData,
@@ -41,6 +42,15 @@ export function useCustomStreams() {
   useEffect(() => {
     if (loaded) saveCustomStreamData(streamData);
   }, [streamData, loaded]);
+
+  useEffect(() => {
+    const onClear = () => {
+      setDefinitions([]);
+      setStreamData({});
+    };
+    window.addEventListener(ASI_CLEAR_ALL_APP_DATA_EVENT, onClear);
+    return () => window.removeEventListener(ASI_CLEAR_ALL_APP_DATA_EVENT, onClear);
+  }, []);
 
   const addStream = useCallback(
     (label: string, linkType: 'provider' | 'standalone', keyColumn?: string) => {

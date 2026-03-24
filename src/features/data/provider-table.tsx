@@ -2,7 +2,7 @@
  * Enterprise-grade provider data table with filtering, sorting, and pagination.
  */
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import type { ProviderRecord } from '../../types/provider';
 import type { CustomDataset } from '../../types/upload';
 import { exportToCsv, exportToXlsx, type CustomStreamExportLookup } from '../../lib/batch-export';
@@ -231,6 +231,18 @@ export function ProviderTable({
   const [page, setPage] = useState(1);
   const [goToPageInput, setGoToPageInput] = useState('');
 
+  const handleClearAllImportedData = useCallback(() => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Clear all imported data in this browser? Providers, market surveys, payments, evaluations, custom datasets, and custom streams will be removed. This does not reset Parameters / policies.'
+      )
+    ) {
+      return;
+    }
+    onClear();
+  }, [onClear]);
+
   const options = useMemo(() => {
     const ptSet = new Set<string>();
     for (const r of records) {
@@ -315,7 +327,7 @@ export function ProviderTable({
 
   if (records.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500 space-y-2">
+      <div className="app-card p-8 text-center text-slate-500 space-y-3">
         <p>No provider records yet. Upload a CSV or XLSX from Import data.</p>
         {onLoadSampleData && (
           <p className="text-sm">
@@ -329,6 +341,16 @@ export function ProviderTable({
             <span className="text-slate-500"> — fills demo rows from the app (not a remote link).</span>
           </p>
         )}
+        <p className="text-sm">
+          <button
+            type="button"
+            onClick={handleClearAllImportedData}
+            className="font-medium text-red-600 hover:text-red-800 underline-offset-2 hover:underline"
+          >
+            Clear all imported data
+          </button>
+          <span className="text-slate-500"> — removes market, payments, and other tabs too (this browser only).</span>
+        </p>
       </div>
     );
   }
@@ -390,10 +412,11 @@ export function ProviderTable({
             </div>
             <button
               type="button"
-              onClick={onClear}
+              onClick={handleClearAllImportedData}
               className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+              title="Clears providers, market, payments, evaluations, and custom imports (saved in this browser only)"
             >
-              Clear
+              Clear all data
             </button>
           </div>
         </div>

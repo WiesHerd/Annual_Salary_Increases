@@ -47,6 +47,10 @@ import {
 import type { SurveySpecialtyMappingSet } from '../types/market-survey-config';
 import type { ExperienceBand } from '../types/experience-band';
 import { mergeMarketIntoProvidersMulti, mergeEvaluationsIntoProviders, mergePaymentsIntoProviders } from '../lib/joins';
+import {
+  ASI_CLEAR_ALL_APP_DATA_EVENT,
+  clearAllCustomStreamStorage,
+} from '../lib/custom-stream-storage';
 import { inferMissingProviderTypes } from '../lib/infer-missing-provider-type';
 import { DEFAULT_CYCLE_ID } from '../lib/parse-file';
 import { getPreferredCycleId } from '../lib/cycle-defaults';
@@ -328,7 +332,21 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   const clearAll = useCallback(() => {
     safeLocalStorageSetItem('asi-demo-mode', 'false');
     saveProviderRecords([]);
+    saveMarketSurveys({});
+    saveSurveyMetadata({});
+    saveEvaluationRows([]);
+    savePayments([]);
+    saveCustomDatasets([]);
+    clearAllCustomStreamStorage();
     setRecords([]);
+    setMarketSurveys({});
+    setSurveyMetadata({});
+    setEvaluationRows([]);
+    setPayments([]);
+    setCustomDatasets([]);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(ASI_CLEAR_ALL_APP_DATA_EVENT));
+    }
   }, []);
 
   const updateProviderRecord = useCallback(

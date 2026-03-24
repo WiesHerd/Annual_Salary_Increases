@@ -13,6 +13,9 @@ import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local
 const STORAGE_KEY_DEFINITIONS = 'tcc-custom-stream-definitions';
 const STORAGE_KEY_DATA = 'tcc-custom-stream-data';
 
+/** Dispatched on `window` when all imported app data is cleared (same tab). */
+export const ASI_CLEAR_ALL_APP_DATA_EVENT = 'asi-clear-all-app-data';
+
 export interface CustomStreamData {
   mapping: CustomStreamColumnMapping;
   columnOrder: string[];
@@ -67,4 +70,9 @@ export function removeCustomStreamDataForStream(streamId: string): void {
   const next = { ...all };
   delete next[streamId];
   saveCustomStreamData(next);
+}
+
+export function clearAllCustomStreamStorage(): void {
+  saveJson(STORAGE_KEY_DEFINITIONS, []);
+  saveJson(STORAGE_KEY_DATA, {});
 }
