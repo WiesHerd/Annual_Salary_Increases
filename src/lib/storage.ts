@@ -134,6 +134,24 @@ export function loadMarketSurveys(): MarketSurveySet {
   return getSeedMarketSurveys();
 }
 
+/** Like loadMarketSurveys but never falls back to bundled seed — used when demo auto-seed is off. */
+export function loadMarketSurveysPersistedOrEmpty(): MarketSurveySet {
+  const migrated = migrateLegacyMarketData();
+  if (migrated) return migrated;
+  const raw = migratedStorageGetItem(STORAGE_KEY_MARKET_SURVEYS);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const validated = parseMarketSurveySetFromStorage(parsed);
+    if (validated && typeof validated === 'object') return validated;
+  } catch {
+    // fall through
+  }
+  const data = loadJsonObject<MarketSurveySet>(STORAGE_KEY_MARKET_SURVEYS);
+  if (data && typeof data === 'object') return data;
+  return {};
+}
+
 export function saveMarketSurveys(surveys: MarketSurveySet): void {
   migratedStorageSetItem(STORAGE_KEY_MARKET_SURVEYS, JSON.stringify(surveys));
 }

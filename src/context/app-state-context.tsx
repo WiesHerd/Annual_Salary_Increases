@@ -18,6 +18,7 @@ import {
   loadProviderRecordsWithMeta,
   saveProviderRecords,
   loadMarketSurveys,
+  loadMarketSurveysPersistedOrEmpty,
   saveMarketSurveys,
   loadSurveyMetadata,
   saveSurveyMetadata,
@@ -95,12 +96,16 @@ export type AppStateValue = {
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
-/** When false, empty persisted data stays empty on reload (user cleared or replaced); skip sample-data injection. */
+/**
+ * Sample providers/market/payments are injected only after the user explicitly loads demo data
+ * (`asi-demo-mode === 'true'`). That way clearing site data or wiping localStorage does not
+ * immediately repopulate from the bundled seed — there is no server; the dataset ships in JS.
+ */
 function allowAutoSeedData(): boolean {
   try {
-    return localStorage.getItem('asi-demo-mode') !== 'false';
+    return localStorage.getItem('asi-demo-mode') === 'true';
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -149,7 +154,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       safeLocalStorageSetItem('asi-demo-mode', 'true');
     }
     recs = inferMissingProviderTypes(recs);
-    let surveys = loadMarketSurveys();
+    let surveys = allowSeed ? loadMarketSurveys() : loadMarketSurveysPersistedOrEmpty();
     const seedMarketSurveys = getSeedMarketSurveys();
     if (allowSeed) {
       if (Object.keys(surveys).length === 0 || (surveys[DEFAULT_SURVEY_ID]?.length === 0)) {

@@ -1,6 +1,6 @@
 /**
- * Seed data for development and testing.
- * Loaded when storage is empty on first load. Use "Load demo data" on Data page to reset.
+ * Bundled sample rows (providers, market, payments, evaluations) for offline demos.
+ * Injected only when the user chooses "Load sample dataset" — not fetched from a server.
  */
 
 import type { ProviderRecord } from '../types/provider';

@@ -51,6 +51,7 @@ export function DataPage({
     payments,
     clearPayments,
     customDatasets,
+    loadDemoData,
     loaded,
   } = useAppState();
   const { definitions: customStreamDefinitions, getStreamData, buildProviderLookup } = useCustomStreams();
@@ -136,6 +137,7 @@ export function DataPage({
           onUpdate={updateProviderRecord}
           onRemove={removeRecord}
           onClear={clearAll}
+          onLoadSampleData={loadDemoData}
           customDatasets={customDatasets}
           customStreamLookups={customStreamLookups}
         />

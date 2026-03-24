@@ -204,7 +204,7 @@ const TILES = [
   },
 ] as const;
 
-export function ImportCards({ onNavigateToBrowser: _onNavigateToBrowser }: ImportCardsProps) {
+export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
   const [cycleId, setCycleId] = useState('FY2025');
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState('');
   const [modalOpen, setModalOpen] = useState<UploadCardType | null>(null);
@@ -221,6 +221,7 @@ export function ImportCards({ onNavigateToBrowser: _onNavigateToBrowser }: Impor
   }, [surveyPickerOpen]);
 
   const {
+    records,
     addFromUpload,
     replaceFromUpload,
     marketSurveys,
@@ -232,6 +233,7 @@ export function ImportCards({ onNavigateToBrowser: _onNavigateToBrowser }: Impor
     replaceEvaluationFromUpload,
     addPaymentsFromUpload,
     replacePaymentsFromUpload,
+    loadDemoData,
     loaded,
   } = useAppState();
 
@@ -320,6 +322,26 @@ export function ImportCards({ onNavigateToBrowser: _onNavigateToBrowser }: Impor
         <h1 className="text-xl font-semibold text-slate-800">Import data</h1>
         <p className="text-sm text-slate-500 mt-1">Select the type of data you want to import.</p>
       </div>
+
+      {records.length === 0 && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-slate-700">
+          <span className="text-slate-600">No data in this browser yet. </span>
+          <button
+            type="button"
+            onClick={() => {
+              loadDemoData();
+              onNavigateToBrowser?.('provider');
+            }}
+            className="font-medium text-indigo-700 hover:text-indigo-900 underline-offset-2 hover:underline"
+          >
+            Load sample dataset
+          </button>
+          <span className="text-slate-600">
+            {' '}
+            to try the app (demo rows only — not loaded from a server). Or import your own files below.
+          </span>
+        </div>
+      )}
 
       {/* 2×2 type-selector tile grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

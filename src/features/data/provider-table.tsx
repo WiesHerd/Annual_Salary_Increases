@@ -51,6 +51,8 @@ interface ProviderTableProps {
   onRemove: (employeeId: string) => void;
   /** Optional: include these custom dataset columns in CSV/XLSX export when join key matches Employee_ID. */
   onClear: () => void;
+  /** Loads bundled demo providers/market/payments (browser-only). */
+  onLoadSampleData?: () => void;
   customDatasets?: CustomDataset[];
   /** Optional: provider-linked custom streams to include in export. */
   customStreamLookups?: CustomStreamExportLookup[];
@@ -209,7 +211,16 @@ function FilterDropdown({
   );
 }
 
-export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, onClear, customDatasets, customStreamLookups }: ProviderTableProps) {
+export function ProviderTable({
+  records,
+  marketSpecialties,
+  onUpdate,
+  onRemove,
+  onClear,
+  onLoadSampleData,
+  customDatasets,
+  customStreamLookups,
+}: ProviderTableProps) {
   const [editRecord, setEditRecord] = useState<ProviderRecord | null>(null);
   const [filters, setFilters] = useState<ProviderTableFilters>(DEFAULT_FILTERS);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
@@ -304,8 +315,20 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
 
   if (records.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500">
-        <p>No provider records yet. Upload a CSV or XLSX file above.</p>
+      <div className="app-card p-8 text-center text-slate-500 space-y-2">
+        <p>No provider records yet. Upload a CSV or XLSX from Import data.</p>
+        {onLoadSampleData && (
+          <p className="text-sm">
+            <button
+              type="button"
+              onClick={onLoadSampleData}
+              className="font-medium text-indigo-600 hover:text-indigo-800 underline-offset-2 hover:underline"
+            >
+              Load sample dataset
+            </button>
+            <span className="text-slate-500"> — fills demo rows from the app (not a remote link).</span>
+          </p>
+        )}
       </div>
     );
   }
