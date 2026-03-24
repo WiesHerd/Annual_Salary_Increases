@@ -301,6 +301,8 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       const next = prev.filter((r) => r.Employee_ID !== employeeId);
       if (next.length === 0) {
         safeLocalStorageSetItem('asi-demo-mode', 'false');
+        // Persist immediately so a fast refresh cannot reload the previous list before effects run.
+        saveProviderRecords([]);
       }
       return next;
     });
@@ -320,6 +322,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
   const clearAll = useCallback(() => {
     safeLocalStorageSetItem('asi-demo-mode', 'false');
+    saveProviderRecords([]);
     setRecords([]);
   }, []);
 
