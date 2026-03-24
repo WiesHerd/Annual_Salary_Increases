@@ -56,17 +56,17 @@ export function MeritMatrixTab({ meritMatrix, setMeritMatrix }: MeritMatrixTabPr
       <div className={parametersTablePanelClass}>
         <table className="app-settings-table w-full min-w-[min(100%,44rem)] table-fixed border-collapse">
           <colgroup>
-            <col style={{ width: '6rem' }} />
+            <col style={{ width: '8.75rem' }} />
             <col style={{ width: '14rem' }} />
-            <col style={{ width: '7.75rem' }} />
+            <col style={{ width: '8.5rem' }} />
             <col className="min-w-0" />
             <col style={{ width: '3.25rem' }} />
           </colgroup>
           <thead>
             <tr>
-              <th className="text-right whitespace-nowrap pl-4 pr-2">Evaluation score</th>
-              <th className="text-left whitespace-nowrap">Performance label</th>
-              <th className="text-right whitespace-nowrap pl-2 pr-4">Default increase %</th>
+              <th className="text-right !whitespace-nowrap pl-4 pr-2">Evaluation score</th>
+              <th className="text-left !whitespace-nowrap">Performance label</th>
+              <th className="text-right !whitespace-nowrap pl-2 pr-4">Default increase %</th>
               <th className="text-left">Notes</th>
               <th className="w-12 px-2 text-center" aria-label="Actions" />
             </tr>

@@ -212,6 +212,7 @@ function FilterDropdown({
 export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, onClear, customDatasets, customStreamLookups }: ProviderTableProps) {
   const [editRecord, setEditRecord] = useState<ProviderRecord | null>(null);
   const [filters, setFilters] = useState<ProviderTableFilters>(DEFAULT_FILTERS);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const modifiedIds = useMemo(() => getModifiedProviderIds(), [records]);
   const [sortKey, setSortKey] = useState<SortKey>('Provider_Name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -322,26 +323,54 @@ export function ProviderTable({ records, marketSpecialties, onUpdate, onRemove, 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-slate-800">Provider records ({records.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={handleExportXlsx}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Export XLSX
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExportDropdownOpen((o) => !o)}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 inline-flex items-center gap-1.5"
+                aria-expanded={exportDropdownOpen}
+                aria-haspopup="menu"
+                title="Export table"
+              >
+                Export
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {exportDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" aria-hidden onClick={() => setExportDropdownOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[10rem] py-1 app-dropdown-panel">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportCsv();
+                        setExportDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg transition-colors"
+                    >
+                      CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportXlsx();
+                        setExportDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg transition-colors"
+                    >
+                      Excel (.xlsx)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               type="button"
               onClick={onClear}
               className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
             >
-              Clear all
+              Clear
             </button>
           </div>
         </div>

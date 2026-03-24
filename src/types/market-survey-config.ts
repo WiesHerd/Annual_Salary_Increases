@@ -39,6 +39,57 @@ export type SurveySpecialtyMappingSet = Record<string, SurveySpecialtyMapping>;
 export type ProviderTypeToSurveyMapping = Record<string, string>;
 
 /**
+ * Surveys that should appear as Specialty map tabs: has at least one market row, or at least
+ * one provider type is routed here. Does not invent built-in slots the org does not use.
+ */
+export function collectActiveSurveyIds(
+  marketSurveys: MarketSurveySet,
+  providerTypeToSurvey: ProviderTypeToSurveyMapping
+): string[] {
+  const ids = new Set<string>();
+  for (const [key, rows] of Object.entries(marketSurveys)) {
+    const k = key.trim();
+    if (!k) continue;
+    if ((rows?.length ?? 0) > 0) ids.add(k);
+  }
+  for (const sid of Object.values(providerTypeToSurvey)) {
+    const s = String(sid ?? '').trim();
+    if (s) ids.add(s);
+  }
+  return [...ids];
+}
+
+/**
+ * Survey ids for pickers (Import, Parameters): every market slot key plus any survey id referenced
+ * in routing (e.g. mapping points to a survey before a slot is created).
+ */
+export function collectSurveyPickerIds(
+  marketSurveys: MarketSurveySet,
+  providerTypeToSurvey: ProviderTypeToSurveyMapping
+): string[] {
+  const ids = new Set<string>();
+  for (const key of Object.keys(marketSurveys)) {
+    const k = key.trim();
+    if (k) ids.add(k);
+  }
+  for (const sid of Object.values(providerTypeToSurvey)) {
+    const s = String(sid ?? '').trim();
+    if (s) ids.add(s);
+  }
+  return [...ids];
+}
+
+/** Stable ordering for UI segments (Import, Specialty map, Data → Market). */
+export function sortSurveyIdsByLabel(ids: string[], surveyMetadata?: SurveyMetadata): string[] {
+  return [...ids].sort((a, b) =>
+    getSurveyLabel(a, surveyMetadata).localeCompare(getSurveyLabel(b, surveyMetadata), undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    })
+  );
+}
+
+/**
  * Survey mapping + provider-type routing for experience-band cohort matching.
  * When set, a band's specialty scope can use APP combined group names from Data → Specialty map.
  */

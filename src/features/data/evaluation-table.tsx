@@ -102,7 +102,7 @@ export function EvaluationTable({ rows, onClear }: EvaluationTableProps) {
             onClick={onClear}
             className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
           >
-            Clear all
+            Clear
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

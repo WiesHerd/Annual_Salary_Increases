@@ -6,12 +6,14 @@ import { useSelectedCycle } from '../../hooks/use-selected-cycle';
 import { buildParameterOptions } from '../../lib/parameter-options';
 import { buildMarketResolver } from '../../lib/joins';
 import { loadSurveySpecialtyMappingSet, loadProviderTypeToSurveyMapping } from '../../lib/parameters-storage';
+import { collectSurveyPickerIds, sortSurveyIdsByLabel } from '../../types/market-survey-config';
 import { MeritMatrixTab } from './tabs/merit-matrix-tab';
 import { ExperienceBandsTab } from './tabs/experience-bands-tab';
 import { ReviewCyclesTab } from './tabs/review-cycles-tab';
 import { BudgetTargetsTab } from './tabs/budget-targets-tab';
 import { PolicyEngineRulesTab } from './tabs/policy-engine-rules-tab';
 import { ProviderTypeSurveyTab } from './tabs/provider-type-survey-tab';
+import { AppCombinedGroupsTab } from './tabs/app-combined-groups-tab';
 import { ConversionFactorTab } from './tabs/conversion-factor-tab';
 import { PolicyCreateWizard } from './policy-create-wizard';
 import type { AnnualIncreasePolicy } from '../../types/compensation-policy';
@@ -24,9 +26,10 @@ type ParametersTabId =
   | 'experience-bands'
   | 'conversion-factor'
   | 'provider-type-survey'
+  | 'app-combined-groups'
   | 'policy-engine-rules';
 
-type TabGroupId = 'cycle-budget' | 'base-increases' | 'mappings' | 'guardrails';
+type TabGroupId = 'cycle-budget' | 'mappings' | 'guardrails' | 'base-increases' | 'policy-library';
 
 const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id: ParametersTabId; label: string }[] }[] = [
   {
@@ -39,26 +42,34 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
     ],
   },
   {
-    id: 'base-increases',
-    label: 'Base increases',
-    subtitle: 'Merit matrix, conversion factors, and policy rules',
-    tabs: [
-      { id: 'merit', label: 'Merit matrix' },
-      { id: 'conversion-factor', label: 'Conversion factor by specialty' },
-      { id: 'policy-engine-rules', label: 'Policy library' },
-    ],
-  },
-  {
     id: 'mappings',
     label: 'Mappings',
-    subtitle: 'Provider type and survey mappings',
-    tabs: [{ id: 'provider-type-survey', label: 'Provider type → Market survey' }],
+    subtitle: 'Provider type, survey routing, and APP map buckets',
+    tabs: [
+      { id: 'provider-type-survey', label: 'Type → Market' },
+      { id: 'app-combined-groups', label: 'APP map buckets' },
+    ],
   },
   {
     id: 'guardrails',
     label: 'Guardrails',
     subtitle: 'Experience-based target ranges and review guardrails',
     tabs: [{ id: 'experience-bands', label: 'Experience band targets (review)' }],
+  },
+  {
+    id: 'base-increases',
+    label: 'Base increases',
+    subtitle: 'Merit matrix and conversion factors',
+    tabs: [
+      { id: 'merit', label: 'Merit matrix' },
+      { id: 'conversion-factor', label: 'CF by specialty' },
+    ],
+  },
+  {
+    id: 'policy-library',
+    label: 'Policy library',
+    subtitle: 'Rules that drive recommendations and governance',
+    tabs: [{ id: 'policy-engine-rules', label: 'Policy library' }],
   },
 ];
 
@@ -94,6 +105,7 @@ function getInitialTabFromUrl(): ParametersTabId {
     'experience-bands',
     'conversion-factor',
     'provider-type-survey',
+    'app-combined-groups',
     'policy-engine-rules',
   ];
   if (tab && valid.includes(tab as ParametersTabId)) return tab as ParametersTabId;
@@ -110,6 +122,10 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
   const policyState = usePolicyEngineState();
   const { records, marketSurveys, surveyMetadata } = useAppState();
   const [selectedCycleId] = useSelectedCycle(params.cycles);
+  const surveySlotIdsForParameters = useMemo(() => {
+    const m = loadProviderTypeToSurveyMapping();
+    return sortSurveyIdsByLabel(collectSurveyPickerIds(marketSurveys, m), surveyMetadata);
+  }, [marketSurveys, surveyMetadata]);
   const parameterOptions = useMemo(
     () => buildParameterOptions(records, Object.values(marketSurveys).flat()),
     [records, marketSurveys]
@@ -178,12 +194,13 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
         </div>
 
         <nav
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-2 py-2 shadow-sm"
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-2"
           aria-label="Parameters menu"
         >
-          <div className="flex flex-wrap gap-1">
+          <div className="app-segmented-track w-fit min-w-0 flex flex-wrap">
             {TAB_GROUPS.map((group) => {
               const isActiveGroup = activeGroup?.id === group.id;
+              const idx = TAB_GROUPS.findIndex((g) => g.id === group.id);
               return (
                 <button
                   key={group.id}
@@ -192,11 +209,9 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
                     const inGroup = group.tabs.some((t) => t.id === activeTab);
                     if (!inGroup) setActiveTab(group.tabs[0].id);
                   }}
-                  className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-                    isActiveGroup
-                      ? 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200 shadow-sm'
-                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
+                  className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
+                    idx === TAB_GROUPS.length - 1 ? 'rounded-r-full' : ''
+                  } ${isActiveGroup ? 'app-segmented-segment-active' : ''}`}
                   aria-current={isActiveGroup ? 'page' : undefined}
                 >
                   {group.label}
@@ -206,7 +221,7 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
           </div>
           {activeGroup && activeGroup.tabs.length > 1 && (
             <div
-              className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2"
+              className="ml-auto flex w-fit shrink-0 flex-wrap justify-end gap-0.5 rounded-full border border-sky-200/80 bg-sky-50/90 p-0.5 shadow-inner shadow-sky-900/[0.04]"
               role="tablist"
               aria-label={`${activeGroup.label} sections`}
             >
@@ -219,10 +234,10 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
                     role="tab"
                     aria-selected={selected}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold tracking-tight transition-all duration-200 ${
                       selected
-                        ? 'bg-slate-800 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-white text-sky-900 shadow-sm ring-1 ring-sky-200/90'
+                        : 'text-sky-900/55 hover:bg-white/70 hover:text-sky-950'
                     }`}
                   >
                     {tab.label}
@@ -267,7 +282,16 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
               options={parameterOptions}
             />
           )}
-          {activeTab === 'provider-type-survey' && <ProviderTypeSurveyTab options={parameterOptions} surveyIds={Object.keys(marketSurveys)} surveyMetadata={surveyMetadata} />}
+          {activeTab === 'provider-type-survey' && (
+            <ProviderTypeSurveyTab
+              options={parameterOptions}
+              surveyIds={surveySlotIdsForParameters}
+              surveyMetadata={surveyMetadata}
+            />
+          )}
+          {activeTab === 'app-combined-groups' && (
+            <AppCombinedGroupsTab records={records} marketSurveys={marketSurveys} />
+          )}
           {activeTab === 'policy-engine-rules' && (
             <PolicyEngineRulesTab
               policyState={policyState}

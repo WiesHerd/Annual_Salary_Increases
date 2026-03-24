@@ -57,7 +57,7 @@ export function CustomDataTable({ datasets, onRemove, onClear }: CustomDataTable
           onClick={onClear}
           className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
         >
-          Clear all
+          Clear
         </button>
       </div>
       <div className="flex flex-wrap gap-2">

@@ -130,7 +130,8 @@
     @apply bg-neutral-50;
   }
   .app-settings-table th {
-    @apply px-4 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 text-left whitespace-normal break-words leading-tight align-middle transition-colors hover:bg-neutral-100;
+    /* break-normal: wrap at word boundaries only — avoid mid-word splits on narrow cols (e.g. EVALUATION SCORE) */
+    @apply px-4 py-3 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide select-none bg-neutral-50 text-left whitespace-normal break-normal leading-tight align-middle transition-colors hover:bg-neutral-100;
   }
   /* Beat th+type specificity so header alignment utilities work (numeric cols, actions). */
   .app-settings-table th.text-right {

@@ -7,11 +7,13 @@
 import { useMemo, useCallback, useState, useEffect, type ReactNode } from 'react';
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketSurveySet } from '../../types/market-survey-config';
-import type { AppCombinedGroupRow } from '../../types/app-combined-group';
-import { SURVEY_LABELS, getSurveyLabel } from '../../types/market-survey-config';
+import {
+  collectActiveSurveyIds,
+  getSurveyLabel,
+  sortSurveyIdsByLabel,
+} from '../../types/market-survey-config';
 import {
   loadSurveySpecialtyMappingSet,
-  saveAppCombinedGroups,
   loadProviderTypeToSurveyMapping,
 } from '../../lib/parameters-storage';
 import { mergeMarketIntoProvidersMulti, buildMarketLookup } from '../../lib/joins';
@@ -24,9 +26,6 @@ import {
 } from '../../lib/specialty-auto-map';
 import type { PhysicianMappingSuggestion, AppGroupMappingSuggestion } from '../../lib/specialty-auto-map';
 import { SearchableSelect, type SearchableSelectOptionGroup } from '../../components/searchable-select';
-import ReactECharts from 'echarts-for-react';
-import type { EChartsOption } from 'echarts';
-import { standardDonutPieSeriesBase } from '../../lib/echarts-donut-style';
 import {
   type SpecialtyMapFilters,
   DEFAULT_SPECIALTY_MAP_FILTERS,
@@ -35,7 +34,6 @@ import {
 } from '../../lib/specialty-map-filters';
 import { InfoIconTip } from '../../components/info-icon-tip';
 import { SpecialtyMapFilterBar } from './specialty-map-filter-bar';
-import { AppCombinedGroupsBulkPanel } from './app-combined-groups-bulk-panel';
 
 interface SpecialtyMapProps {
   records: ProviderRecord[];
@@ -54,7 +52,7 @@ interface ProviderMatchTableProps {
   getMarket: (key: string) => { specialty: string } | undefined;
   allTargetsForOverride: string[];
   handleOverrideChange: (employeeId: string, specialty: string | null) => void;
-  /** APP survey: column lists single survey rows plus named benchmark buckets from the bucket builder. */
+  /** APP survey: column lists single survey rows plus saved combined group names (if any). */
   appMapColumn?: boolean;
   /** When set with APP column, dropdown is sectioned (survey rows vs buckets). */
   mapOptionGroups?: SearchableSelectOptionGroup[];
@@ -107,7 +105,7 @@ function ProviderMatchTable({
               Matched market
             </th>
             <th className="px-2 py-3 text-left text-[11px] font-semibold text-neutral-600 uppercase tracking-wide min-w-[14rem]">
-              {appMapColumn ? 'Map to market / bucket' : 'Map to survey specialty'}
+              {appMapColumn ? 'Manual override (market/bucket)' : 'Manual override (survey specialty)'}
             </th>
           </tr>
         </thead>
@@ -139,176 +137,42 @@ function ProviderMatchTable({
                   )}
                 </td>
                 <td className="px-2 py-1.5 text-sm text-slate-800 align-middle">
+                  <div className="flex items-center gap-1.5">
                   <SearchableSelect
                     value={p.Market_Specialty_Override ?? ''}
                     {...(appMapColumn && mapOptionGroups && mapOptionGroups.length > 0
                       ? { optionGroups: mapOptionGroups }
                       : { options: allTargetsForOverride })}
                     onChange={(v) => handleOverrideChange(p.Employee_ID, v === '' ? null : v)}
-                    emptyOptionLabel={
-                      appMapColumn
-                        ? 'Survey row or bucket name…'
-                        : 'Search and select survey specialty…'
-                    }
+                    emptyOptionLabel="Select"
+                    includeEmptyOption={false}
                     aria-label={
                       appMapColumn
-                        ? 'Select market survey row or benchmark bucket for this provider'
+                        ? 'Select market survey row or custom bucket for this provider'
                         : 'Select survey specialty to map this provider'
                     }
                     className="min-w-[200px]"
                   />
+                  {p.Market_Specialty_Override && (
+                    <button
+                      type="button"
+                      onClick={() => handleOverrideChange(p.Employee_ID, null)}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Clear manual override"
+                      title="Clear manual override"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                  </div>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Donut chart showing matched vs needs-mapping in a compact card. */
-function MappingDonutChart({
-  matchedCount,
-  unmatchedCount,
-  size = 100,
-}: {
-  matchedCount: number;
-  unmatchedCount: number;
-  /** Pixel width/height of the chart area. */
-  size?: number;
-}) {
-  const total = matchedCount + unmatchedCount;
-  const option = useMemo((): EChartsOption => {
-    const data = [
-      { value: matchedCount, name: 'Matched', itemStyle: { color: '#10b981' } }, // emerald-500
-      { value: unmatchedCount, name: 'Needs mapping', itemStyle: { color: '#f59e0b' } }, // amber-500
-    ].filter((d) => d.value > 0);
-    if (data.length === 0) {
-      data.push({ value: 1, name: 'No data', itemStyle: { color: '#e2e8f0' } });
-    }
-    return {
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)',
-      },
-      series: [
-        {
-          ...standardDonutPieSeriesBase,
-          padAngle: 2,
-          data,
-        },
-      ],
-    };
-  }, [matchedCount, unmatchedCount]);
-
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <ReactECharts
-        option={option}
-        style={{ width: '100%', height: '100%' }}
-        notMerge
-        opts={{ renderer: 'canvas' }}
-      />
-      {total > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-lg font-semibold text-slate-700 tabular-nums">{total}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BulkMappingApply({
-  providerSpecialtyOptions,
-  allTargetsForOverride,
-  mapOptionGroups,
-  appsForSurvey,
-  getMatchKey,
-  onApply,
-}: {
-  providerSpecialtyOptions: string[];
-  allTargetsForOverride: string[];
-  mapOptionGroups?: SearchableSelectOptionGroup[];
-  appsForSurvey: ProviderRecord[];
-  getMatchKey: (p: ProviderRecord) => string;
-  onApply: (sourceSpecialties: string[], target: string) => void;
-}) {
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
-  const [target, setTarget] = useState('');
-  const matchCount = useMemo(() => {
-    if (selectedSources.size === 0) return 0;
-    return appsForSurvey.filter((p) => selectedSources.has(getMatchKey(p))).length;
-  }, [appsForSurvey, selectedSources, getMatchKey]);
-  const handleToggleSource = (s: string) => {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
-  };
-  const handleApply = () => {
-    if (selectedSources.size === 0 || !target.trim()) return;
-    onApply([...selectedSources], target.trim());
-    setSelectedSources(new Set());
-    setTarget('');
-  };
-  return (
-    <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-sm font-medium text-slate-800">Bulk overrides</span>
-        <InfoIconTip aria-label="About bulk overrides">
-          <p>
-            Sets <strong className="text-slate-800">Market_Specialty_Override</strong> for every APP on this survey whose match key
-            (override, then specialty, then benchmark group) is one of the labels you tick.
-          </p>
-          <p>Use after buckets exist so targets include combined group names.</p>
-        </InfoIconTip>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-        <div className="min-w-0">
-          <span className="sr-only">Roster keys to match</span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1 max-h-[7.5rem] overflow-y-auto p-2 border border-slate-200 rounded-lg bg-white text-xs">
-            {providerSpecialtyOptions.length === 0 ? (
-              <span className="text-slate-400 col-span-full py-1">No keys on roster</span>
-            ) : (
-              providerSpecialtyOptions.map((s) => (
-                <label key={s} className="inline-flex items-center gap-1.5 cursor-pointer min-w-0">
-                  <input
-                    type="checkbox"
-                    checked={selectedSources.has(s)}
-                    onChange={() => handleToggleSource(s)}
-                    className="rounded border-slate-300 shrink-0"
-                  />
-                  <span className="text-slate-700 truncate" title={s}>
-                    {s}
-                  </span>
-                </label>
-              ))
-            )}
-          </div>
-        </div>
-        <div className="min-w-0 flex flex-col gap-1">
-          <SearchableSelect
-            value={target}
-            {...(mapOptionGroups && mapOptionGroups.length > 0
-              ? { optionGroups: mapOptionGroups }
-              : { options: allTargetsForOverride })}
-            onChange={(v) => setTarget(v ?? '')}
-            emptyOptionLabel="Map to…"
-            className="w-full min-w-0"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={handleApply}
-          disabled={selectedSources.size === 0 || !target.trim()}
-          className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap justify-self-start lg:justify-self-end"
-        >
-          Apply ({matchCount})
-        </button>
-      </div>
     </div>
   );
 }
@@ -352,65 +216,24 @@ function StatusBadge({ status }: { status: MappingStatus }) {
   );
 }
 
-/** Setup checklist: guides users through the mapping workflow. */
-function SetupChecklist({
-  recordsCount,
-  hasMarketData,
-  providerTypeMappingComplete,
-  allMapped,
-}: {
-  recordsCount: number;
-  hasMarketData: boolean;
-  providerTypeMappingComplete: boolean;
-  allMapped: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const steps = [
-    { label: 'Upload providers', done: recordsCount > 0 },
-    { label: 'Upload surveys', done: hasMarketData },
-    { label: 'Set Provider_Type → Survey in Parameters', done: providerTypeMappingComplete },
-    { label: 'Map specialties (Auto Map or manual)', done: allMapped },
-  ];
-  const doneCount = steps.filter((s) => s.done).length;
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-xl hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-        aria-expanded={open}
-      >
-        <span>Setup: {doneCount}/{steps.length}</span>
-        <svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-50 w-72 max-w-[calc(100vw-2rem)] p-3 bg-white border border-slate-200 rounded-xl shadow-lg text-xs text-slate-600 space-y-2">
-            <p className="font-medium text-slate-800">Mapping workflow</p>
-            <ol className="list-decimal list-inside space-y-1">
-              {steps.map((s, i) => (
-                <li key={i} className={s.done ? 'text-emerald-700' : 'text-slate-600'}>
-                  {s.done && <span className="mr-1">✓</span>}
-                  {s.label}
-                </li>
-              ))}
-            </ol>
-            <p className="text-slate-500 pt-1">Then click &quot;Sync market data&quot; to refresh.</p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 /** Icon for Auto Map - sparkles suggest automatic/smart mapping. */
 function AutoMapIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 12a9 9 0 11-2.64-6.36M21 4v6h-6"
+      />
     </svg>
   );
 }
@@ -423,7 +246,7 @@ function HowMappingWorksIcon() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="p-2 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700 hover:border-slate-400 transition-colors"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 hover:border-slate-400"
         aria-expanded={open}
         aria-label="How mapping works"
         title="How mapping works"
@@ -437,68 +260,7 @@ function HowMappingWorksIcon() {
           <div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full mt-1 z-50 w-72 max-w-[calc(100vw-2rem)] p-3 bg-white border border-slate-200 rounded-xl shadow-lg text-xs text-slate-600 space-y-2">
             <p><strong className="text-slate-800">Direct match:</strong> Match roster keys to market rows. Use Override when labels differ.</p>
-            <p><strong className="text-slate-800">APP:</strong> Use <strong>Map to market / bucket</strong> for each person. Expand <strong>Benchmark buckets</strong> below the table to name blends—those names appear in the same list as single survey rows.</p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Collapsible bucket builder on the APP tab; bucket names are selectable in each row’s map column. */
-function AppBenchmarkBucketsSection({
-  marketSpecialties,
-  providerSpecialtyOptions,
-  groups,
-  setGroups,
-  onSync,
-}: {
-  marketSpecialties: string[];
-  providerSpecialtyOptions: string[];
-  groups: AppCombinedGroupRow[];
-  setGroups: (updater: AppCombinedGroupRow[] | ((prev: AppCombinedGroupRow[]) => AppCombinedGroupRow[])) => void;
-  onSync: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="shrink-0 border-t border-slate-200 bg-slate-50/30">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-left hover:bg-slate-100/80 border-b border-slate-200/60 bg-slate-50/50 transition-colors"
-        aria-expanded={open}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-neutral-400 text-[10px] shrink-0" aria-hidden>
-            {open ? '▼' : '▶'}
-          </span>
-          <span className="text-sm font-semibold text-slate-800">Benchmark buckets</span>
-          <InfoIconTip aria-label="About benchmark buckets" align="left">
-            <p>
-              Create named buckets that blend one or more survey rows. Those names show up in{' '}
-              <strong className="text-slate-800">Map to market / bucket</strong> next to each provider—same list as individual survey specialties.
-            </p>
-            <p className="text-slate-500">Optional: assign roster keys to buckets here in bulk; you can still pick a bucket per person in the table.</p>
-          </InfoIconTip>
-        </div>
-        {groups.length > 0 && (
-          <span className="text-xs text-slate-500 shrink-0 tabular-nums">
-            {groups.length} bucket{groups.length === 1 ? '' : 's'}
-          </span>
-        )}
-      </button>
-      {open && (
-        <>
-          <AppCombinedGroupsBulkPanel
-            marketSpecialties={marketSpecialties}
-            providerSpecialtyOptions={providerSpecialtyOptions}
-            groups={groups}
-            setGroups={setGroups}
-          />
-          <div className="px-5 py-2 border-t border-slate-200 bg-slate-50/50">
-            <button type="button" onClick={onSync} className="text-sm text-indigo-600 hover:text-indigo-800">
-              Sync market data
-            </button>
+            <p><strong className="text-slate-800">APP:</strong> Use <strong>Map to market / bucket</strong> for each person. Configure bucket names under <strong>Controls → Mappings → APP map buckets</strong>; they appear in the same list as survey specialties.</p>
           </div>
         </>
       )}
@@ -684,7 +446,7 @@ export function SpecialtyMap({
   setRecords,
   onOpenProviderTypeSurvey,
 }: SpecialtyMapProps) {
-  const [selectedSurveyId, setSelectedSurveyId] = useState<string>('physicians');
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string>('');
   const [surveyMappings, setSurveyMappingsState] = useState(loadSurveySpecialtyMappingSet);
   const [autoMapModalOpen, setAutoMapModalOpen] = useState(false);
   const [autoMapSelectedIds, setAutoMapSelectedIds] = useState<Set<string>>(new Set());
@@ -694,54 +456,39 @@ export function SpecialtyMap({
   const [physicianPageSize, setPhysicianPageSize] = useState(25);
   const [appPage, setAppPage] = useState(1);
   const [appPageSize, setAppPageSize] = useState(25);
-  const [mapViewMode, setMapViewMode] = useState<'table' | 'chart'>('table');
-
   const PAGE_SIZES = [10, 25, 50, 100] as const;
 
   useEffect(() => {
     setSurveyMappingsState(loadSurveySpecialtyMappingSet());
   }, []);
 
-  const surveyIds = useMemo(() => {
-    const fromData = Object.keys(marketSurveys);
-    const fromLabels = Object.keys(SURVEY_LABELS);
-    return [...new Set([...fromLabels, ...fromData])];
-  }, [marketSurveys]);
-
-  /** Only show tabs for surveys that are in use: have market data or at least one provider type mapped. */
-  const surveyIdsInUse = useMemo(() => {
+  /** Tabs follow org data: market rows + provider-type routing only (no fixed three-slot list). */
+  const specialtyMapSurveyTabIds = useMemo(() => {
     const typeToSurvey = loadProviderTypeToSurveyMapping();
-    const mappedSurveyIds = new Set(Object.values(typeToSurvey));
-    return surveyIds.filter((id) => {
-      if (id === 'apps') {
-        return (marketSurveys.apps?.length ?? 0) > 0 || mappedSurveyIds.has('apps');
-      }
-      return (marketSurveys[id]?.length ?? 0) > 0 || mappedSurveyIds.has(id);
-    });
-  }, [marketSurveys, surveyIds]);
+    return sortSurveyIdsByLabel(collectActiveSurveyIds(marketSurveys, typeToSurvey), surveyMetadata);
+  }, [marketSurveys, surveyMetadata]);
 
-  /** When the selected tab is no longer in use, switch to the first in-use tab. */
+  /** When the selected tab is missing or invalid, follow the first available survey. */
   useEffect(() => {
-    if (surveyIdsInUse.length > 0 && !surveyIdsInUse.includes(selectedSurveyId)) {
-      setSelectedSurveyId(surveyIdsInUse[0]);
+    if (specialtyMapSurveyTabIds.length === 0) {
+      if (selectedSurveyId !== '') setSelectedSurveyId('');
+      return;
     }
-  }, [surveyIdsInUse, selectedSurveyId]);
+    if (!specialtyMapSurveyTabIds.includes(selectedSurveyId)) {
+      setSelectedSurveyId(specialtyMapSurveyTabIds[0]);
+    }
+  }, [specialtyMapSurveyTabIds, selectedSurveyId]);
 
-  const effectiveSurveyId = resolveSpecialtyMapMarketSurveyId(selectedSurveyId);
+  const activeSurveyId =
+    specialtyMapSurveyTabIds.length > 0 && specialtyMapSurveyTabIds.includes(selectedSurveyId)
+      ? selectedSurveyId
+      : (specialtyMapSurveyTabIds[0] ?? '');
+
+  const effectiveSurveyId = resolveSpecialtyMapMarketSurveyId(activeSurveyId);
   const marketData = marketSurveys[effectiveSurveyId] ?? [];
   const appCombinedGroups = surveyMappings[effectiveSurveyId]?.appCombinedGroups ?? [];
 
-  const setAppCombinedGroups = useCallback((updater: AppCombinedGroupRow[] | ((prev: AppCombinedGroupRow[]) => AppCombinedGroupRow[])) => {
-    setSurveyMappingsState((prev) => {
-      const next = { ...prev };
-      const groups = typeof updater === 'function' ? updater(next[effectiveSurveyId]?.appCombinedGroups ?? []) : updater;
-      next[effectiveSurveyId] = { appCombinedGroups: groups };
-      saveAppCombinedGroups(effectiveSurveyId, groups);
-      return next;
-    });
-  }, [effectiveSurveyId]);
-
-  /** Sectioned targets for APP-style map column: survey file rows vs named benchmark blends. */
+  /** Sectioned targets for APP-style map column: survey file rows vs named combined groups. */
   const appMapTargetGroups = useMemo((): SearchableSelectOptionGroup[] => {
     const surveySpecs = [...new Set(marketData.map((r) => r.specialty).filter((s) => s.trim() !== ''))].sort(
       (a, b) => a.localeCompare(b)
@@ -755,23 +502,23 @@ export function SpecialtyMap({
       .sort((a, b) => a.localeCompare(b));
     return [
       { heading: 'Survey specialties', options: surveySpecs },
-      { heading: 'Benchmark buckets', options: buckets },
+      { heading: 'Custom buckets', options: buckets },
     ].filter((g) => g.options.length > 0);
   }, [marketData, appCombinedGroups]);
 
   const providersForSurvey = useMemo(() => {
     const typeToSurvey = loadProviderTypeToSurveyMapping();
-    return getProvidersForSpecialtyMapTab(records, selectedSurveyId, typeToSurvey);
-  }, [records, selectedSurveyId]);
+    return getProvidersForSpecialtyMapTab(records, activeSurveyId, typeToSurvey);
+  }, [records, activeSurveyId]);
 
   const { physicians: physiciansForSurvey, apps: appsForSurvey } = useMemo(
-    () => (selectedSurveyId === 'apps'
+    () => (activeSurveyId === 'apps'
       ? { physicians: [] as ProviderRecord[], apps: providersForSurvey }
       : partitionProvidersByMappingMode(providersForSurvey)),
-    [providersForSurvey, selectedSurveyId]
+    [providersForSurvey, activeSurveyId]
   );
 
-  const isAppsView = selectedSurveyId === 'apps';
+  const isAppsView = activeSurveyId === 'apps';
 
   const getMarket = useMemo(
     () => buildMarketLookup(marketData, appCombinedGroups),
@@ -837,7 +584,7 @@ export function SpecialtyMap({
     setFilters(next);
   }, []);
 
-  const { matchedCount, unmatchedCount, orphanSpecialties } = useMemo(() => {
+  const { unmatchedCount, orphanSpecialties } = useMemo(() => {
     let matched = 0;
     let unmatched = 0;
     for (const p of providersForSurvey) {
@@ -943,26 +690,36 @@ export function SpecialtyMap({
     [setRecords, marketSurveys]
   );
 
-  const providerSpecialtyOptions = useMemo(() => {
-    const keys = new Set<string>();
-    for (const p of appsForSurvey) {
-      const s = (p.Specialty ?? '').trim();
-      const b = (p.Benchmark_Group ?? '').trim();
-      if (s) keys.add(s);
-      if (b) keys.add(b);
-    }
-    return [...keys].sort();
-  }, [appsForSurvey]);
-
   const totalSuggestions = physicianSuggestions.length + appSuggestions.length;
   const canAutoMap = marketData.length > 0 && providersForSurvey.length > 0;
-  const surveyLabel = getSurveyLabel(resolveSpecialtyMapMarketSurveyId(selectedSurveyId), surveyMetadata);
+  const surveyLabel = getSurveyLabel(resolveSpecialtyMapMarketSurveyId(activeSurveyId), surveyMetadata);
 
   if (records.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <h2 className="text-lg font-semibold text-slate-800 mb-2">Specialty map</h2>
         <p className="text-slate-600 mb-4">No provider records yet. Upload provider data in the Provider data tab first.</p>
+      </div>
+    );
+  }
+
+  if (specialtyMapSurveyTabIds.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
+        <h2 className="text-lg font-semibold text-slate-800 mb-2">Specialty map</h2>
+        <p className="text-slate-600 mb-4 max-w-lg mx-auto">
+          No market surveys are active yet. Upload market data for a survey in <strong>Data → Market survey</strong>, or set{' '}
+          <strong>Provider type → Market survey</strong> in Parameters so types route to a survey you use.
+        </p>
+        {onOpenProviderTypeSurvey && (
+          <button
+            type="button"
+            onClick={onOpenProviderTypeSurvey}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-800 underline-offset-2 hover:underline"
+          >
+            Open Provider type → Market survey
+          </button>
+        )}
       </div>
     );
   }
@@ -981,7 +738,7 @@ export function SpecialtyMap({
     <div className="flex flex-col min-w-0">
       <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
         <div className="shrink-0 border-b border-slate-200 px-5 pb-3 pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-semibold text-slate-800">Specialty map</h2>
@@ -1005,11 +762,10 @@ export function SpecialtyMap({
                       Here you tie each person&apos;s keys to a market row for that survey file.
                     </p>
                     <p className="mt-2">
-                      On <strong>APP</strong>, use <strong>Map to market / bucket</strong> and expand{' '}
-                      <strong>Benchmark buckets</strong> under the table to define named blends.
+                      On <strong>APP</strong>, use <strong>Map to market / bucket</strong>. Add combined names in <strong>Controls → Mappings → APP map buckets</strong>; they appear alongside survey specialties in that list.
                     </p>
                     <p className="mt-2 text-slate-500">
-                      Sync market data when done so Salary review uses the same percentiles.
+                      Refresh matches when done so Salary review uses updated percentiles.
                     </p>
                   </div>
                 </span>
@@ -1026,14 +782,14 @@ export function SpecialtyMap({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-600 mr-1">Survey</span>
                 <div className="app-segmented-track w-fit flex flex-wrap">
-                  {surveyIdsInUse.map((id, idx) => (
+                  {specialtyMapSurveyTabIds.map((id, idx) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => setSelectedSurveyId(id)}
                       className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
-                        idx === surveyIdsInUse.length - 1 ? 'rounded-r-full' : ''
-                      } ${selectedSurveyId === id ? 'app-segmented-segment-active' : ''}`}
+                        idx === specialtyMapSurveyTabIds.length - 1 ? 'rounded-r-full' : ''
+                      } ${activeSurveyId === id ? 'app-segmented-segment-active' : ''}`}
                     >
                       {getSurveyLabel(id, surveyMetadata)}
                     </button>
@@ -1041,35 +797,14 @@ export function SpecialtyMap({
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <div className="app-segmented-track w-fit">
-                {(['table', 'chart'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setMapViewMode(mode)}
-                    className={`app-segmented-segment ${mode === 'table' ? 'rounded-l-full' : 'rounded-r-full'} ${
-                      mapViewMode === mode ? 'app-segmented-segment-active' : ''
-                    }`}
-                  >
-                    {mode === 'table' ? 'Table' : 'Chart'}
-                  </button>
-                ))}
-              </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 self-end">
               {providersForSurvey.length > 0 && (
                 <>
                   <button
                     type="button"
-                    onClick={doMerge}
-                    className="app-btn-secondary inline-flex items-center gap-1.5"
-                  >
-                    Sync market data
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleOpenAutoMap}
                     disabled={!canAutoMap}
-                    className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-full border transition-colors ${
+                    className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium leading-none transition-colors ${
                       canAutoMap
                         ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
                         : 'app-btn-secondary opacity-60 cursor-not-allowed'
@@ -1086,12 +821,17 @@ export function SpecialtyMap({
                   </button>
                 </>
               )}
-              <SetupChecklist
-                recordsCount={records.length}
-                hasMarketData={Object.values(marketSurveys).some((rows) => rows.length > 0)}
-                providerTypeMappingComplete={Object.keys(loadProviderTypeToSurveyMapping()).length > 0}
-                allMapped={unmatchedCount === 0 && providersForSurvey.length > 0}
-              />
+              {providersForSurvey.length > 0 && (
+                <button
+                  type="button"
+                  onClick={doMerge}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 hover:border-slate-400"
+                  title="Refresh matches"
+                  aria-label="Refresh matches"
+                >
+                  <RefreshIcon className="h-5 w-5" />
+                </button>
+              )}
               <HowMappingWorksIcon />
             </div>
           </div>
@@ -1108,7 +848,7 @@ export function SpecialtyMap({
               </p>
               <p className="text-sm text-slate-500 mt-1">
                 {isAppsView
-                  ? 'Assign NP, PA, APP, and similar types to the APP market survey in Parameters (not the Physicians survey unless that is intentional). You can still expand Benchmark buckets below to set up blends before the roster appears.'
+                  ? 'Assign NP, PA, APP, and similar types to the APP market survey in Parameters (not the Physicians survey unless that is intentional).'
                   : 'Configure Provider type → Market survey in Parameters so each role uses this tab’s market file.'}
               </p>
               {onOpenProviderTypeSurvey && (
@@ -1117,19 +857,10 @@ export function SpecialtyMap({
                   onClick={onOpenProviderTypeSurvey}
                   className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
                 >
-                  Provider type → Market survey
+                  Type → Market
                 </button>
               )}
             </div>
-            {isAppsView && (
-              <AppBenchmarkBucketsSection
-                marketSpecialties={marketSpecialties}
-                providerSpecialtyOptions={providerSpecialtyOptions}
-                groups={appCombinedGroups}
-                setGroups={setAppCombinedGroups}
-                onSync={doMerge}
-              />
-            )}
             </>
           ) : (
             <>
@@ -1142,36 +873,7 @@ export function SpecialtyMap({
                 filteredCount={filteredTotalCount}
               />
             </div>
-          {mapViewMode === 'chart' ? (
-            <div className="border-t border-neutral-200/80">
-              <div className="px-5 py-8 flex flex-col items-center justify-center gap-4">
-                {filteredTotalCount === 0 && (
-                  <p className="text-sm text-amber-800 text-center max-w-md">
-                    No providers match your filters. The chart reflects the full survey cohort; switch to Table or clear filters to edit rows.
-                  </p>
-                )}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-10">
-                  <MappingDonutChart size={168} matchedCount={matchedCount} unmatchedCount={unmatchedCount} />
-                  <div className="text-sm text-slate-600 space-y-2 text-center sm:text-left">
-                    <p>
-                      <span className="font-semibold text-emerald-700 tabular-nums text-lg">{matchedCount}</span>
-                      <span className="ml-2">matched to market</span>
-                    </p>
-                    {unmatchedCount > 0 && (
-                      <p>
-                        <span className="font-semibold text-amber-700 tabular-nums text-lg">{unmatchedCount}</span>
-                        <span className="ml-2">need mapping</span>
-                      </p>
-                    )}
-                    <p className="text-xs text-slate-500 pt-1">
-                      {surveyLabel} · {marketData.length} market rows
-                      {orphanSpecialties.length > 0 ? ` · ${orphanSpecialties.length} unused row(s)` : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : filteredTotalCount === 0 ? (
+          {filteredTotalCount === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <p className="text-slate-600 font-medium">No providers match your filters.</p>
               <p className="text-sm text-slate-500 mt-1">Clear filters or change criteria to see providers.</p>
@@ -1244,10 +946,9 @@ export function SpecialtyMap({
                     <h3 className="text-sm font-semibold text-slate-700">APP roster</h3>
                     <InfoIconTip aria-label="APP mapping">
                       <p>
-                        Use <strong className="text-slate-800">Map to market / bucket</strong> for each person—options include every survey row plus any named buckets you add under{' '}
-                        <strong className="text-slate-800">Benchmark buckets</strong> below.
+                        Use <strong className="text-slate-800">Map to market / bucket</strong> for each person. The dropdown lists every APP survey specialty plus <strong className="text-slate-800">custom buckets</strong> you define under <strong className="text-slate-800">Controls → Mappings → APP map buckets</strong>.
                       </p>
-                      <p className="text-slate-500">Auto Map suggests matches once buckets exist or labels align to survey rows.</p>
+                      <p className="text-slate-500">Auto Map suggests matches when roster labels align to those rows or buckets.</p>
                     </InfoIconTip>
                   </div>
                   <div className="min-w-0 border-t border-neutral-200/80">
@@ -1266,11 +967,6 @@ export function SpecialtyMap({
                       <span className="text-sm text-slate-600">
                         APP providers — <span className="font-medium text-slate-800">{filteredApps.length}</span> providers
                       </span>
-                      {filteredPhysicians.length === 0 && orphanSpecialties.length > 0 && (
-                        <span className="text-xs text-slate-400">
-                          Unused: {orphanSpecialties.slice(0, 6).join(', ')}{orphanSpecialties.length > 6 ? '…' : ''}
-                        </span>
-                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <span className="text-sm text-slate-600">
@@ -1298,39 +994,6 @@ export function SpecialtyMap({
                 </>
               )}
             </>
-          )}
-          {isAppsView && (
-            <AppBenchmarkBucketsSection
-              marketSpecialties={marketSpecialties}
-              providerSpecialtyOptions={providerSpecialtyOptions}
-              groups={appCombinedGroups}
-              setGroups={setAppCombinedGroups}
-              onSync={doMerge}
-            />
-          )}
-          {isAppsView && (
-            <BulkMappingApply
-              providerSpecialtyOptions={providerSpecialtyOptions}
-              allTargetsForOverride={allTargetsForOverride}
-              mapOptionGroups={appMapTargetGroups}
-              appsForSurvey={appsForSurvey}
-              getMatchKey={getMatchKey}
-              onApply={(sourceSpecialties, target) => {
-                setRecords((prev) => {
-                  const sourceSet = new Set(sourceSpecialties);
-                  const appIds = new Set(appsForSurvey.map((p) => p.Employee_ID));
-                  const updated = prev.map((p) => {
-                    if (!appIds.has(p.Employee_ID)) return p;
-                    const key = getMatchKey(p);
-                    if (!sourceSet.has(key)) return p;
-                    return { ...p, Market_Specialty_Override: target };
-                  });
-                  const mappings = loadSurveySpecialtyMappingSet();
-                  const typeToSurvey = loadProviderTypeToSurveyMapping();
-                  return mergeMarketIntoProvidersMulti(updated, marketSurveys, mappings, typeToSurvey);
-                });
-              }}
-            />
           )}
             </>
           )}

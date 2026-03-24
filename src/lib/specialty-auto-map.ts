@@ -9,6 +9,7 @@ import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 import type { AppCombinedGroupRow } from '../types/app-combined-group';
 import { buildMarketLookup } from './joins';
+import { loadAppBucketLearnedStore, normalizeMarketSpecialtyKey } from './app-bucket-learning-storage';
 
 /** Match key for a provider: Override → Specialty → Benchmark_Group. */
 export function getMatchKey(p: ProviderRecord): string {
@@ -182,6 +183,7 @@ export function suggestAppGroupMappings(
   const filterByType = appTypeSet.size > 0;
 
   const suggestions: AppGroupMappingSuggestion[] = [];
+  const learnedStore = loadAppBucketLearnedStore();
 
   for (const p of providers) {
     if (filterByType) {
@@ -194,6 +196,24 @@ export function suggestAppGroupMappings(
 
     const alreadyMatched = getMarket(key);
     if (alreadyMatched) continue;
+
+    const mem = learnedStore.bySpecialtyKey[normalizeMarketSpecialtyKey(key)];
+    if (mem && (appCombinedGroups ?? []).some((g) => g.id === mem.bucketId)) {
+      const bucket = (appCombinedGroups ?? []).find((g) => g.id === mem.bucketId)!;
+      const name = (bucket.combinedGroupName ?? '').trim();
+      if (name && allTargets.includes(name)) {
+        suggestions.push({
+          employeeId: p.Employee_ID,
+          providerName: p.Provider_Name ?? '',
+          providerType: p.Provider_Type ?? '',
+          providerSpecialty: key,
+          suggestedTarget: name,
+          suggestedTargetType: combinedNames.includes(name) ? 'combined' : 'market',
+          confidence: 0.96,
+        });
+        continue;
+      }
+    }
 
     const [match, score] = (() => {
       const results = extract(key, allTargets, {

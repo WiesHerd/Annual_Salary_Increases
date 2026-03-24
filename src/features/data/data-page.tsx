@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
-import { SURVEY_LABELS, getSurveyLabel } from '../../types/market-survey-config';
+import { getSurveyLabel, sortSurveyIdsByLabel } from '../../types/market-survey-config';
 import { ImportCards } from './import-cards';
 import { ProviderTable } from './provider-table';
 import { MarketTable } from './market-table';
@@ -66,7 +66,7 @@ export function DataPage({
         };
       });
   }, [customStreamDefinitions, getStreamData, buildProviderLookup]);
-  const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('physicians');
+  const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState<string>('');
 
   const totalMarketRows = useMemo(
     () => Object.values(marketSurveys).reduce((acc, rows) => acc + rows.length, 0),
@@ -83,9 +83,9 @@ export function DataPage({
   ], [records.length, totalMarketRows, evaluationRows.length, payments.length]);
 
   const surveyIds = useMemo(() => {
-    const allIds = [...new Set([...Object.keys(SURVEY_LABELS), ...Object.keys(marketSurveys)])];
-    return allIds.filter((id) => (marketSurveys[id]?.length ?? 0) > 0);
-  }, [marketSurveys]);
+    const withRows = Object.keys(marketSurveys).filter((id) => (marketSurveys[id]?.length ?? 0) > 0);
+    return sortSurveyIdsByLabel(withRows, surveyMetadata);
+  }, [marketSurveys, surveyMetadata]);
 
   // If the selected survey no longer has data, fall back to the first available one.
   useEffect(() => {
@@ -143,29 +143,38 @@ export function DataPage({
 
       {activeTab === 'market' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200 w-fit">
-            {surveyIds.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setSelectedMarketSurveyId(id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedMarketSurveyId === id
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
-              >
-                {getSurveyLabel(id, surveyMetadata)}
-              </button>
-            ))}
-          </div>
-          <MarketTable
-            surveyId={selectedMarketSurveyId}
-            surveyLabel={getSurveyLabel(selectedMarketSurveyId, surveyMetadata)}
-            rows={marketSurveys[selectedMarketSurveyId] ?? []}
-            onRemove={removeMarketRow}
-            onClear={clearMarket}
-          />
+          {surveyIds.length === 0 ? (
+            <div className="app-card p-8 text-center text-slate-600">
+              No market survey rows yet. Use <strong className="text-slate-800">Import</strong> to upload a market file,
+              or <strong className="text-slate-800">Add survey</strong> if available from your workflow.
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200 w-fit">
+                {surveyIds.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSelectedMarketSurveyId(id)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedMarketSurveyId === id
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                    }`}
+                  >
+                    {getSurveyLabel(id, surveyMetadata)}
+                  </button>
+                ))}
+              </div>
+              <MarketTable
+                surveyId={selectedMarketSurveyId || surveyIds[0]}
+                surveyLabel={getSurveyLabel(selectedMarketSurveyId || surveyIds[0], surveyMetadata)}
+                rows={marketSurveys[selectedMarketSurveyId || surveyIds[0]] ?? []}
+                onRemove={removeMarketRow}
+                onClear={clearMarket}
+              />
+            </>
+          )}
         </div>
       )}
 

@@ -25,6 +25,7 @@ export interface SearchableSelectProps {
   'aria-label'?: string;
   className?: string;
   emptyOptionLabel?: string;
+  includeEmptyOption?: boolean;
 }
 
 export function SearchableSelect({
@@ -37,6 +38,7 @@ export function SearchableSelect({
   'aria-label': ariaLabel,
   className = '',
   emptyOptionLabel = '—',
+  includeEmptyOption = true,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -154,18 +156,20 @@ export function SearchableSelect({
               />
             </div>
             <ul role="listbox" className="py-2 overflow-y-auto max-h-52">
-              <li role="option" aria-selected={value === ''}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange('');
-                    setOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  {emptyOptionLabel}
-                </button>
-              </li>
+              {includeEmptyOption && (
+                <li role="option" aria-selected={value === ''}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange('');
+                      setOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                  >
+                    {emptyOptionLabel}
+                  </button>
+                </li>
+              )}
               {useGrouped ? (
                 filteredGroups && filteredGroups.length > 0 ? (
                   filteredGroups.flatMap((group) => [

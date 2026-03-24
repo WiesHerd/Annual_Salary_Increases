@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   loadProviderTypeToSurveyMapping,
   saveProviderTypeToSurveyMapping,
 } from '../../../lib/parameters-storage';
-import { SURVEY_LABELS, getSurveyLabel, DEFAULT_SURVEY_ID } from '../../../types/market-survey-config';
+import { getSurveyLabel, DEFAULT_SURVEY_ID } from '../../../types/market-survey-config';
 import type { ParameterOptions } from '../../../lib/parameter-options';
 import type { ProviderTypeToSurveyMapping } from '../../../types/market-survey-config';
 import { SearchableSelect } from '../../../components/searchable-select';
@@ -18,7 +18,7 @@ import {
 
 interface ProviderTypeSurveyTabProps {
   options: ParameterOptions;
-  /** Survey IDs from loaded market data; merged with SURVEY_LABELS so any uploaded survey can be selected. */
+  /** Survey slot ids from market data, routing, and Parameters (see collectSurveyPickerIds). */
   surveyIds?: string[];
   /** Custom survey labels for user-defined slots. */
   surveyMetadata?: Record<string, { label: string }>;
@@ -31,10 +31,6 @@ function optionsWithCurrent(options: string[], current: string | undefined): str
 }
 
 export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata = {} }: ProviderTypeSurveyTabProps) {
-  const surveyOptions = [
-    ...Object.entries(SURVEY_LABELS).map(([id, label]) => ({ id, label })),
-    ...surveyIds.filter((id) => !(id in SURVEY_LABELS)).map((id) => ({ id, label: getSurveyLabel(id, surveyMetadata) })),
-  ];
   const [mapping, setMapping] = useState<ProviderTypeToSurveyMapping>(() => loadProviderTypeToSurveyMapping());
 
   useEffect(() => {
@@ -45,6 +41,25 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
     setMapping(next);
     saveProviderTypeToSurveyMapping(next);
   }, []);
+
+  const surveyOptions = useMemo(() => {
+    const idSet = new Set<string>();
+    for (const id of surveyIds) {
+      const k = id.trim();
+      if (k) idSet.add(k);
+    }
+    for (const sid of Object.values(mapping)) {
+      const s = String(sid ?? '').trim();
+      if (s) idSet.add(s);
+    }
+    const sorted = [...idSet].sort((a, b) =>
+      getSurveyLabel(a, surveyMetadata).localeCompare(getSurveyLabel(b, surveyMetadata), undefined, {
+        sensitivity: 'base',
+        numeric: true,
+      })
+    );
+    return sorted.map((id) => ({ id, label: getSurveyLabel(id, surveyMetadata) }));
+  }, [surveyIds, mapping, surveyMetadata]);
 
   const entries = Object.entries(mapping);
   const providerTypeOpts = optionsWithCurrent(options.providerTypes, undefined);
@@ -57,9 +72,12 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
       while (next[`New type ${i}`]) i++;
       key = `New type ${i}`;
     }
-    next[key] = DEFAULT_SURVEY_ID;
+    const defaultSurveyId = surveyIds.includes(DEFAULT_SURVEY_ID)
+      ? DEFAULT_SURVEY_ID
+      : (surveyIds[0] ?? surveyOptions[0]?.id ?? DEFAULT_SURVEY_ID);
+    next[key] = defaultSurveyId;
     persist(next);
-  }, [mapping, options.providerTypes, persist]);
+  }, [mapping, options.providerTypes, persist, surveyIds, surveyOptions]);
 
   const update = useCallback(
     (oldKey: string, providerType: string, surveyId: string) => {
@@ -87,8 +105,8 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
         <div className="min-w-0 max-w-2xl">
           <h3 className={parametersSectionHeadingClass}>Provider type → Market survey</h3>
           <p className={parametersSectionDescriptionClass}>
-            Map each provider type to the market survey used for benchmarking. Physicians and APPs typically use the
-            Physicians survey; Mental Health Therapists use the Mental Health Therapists survey.
+            Map each provider type to a market survey slot (from your uploaded market files). Add surveys under Data →
+            Import or when you first load market rows; labels for each slot can be customized in survey metadata.
           </p>
           {options.providerTypes.length === 0 && (
             <p className="text-xs text-amber-700 mt-2">
@@ -113,7 +131,8 @@ export function ProviderTypeSurveyTab({ options, surveyIds = [], surveyMetadata 
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-slate-500 text-sm">
-                  No mappings. Click &quot;Add mapping&quot; to create one. Unmapped provider types default to Physicians survey.
+                  No mappings. Click &quot;Add mapping&quot; to create one. Unmapped provider types use the default survey id
+                  from app settings until you map them here.
                 </td>
               </tr>
             ) : (

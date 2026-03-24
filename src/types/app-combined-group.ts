@@ -10,6 +10,11 @@ export interface AppCombinedGroupRow {
   combinedGroupName: string;
   /** Survey specialties to blend together (average percentiles). */
   surveySpecialties: string[];
-  /** Provider specialties that map to this group (optional; alternative to Benchmark_Group = combinedGroupName). */
+  /**
+   * Legacy: roster / benchmark labels that map to this bucket’s market row.
+   * Cleared when saving from the APP map buckets UI; prefer bucket name match + Auto Map memory.
+   */
   providerSpecialties?: string[];
+  /** Optional free-text note for admins (not used in matching). */
+  notes?: string;
 }

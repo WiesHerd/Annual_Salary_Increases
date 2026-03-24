@@ -1266,7 +1266,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                       }}
                       className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg transition-colors"
                     >
-                      Export as CSV
+                      CSV
                     </button>
                     <button
                       type="button"
@@ -1276,7 +1276,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                       }}
                       className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg transition-colors"
                     >
-                      Export as XLSX
+                      Excel (.xlsx)
                     </button>
                   </div>
                 </>

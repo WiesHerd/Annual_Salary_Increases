@@ -93,20 +93,33 @@ export function buildMarketLookup(
       const cg = g.combinedGroupName.trim();
       if (!cg || combinedToRow.has(cg)) continue;
       const toBlend: MarketRow[] = [];
-      for (const spec of g.surveySpecialties) {
+      for (const spec of g.surveySpecialties ?? []) {
         const s = spec.trim();
         const row = bySpecialty.get(s) ?? bySpecialtyLower.get(s.toLowerCase());
         if (row) toBlend.push(row);
       }
-      if (toBlend.length > 0) {
-        const blended = blendMarketRows(toBlend, cg);
-        combinedToRow.set(cg, blended);
-        combinedToRowLower.set(cg.toLowerCase(), blended);
+
+      let combinedRow: MarketRow | undefined;
+      if (toBlend.length > 1) {
+        combinedRow = blendMarketRows(toBlend, cg);
+      } else if (toBlend.length === 1) {
+        combinedRow = { ...toBlend[0], specialty: cg };
+      } else {
+        const single =
+          bySpecialty.get(cg) ?? bySpecialtyLower.get(cg.toLowerCase());
+        if (single) {
+          combinedRow = { ...single, specialty: cg };
+        }
+      }
+
+      if (combinedRow) {
+        combinedToRow.set(cg, combinedRow);
+        combinedToRowLower.set(cg.toLowerCase(), combinedRow);
         for (const ps of g.providerSpecialties ?? []) {
           const p = ps.trim();
           if (!p || providerSpecialtyToRow.has(p)) continue;
-          providerSpecialtyToRow.set(p, blended);
-          providerSpecialtyToRowLower.set(p.toLowerCase(), blended);
+          providerSpecialtyToRow.set(p, combinedRow);
+          providerSpecialtyToRowLower.set(p.toLowerCase(), combinedRow);
         }
       }
     }

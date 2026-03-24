@@ -47,8 +47,8 @@ const NUMERIC_KEYS = new Set<keyof ProviderRecord>([
   'Estimated_TCC_from_WRVU_Percentile', 'WRVU_to_TCC_Ratio', 'TCC_WRVU_Gap', 'Estimated_Pay_Gap',
 ]);
 
-/** All ProviderRecord keys that can be mapped from upload. */
-const PROVIDER_RECORD_KEYS: (keyof ProviderRecord)[] = [
+/** All ProviderRecord keys that can be mapped from upload (wide roster; includes fields often filled later by the app or joins). */
+export const PROVIDER_RECORD_KEYS: (keyof ProviderRecord)[] = [
   'Employee_ID', 'Provider_Name', 'Primary_Division', 'Department', 'Location', 'Job_Code', 'Provider_Type',
   'Specialty', 'Benchmark_Group', 'Population', 'Compensation_Plan', 'Cycle',
   'Hire_Date', 'Adjusted_Hire_Date', 'Residency_Graduation_Date', 'RN_Start_Date', 'RN_End_Date', 'Non_RN_Start_Date',

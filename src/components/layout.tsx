@@ -132,6 +132,27 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           </div>
         </div>
 
+        {/* Merit cycle (global context) */}
+        {!collapsed && cycles.length > 0 && (
+          <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Merit cycle</span>
+              <select
+                value={selectedCycleId || fallbackCycleId}
+                onChange={(e) => setSelectedCycleId(e.target.value)}
+                className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                aria-label="Select merit cycle"
+              >
+                {cyclesForSelect.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
         {/* Scrollable nav */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 min-h-0">
           {navSections.map((section) => (
@@ -173,53 +194,29 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           ))}
         </nav>
 
-        {/* Footer: merit cycle, collapse toggle + tagline */}
+        {/* Footer: collapse toggle */}
         <div className="shrink-0 border-t border-slate-100 flex flex-col">
-          {!collapsed && (
-            <div className="border-b border-slate-100 px-4 py-3">
-              {cycles.length > 0 && (
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Merit cycle
-                  </span>
-                  <select
-                    value={selectedCycleId || fallbackCycleId}
-                    onChange={(e) => setSelectedCycleId(e.target.value)}
-                    className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
-                    aria-label="Select merit cycle"
-                  >
-                    {cyclesForSelect.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-            </div>
-          )}
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className={`flex items-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${collapsed ? 'justify-center py-3' : 'gap-3 px-4 py-2.5'}`}
+            className={`group flex items-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:ring-offset-2 ${
+              collapsed ? 'justify-center py-3' : 'justify-start px-4 py-2.5'
+            }`}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? (
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            )}
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors group-hover:border-slate-300 group-hover:bg-slate-50 group-hover:text-slate-700">
+              {collapsed ? (
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              )}
+            </span>
           </button>
-          {!collapsed && (
-            <div className="px-4 pb-3">
-              <p className="text-xs text-slate-400 text-center">Annual salary increase modeler</p>
-            </div>
-          )}
         </div>
       </aside>
       )}
