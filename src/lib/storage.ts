@@ -60,7 +60,13 @@ export function loadProviderRecords(): ProviderRecord[] {
 }
 
 export function saveProviderRecords(records: ProviderRecord[]): void {
-  migratedStorageSetItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
+  const json = JSON.stringify(records);
+  if (records.length === 0) {
+    // Wipe primary + legacy first so a stale `tcc-provider-records` cannot survive a failed or
+    // partial meritly write and repopulate the UI on refresh (meritly is read before tcc fallback).
+    migratedStorageRemoveItem(STORAGE_KEY_RECORDS);
+  }
+  migratedStorageSetItem(STORAGE_KEY_RECORDS, json);
 }
 
 /** @deprecated Use loadProviderRecords */
