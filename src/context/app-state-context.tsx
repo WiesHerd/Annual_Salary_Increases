@@ -95,6 +95,15 @@ export type AppStateValue = {
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
+/** When false, empty persisted data stays empty on reload (user cleared or replaced); skip sample-data injection. */
+function allowAutoSeedData(): boolean {
+  try {
+    return localStorage.getItem('asi-demo-mode') !== 'false';
+  } catch {
+    return true;
+  }
+}
+
 function AppStateProviderInner({ children }: { children: ReactNode }) {
   const { cycles } = useParametersState();
   const [selectedCycleId] = useSelectedCycle(cycles);
@@ -129,8 +138,10 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const allowSeed = allowAutoSeedData();
+
     let recs = loadProviderRecords();
-    if (recs.length === 0) {
+    if (recs.length === 0 && allowSeed) {
       recs = getSeedProviderRecords();
       saveProviderRecords(recs);
       safeLocalStorageSetItem('asi-demo-mode', 'true');
@@ -138,21 +149,23 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     recs = inferMissingProviderTypes(recs);
     let surveys = loadMarketSurveys();
     const seedMarketSurveys = getSeedMarketSurveys();
-    if (Object.keys(surveys).length === 0 || (surveys[DEFAULT_SURVEY_ID]?.length === 0)) {
-      surveys = { ...seedMarketSurveys };
-      saveMarketSurveys(surveys);
-    } else {
-      const merged = { ...surveys };
-      let backfill = false;
-      for (const [id, rows] of Object.entries(seedMarketSurveys)) {
-        if (!merged[id]?.length) {
-          merged[id] = rows;
-          backfill = true;
+    if (allowSeed) {
+      if (Object.keys(surveys).length === 0 || (surveys[DEFAULT_SURVEY_ID]?.length === 0)) {
+        surveys = { ...seedMarketSurveys };
+        saveMarketSurveys(surveys);
+      } else {
+        const merged = { ...surveys };
+        let backfill = false;
+        for (const [id, rows] of Object.entries(seedMarketSurveys)) {
+          if (!merged[id]?.length) {
+            merged[id] = rows;
+            backfill = true;
+          }
         }
-      }
-      if (backfill) {
-        saveMarketSurveys(merged);
-        surveys = merged;
+        if (backfill) {
+          saveMarketSurveys(merged);
+          surveys = merged;
+        }
       }
     }
     recs = mergeAll(recs, surveys);
@@ -165,7 +178,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     setSurveyMetadata(loadSurveyMetadata());
 
     let pay = loadPayments();
-    if (pay.length === 0) {
+    if (pay.length === 0 && allowSeed) {
       pay = getSeedPayments();
       savePayments(pay);
     }
@@ -282,7 +295,13 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   }, []);
 
   const removeRecord = useCallback((employeeId: string) => {
-    setRecords((prev) => prev.filter((r) => r.Employee_ID !== employeeId));
+    setRecords((prev) => {
+      const next = prev.filter((r) => r.Employee_ID !== employeeId);
+      if (next.length === 0) {
+        safeLocalStorageSetItem('asi-demo-mode', 'false');
+      }
+      return next;
+    });
   }, []);
 
   const removeMarketRow = useCallback(
@@ -297,7 +316,10 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     [mergeAll]
   );
 
-  const clearAll = useCallback(() => setRecords([]), []);
+  const clearAll = useCallback(() => {
+    safeLocalStorageSetItem('asi-demo-mode', 'false');
+    setRecords([]);
+  }, []);
 
   const updateProviderRecord = useCallback(
     (employeeId: string, updates: Partial<ProviderRecord>) => {
@@ -326,6 +348,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
   const clearMarket = useCallback(
     (surveyId: string) => {
+      safeLocalStorageSetItem('asi-demo-mode', 'false');
       setMarketSurveys((prev) => {
         const next = { ...prev, [surveyId]: [] };
         setRecords((recs) => mergeAll(recs, next));
@@ -344,7 +367,10 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
-  const clearPayments = useCallback(() => setPayments([]), []);
+  const clearPayments = useCallback(() => {
+    safeLocalStorageSetItem('asi-demo-mode', 'false');
+    setPayments([]);
+  }, []);
 
   const addCustomDataset = useCallback(
     (name: string, result: CustomUploadResult, joinKeyColumn: string | null) => {
