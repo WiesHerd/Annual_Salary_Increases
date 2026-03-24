@@ -235,7 +235,7 @@ export function ProviderTable({
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
-        'Clear all imported data in this browser? Providers, market surveys, payments, evaluations, custom datasets, and custom streams will be removed. This does not reset Parameters / policies.'
+        'Remove all imported data on this device? Provider, market, evaluation, payment, and custom data will be deleted. Parameters and policies are unchanged.'
       )
     ) {
       return;
@@ -327,30 +327,27 @@ export function ProviderTable({
 
   if (records.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500 space-y-3">
-        <p>No provider records yet. Upload a CSV or XLSX from Import data.</p>
-        {onLoadSampleData && (
-          <p className="text-sm">
+      <div className="app-card p-10 text-center max-w-lg mx-auto">
+        <p className="text-slate-800 font-medium">No provider records</p>
+        <p className="text-sm text-slate-500 mt-2">Upload from Import data, or load sample data to explore.</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {onLoadSampleData && (
             <button
               type="button"
               onClick={onLoadSampleData}
-              className="font-medium text-indigo-600 hover:text-indigo-800 underline-offset-2 hover:underline"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
             >
-              Load sample dataset
+              Load sample data
             </button>
-            <span className="text-slate-500"> — fills demo rows from the app (not a remote link).</span>
-          </p>
-        )}
-        <p className="text-sm">
+          )}
           <button
             type="button"
             onClick={handleClearAllImportedData}
-            className="font-medium text-red-600 hover:text-red-800 underline-offset-2 hover:underline"
+            className="rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50"
           >
-            Clear all imported data
+            Reset imported data
           </button>
-          <span className="text-slate-500"> — removes market, payments, and other tabs too (this browser only).</span>
-        </p>
+        </div>
       </div>
     );
   }
@@ -414,7 +411,7 @@ export function ProviderTable({
               type="button"
               onClick={handleClearAllImportedData}
               className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-              title="Clears providers, market, payments, evaluations, and custom imports (saved in this browser only)"
+              title="Remove all imported data on this device"
             >
               Clear all data
             </button>

@@ -324,22 +324,18 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
       </div>
 
       {records.length === 0 && (
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-slate-700">
-          <span className="text-slate-600">No data in this browser yet. </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+          <span>New workspace — import below or</span>
           <button
             type="button"
             onClick={() => {
               loadDemoData();
               onNavigateToBrowser?.('provider');
             }}
-            className="font-medium text-indigo-700 hover:text-indigo-900 underline-offset-2 hover:underline"
+            className="font-medium text-indigo-700 hover:text-indigo-900"
           >
-            Load sample dataset
+            load sample data
           </button>
-          <span className="text-slate-600">
-            {' '}
-            to try the app (demo rows only — not loaded from a server). Or import your own files below.
-          </span>
         </div>
       )}
 
