@@ -31,7 +31,7 @@ export function EmptyStatePanel({
   const containerCls =
     containerClassName ??
     (compact
-      ? 'app-card relative overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50/30 via-white to-white px-6 py-10 text-center text-slate-600'
+      ? 'app-card relative flex min-h-[14rem] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-indigo-50/30 via-white to-white px-6 py-10 text-center text-slate-600'
       : 'app-card flex min-h-[min(20rem,42vh)] items-center justify-center px-6 py-12 text-center sm:px-10 sm:py-16');
 
   return (

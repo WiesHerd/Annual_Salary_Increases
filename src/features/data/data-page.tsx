@@ -123,10 +123,16 @@ export function DataPage({
   }
 
   const showTabBar = !standaloneTab;
+  const hasAnyData =
+    records.length > 0 ||
+    totalMarketRows > 0 ||
+    evaluationRows.length > 0 ||
+    payments.length > 0 ||
+    customDatasets.length > 0;
 
   return (
     <div className="space-y-6">
-      {showTabBar && (
+      {showTabBar && hasAnyData && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="app-segmented-track w-fit flex flex-wrap">
             {TABS.map(({ id, label }, idx) => (
