@@ -474,7 +474,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
 
                   <div className="rounded-xl border border-violet-200/80 border-l-[6px] border-l-violet-500 bg-violet-50/50 p-3 sm:p-4 shadow-sm min-w-0 flex flex-col">
                     <p className="text-xs font-bold uppercase tracking-wide text-violet-950 mb-2">Pay · dollars</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full">
+                    <div className="grid grid-cols-4 gap-2 sm:gap-3 w-full">
                       <div className="min-w-0">
                         <label htmlFor={`band-fixed-anchor-${r.id}`} className={fieldLabelClass}>
                           Midpoint ($)
