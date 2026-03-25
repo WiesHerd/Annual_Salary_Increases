@@ -28,14 +28,14 @@ export function EmptyStatePanel({
   const containerCls =
     containerClassName ??
     (compact
-      ? 'app-card p-8 text-center text-slate-600'
+      ? 'app-card flex min-h-[14rem] items-center justify-center px-6 py-10 text-center text-slate-600'
       : 'app-card flex min-h-[min(20rem,42vh)] items-center justify-center px-6 py-12 text-center sm:px-10 sm:py-16');
 
   return (
     <div className={containerCls}>
       <div className="w-full max-w-md">
-        {title && <h2 className="text-lg font-semibold text-slate-800 mb-2">{title}</h2>}
-        <div className={title ? 'text-sm leading-relaxed text-slate-600' : 'text-sm leading-relaxed text-slate-600'}>{message}</div>
+        {title && <h2 className="text-base font-semibold text-slate-800 mb-2 tracking-tight">{title}</h2>}
+        <div className="text-sm leading-relaxed text-slate-600">{message}</div>
         {children != null && <div className="mt-6 flex flex-col items-center gap-3">{children}</div>}
       </div>
     </div>
