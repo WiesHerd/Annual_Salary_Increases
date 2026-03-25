@@ -9,6 +9,7 @@ import { exportToCsv, exportToXlsx, type CustomStreamExportLookup } from '../../
 import { formatCurrency, formatFte } from '../../utils/format';
 import { ProviderEditModal } from './provider-edit-modal';
 import { getModifiedProviderIds } from '../../lib/audit';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 
 export interface ProviderTableFilters {
   searchText: string;
@@ -330,32 +331,31 @@ export function ProviderTable({
 
   if (records.length === 0) {
     return (
-      <div className="app-card flex min-h-[min(20rem,42vh)] items-center justify-center px-6 py-12 sm:px-10 sm:py-16">
-        <div className="text-center max-w-sm">
-          <p className="text-slate-800 font-medium">No provider records</p>
-          <p className="text-sm text-slate-500 mt-2">Import from Import data, or load sample data.</p>
-          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
-            {onLoadSampleData && (
-              <button
-                type="button"
-                onClick={onLoadSampleData}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
-              >
-                Load sample data
-              </button>
-            )}
-            {hasOtherImportedData && (
-              <button
-                type="button"
-                onClick={handleClearAllImportedData}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-              >
-                Clear all imports
-              </button>
-            )}
-          </div>
+      <EmptyStatePanel
+        title="Provider data"
+        message="No provider records yet."
+      >
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+          {onLoadSampleData && (
+            <button
+              type="button"
+              onClick={onLoadSampleData}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+            >
+              Load sample data
+            </button>
+          )}
+          {hasOtherImportedData && (
+            <button
+              type="button"
+              onClick={handleClearAllImportedData}
+              className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            >
+              Clear all imports
+            </button>
+          )}
         </div>
-      </div>
+      </EmptyStatePanel>
     );
   }
 

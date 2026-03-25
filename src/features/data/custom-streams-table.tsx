@@ -5,6 +5,7 @@
 import { useState, useMemo } from 'react';
 import type { CustomStreamDefinition, CustomStreamRow } from '../../types/custom-stream';
 import type { CustomStreamData } from '../../lib/custom-stream-storage';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -50,12 +51,11 @@ export function CustomStreamsTable({ definitions, getStreamData }: CustomStreams
 
   if (definitions.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500">
-        <p>
-          No custom data streams. Use Import → Custom data to add a stream and upload a file. Provider-linked streams
-          can be joined to providers by Employee ID in exports.
-        </p>
-      </div>
+      <EmptyStatePanel
+        title="Custom data"
+        message="No custom data streams yet."
+        compact
+      />
     );
   }
 
@@ -94,7 +94,12 @@ export function CustomStreamsTable({ definitions, getStreamData }: CustomStreams
             </span>
           </div>
           {rowCount === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">No rows. Upload data from Import → Custom data.</div>
+            <EmptyStatePanel
+              title={selectedDef?.label ?? 'Stream'}
+              message="No rows yet."
+              compact
+              containerClassName="p-8 text-center text-slate-600"
+            />
           ) : (
             <>
               <div className="app-data-table-wrapper overflow-x-auto">

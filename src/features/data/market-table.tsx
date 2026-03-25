@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { MarketRow } from '../../types/market';
 import { formatCurrency } from '../../utils/format';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 
 /** Format with comma and 2 decimals (e.g. 5,500.00). */
 function formatWrvu(value: number): string {
@@ -58,9 +59,11 @@ export function MarketTable({ surveyId, surveyLabel, rows, onRemove, onClear }: 
 
   if (rows.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500">
-        <p>No market data yet. Upload a market survey file (CSV or XLSX) above.</p>
-      </div>
+      <EmptyStatePanel
+        title={surveyLabel}
+        message="No market data yet."
+        compact
+      />
     );
   }
 

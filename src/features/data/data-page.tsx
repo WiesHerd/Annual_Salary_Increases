@@ -9,6 +9,7 @@ import { EvaluationTable } from './evaluation-table';
 import { SpecialtyMap } from './specialty-map';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { CustomStreamsTable } from './custom-streams-table';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 
 export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
 export type DataPageFocus = 'import' | 'browse';
@@ -161,10 +162,11 @@ export function DataPage({
       {activeTab === 'market' && (
         <div className="space-y-4">
           {surveyIds.length === 0 ? (
-            <div className="app-card p-8 text-center text-slate-600">
-              No market survey rows yet. Use <strong className="text-slate-800">Import</strong> to upload a market file,
-              or <strong className="text-slate-800">Add survey</strong> if available from your workflow.
-            </div>
+            <EmptyStatePanel
+              title="Market surveys"
+              message="No market data yet."
+              compact
+            />
           ) : (
             <>
               <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200 w-fit">

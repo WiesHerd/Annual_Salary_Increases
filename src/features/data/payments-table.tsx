@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { ParsedPaymentRow } from '../../types';
 import { formatCurrency } from '../../utils/format';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 
 const PAGE_SIZES = [10, 25, 50, 100, 200] as const;
 
@@ -76,9 +77,7 @@ export function PaymentsTable({ rows, onClear }: PaymentsTableProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="app-card p-8 text-center text-slate-500">
-        <p>No payments yet. Upload a payments file (CSV or XLSX) above.</p>
-      </div>
+      <EmptyStatePanel title="Payments" message="No payment records yet." compact />
     );
   }
 

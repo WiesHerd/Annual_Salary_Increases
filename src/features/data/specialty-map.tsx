@@ -8,7 +8,6 @@ import { useMemo, useCallback, useState, useEffect, type ReactNode } from 'react
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketSurveySet } from '../../types/market-survey-config';
 import {
-  collectActiveSurveyIds,
   getSurveyLabel,
   sortSurveyIdsByLabel,
 } from '../../types/market-survey-config';
@@ -33,6 +32,7 @@ import {
   deriveSpecialtyMapFilterOptions,
 } from '../../lib/specialty-map-filters';
 import { InfoIconTip } from '../../components/info-icon-tip';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 import { SpecialtyMapFilterBar } from './specialty-map-filter-bar';
 
 interface SpecialtyMapProps {
@@ -464,8 +464,10 @@ export function SpecialtyMap({
 
   /** Tabs follow org data: market rows + provider-type routing only (no fixed three-slot list). */
   const specialtyMapSurveyTabIds = useMemo(() => {
-    const typeToSurvey = loadProviderTypeToSurveyMapping();
-    return sortSurveyIdsByLabel(collectActiveSurveyIds(marketSurveys, typeToSurvey), surveyMetadata);
+    // Only show mapping targets when the user has actually uploaded market rows.
+    // Provider-Type -> Survey routing alone is not "data" for this UI.
+    const withRows = Object.keys(marketSurveys).filter((id) => (marketSurveys[id]?.length ?? 0) > 0);
+    return sortSurveyIdsByLabel(withRows, surveyMetadata);
   }, [marketSurveys, surveyMetadata]);
 
   /** When the selected tab is missing or invalid, follow the first available survey. */
@@ -696,22 +698,21 @@ export function SpecialtyMap({
 
   if (specialtyMapSurveyTabIds.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Specialty map</h2>
-        <p className="text-slate-600 mb-4 max-w-lg mx-auto">
-          No market surveys are active yet. Upload market data for a survey in <strong>Data → Market survey</strong>, or set{' '}
-          <strong>Provider type → Market survey</strong> in Parameters so types route to a survey you use.
-        </p>
+      <EmptyStatePanel
+        title="Specialty map"
+        message="No market surveys active yet."
+        compact
+      >
         {onOpenProviderTypeSurvey && (
           <button
             type="button"
             onClick={onOpenProviderTypeSurvey}
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-800 underline-offset-2 hover:underline"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900"
           >
-            Open Provider type → Market survey
+            Open mapping
           </button>
         )}
-      </div>
+      </EmptyStatePanel>
     );
   }
 

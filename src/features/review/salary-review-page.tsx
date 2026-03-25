@@ -7,6 +7,7 @@ import { useCustomStreams } from '../../hooks/use-custom-streams';
 import type { ProviderRecord } from '../../types/provider';
 import { ReviewStatus } from '../../types/enums';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 import {
   getExperienceBandAlignmentForProvider,
   recalculateProviderRow,
@@ -774,17 +775,20 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
 
   if (records.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Salary review</h2>
-        <p className="text-slate-600 mb-4">
-          No provider records yet. Import provider data from the Import data screen first.
-        </p>
+      <EmptyStatePanel
+        title="Salary review"
+        message="No providers yet."
+      >
         {onNavigateToImport && (
-          <button type="button" onClick={onNavigateToImport} className="text-indigo-600 font-medium hover:underline">
+          <button
+            type="button"
+            onClick={onNavigateToImport}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900"
+          >
             Go to Import data
           </button>
         )}
-      </div>
+      </EmptyStatePanel>
     );
   }
 
