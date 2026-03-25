@@ -343,7 +343,7 @@ export function ProviderTable({
               onClick={onLoadSampleData}
               className="app-btn-primary"
             >
-              Load sample data
+              Load data
             </button>
           )}
           {hasOtherImportedData && (

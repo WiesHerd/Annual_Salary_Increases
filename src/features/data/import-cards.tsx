@@ -334,7 +334,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
             }}
             className="font-medium text-indigo-700 hover:text-indigo-900"
           >
-            load sample data
+            load data
           </button>
         </div>
       )}
