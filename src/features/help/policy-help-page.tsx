@@ -3,7 +3,9 @@
  */
 
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
+import { useTocScrollSpy } from '../../components/help/use-toc-scroll-spy';
+import { mainDockedTocArticlePaddingClass, useMainDockedPanelStyle } from '../../hooks/use-main-docked-panel-style';
 import { POLICY_STAGE_LABELS, POLICY_STAGE_ORDER } from '../../types/compensation-policy';
 import type { PolicyStage } from '../../types/compensation-policy';
 import { CONDITION_FACT_OPTIONS } from '../../lib/policy-engine/condition-builder';
@@ -24,7 +26,7 @@ const HELP_CHAPTERS = [
   { id: 'help-policy-types', title: 'Policy types' },
   { id: 'help-targeting', title: 'Targeting' },
   { id: 'help-actions-conflict', title: 'Actions and conflict strategy' },
-  { id: 'help-priority-fallback', title: 'Priority & fallback' },
+  { id: 'help-priority-fallback', title: 'Priority and fallback' },
   { id: 'help-best-practices', title: 'Best practices' },
   { id: 'help-where-next', title: 'Where to go next' },
 ] as const;
@@ -33,32 +35,6 @@ const CHAPTER_IDS = HELP_CHAPTERS.map((c) => c.id);
 
 function scrollToChapter(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/** Highlights the chapter whose heading is nearest the top of the viewport while scrolling. */
-function useActiveHelpChapter() {
-  const [activeId, setActiveId] = useState<string>(CHAPTER_IDS[0] ?? '');
-
-  useEffect(() => {
-    const elements = CHAPTER_IDS.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
-    if (elements.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length === 0) return;
-        visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        const id = visible[0].target.id;
-        if (id) setActiveId(id);
-      },
-      { root: null, rootMargin: '-10% 0px -55% 0px', threshold: [0, 0.1, 0.25] },
-    );
-
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-
-  return activeId;
 }
 
 function HelpTocNav({
@@ -74,18 +50,19 @@ function HelpTocNav({
   return (
     <nav className={className} aria-label="Policy help chapters">
       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">On this page</p>
-      <ol className="mt-3 space-y-0.5 border-l-2 border-slate-200 pl-3">
+      <ol className="mt-3 space-y-0.5">
         {HELP_CHAPTERS.map((ch, index) => {
           const isActive = activeId === ch.id;
           return (
             <li key={ch.id}>
               <button
                 type="button"
+                aria-current={isActive ? 'true' : undefined}
                 onClick={() => {
                   scrollToChapter(ch.id);
                   onAfterNavigate?.();
                 }}
-                className={`w-full rounded-md py-1.5 pl-2 -ml-2 pr-2 text-left text-sm transition-colors ${
+                className={`w-full rounded-md py-1.5 pl-2 -ml-2 pr-2 text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
                   isActive
                     ? 'bg-indigo-50 font-semibold text-indigo-900 ring-1 ring-indigo-200/80'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
@@ -125,13 +102,15 @@ function SubSection({ title, children }: { title: string; children: ReactNode })
 }
 
 export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) {
-  const activeChapterId = useActiveHelpChapter();
+  const sectionIds = useMemo(() => [...CHAPTER_IDS], []);
+  const activeChapterId = useTocScrollSpy(sectionIds, {});
   const mobileTocRef = useRef<HTMLDetailsElement>(null);
+  const { dockedStyle, isLg } = useMainDockedPanelStyle();
 
   return (
-    <div className="mx-auto max-w-6xl lg:grid lg:grid-cols-[minmax(0,13.5rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-12">
-      <aside className="mb-8 lg:mb-0">
-        <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pb-8">
+    <div className="relative w-full flex flex-col">
+      <div className={`min-w-0 w-full ${mainDockedTocArticlePaddingClass}`}>
+        <div className="sticky top-4 z-30 mb-6 bg-[#f8fafc]/95 pb-2 pt-1 backdrop-blur-sm lg:static lg:z-auto lg:mb-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           <details
             ref={mobileTocRef}
             className="group rounded-xl border-2 border-slate-800/90 bg-white shadow-md lg:hidden open:shadow-lg"
@@ -157,20 +136,16 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
               />
             </div>
           </details>
-          <div className="hidden lg:block">
-            <HelpTocNav activeId={activeChapterId} />
-          </div>
         </div>
-      </aside>
 
-      <div className="min-w-0 max-w-3xl">
       <div className="mb-10 border-l-4 border-indigo-600 pl-4">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Policy Engine help</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-700">
           How the Compensation Policy Engine works and how to build policies effectively for annual salary increases.
         </p>
         <p className="mt-3 text-xs text-slate-600">
-          Use the chapter list to jump to a section. This page reads like a short manual—skim the outline, then open the part you need.
+          Skim the sections below, or use <span className="lg:hidden">the chapter list above</span>
+          <span className="hidden lg:inline">the outline on the right</span> to jump.
         </p>
       </div>
 
@@ -343,6 +318,17 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
         )}
       </Section>
       </div>
+
+      {isLg && dockedStyle.position === 'fixed' ? (
+        <div
+          role="complementary"
+          className="border-l border-slate-200 bg-[#f8fafc]/98 pl-4 pr-1 backdrop-blur-sm"
+          style={dockedStyle}
+          aria-label="Policy help outline"
+        >
+          <HelpTocNav activeId={activeChapterId} />
+        </div>
+      ) : null}
     </div>
   );
 }
