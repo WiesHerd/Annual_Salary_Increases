@@ -694,15 +694,6 @@ export function SpecialtyMap({
   const canAutoMap = marketData.length > 0 && providersForSurvey.length > 0;
   const surveyLabel = getSurveyLabel(resolveSpecialtyMapMarketSurveyId(activeSurveyId), surveyMetadata);
 
-  if (records.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Specialty map</h2>
-        <p className="text-slate-600 mb-4">No provider records yet. Upload provider data in the Provider data tab first.</p>
-      </div>
-    );
-  }
-
   if (specialtyMapSurveyTabIds.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-indigo-100 p-10 text-center shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
@@ -839,29 +830,35 @@ export function SpecialtyMap({
 
         <div className="flex flex-col min-w-0">
           {providersForSurvey.length === 0 ? (
-            <>
             <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center">
-              <p className="text-slate-600 font-medium">
-                {isAppsView
-                  ? `No APP providers are mapped to the ${surveyLabel} survey.`
-                  : `No providers map to ${surveyLabel}.`}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">
-                {isAppsView
-                  ? 'Assign NP, PA, APP, and similar types to the APP market survey in Parameters (not the Physicians survey unless that is intentional).'
-                  : 'Configure Provider type → Market survey in Parameters so each role uses this tab’s market file.'}
-              </p>
-              {onOpenProviderTypeSurvey && (
-                <button
-                  type="button"
-                  onClick={onOpenProviderTypeSurvey}
-                  className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Type → Market
-                </button>
+              {records.length === 0 ? (
+                <p className="text-slate-600 font-medium">
+                  No provider records yet. Upload provider data in the Provider data tab first.
+                </p>
+              ) : (
+                <>
+                  <p className="text-slate-600 font-medium">
+                    {isAppsView
+                      ? `No APP providers are mapped to the ${surveyLabel} survey.`
+                      : `No providers map to ${surveyLabel}.`}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {isAppsView
+                      ? 'Assign NP, PA, APP, and similar types to the APP market survey in Parameters (not the Physicians survey unless that is intentional).'
+                      : 'Configure Provider type → Market survey in Parameters so each role uses this tab’s market file.'}
+                  </p>
+                  {onOpenProviderTypeSurvey && (
+                    <button
+                      type="button"
+                      onClick={onOpenProviderTypeSurvey}
+                      className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      Type → Market
+                    </button>
+                  )}
+                </>
               )}
             </div>
-            </>
           ) : (
             <>
             <div className="shrink-0 px-5">
