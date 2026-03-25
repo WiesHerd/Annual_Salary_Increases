@@ -84,7 +84,7 @@ export function PolicyConfigFlow() {
         </li>
         <li className="min-w-0 flex flex-1 flex-col list-none sm:flex-row sm:items-center">
           <FlowCard accent="outcomes" title="Outcomes">
-            <strong>Salary review</strong> shows recommended increases and overrides. <strong>Compare scenarios</strong>{' '}
+            <strong>Salary review</strong> shows recommended increases and overrides. <strong>Policy sandbox</strong>{' '}
             runs two configs side-by-side (optional what-if).
           </FlowCard>
         </li>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   parseMarketCsv,
   parseMarketXlsx,
@@ -13,7 +13,7 @@ import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
 import { ImportStepper } from '../../components/import-stepper';
 import { UploadPreviewTable } from '../../components/upload-preview-table';
-import { downloadErrorReport } from '../../lib/error-report-csv';
+import { downloadErrorReport, parseErrorRow } from '../../lib/error-report-csv';
 import { MAX_UPLOAD_FILE_BYTES, UPLOAD_FORMAT_HINT } from '../../lib/upload-constants';
 
 type UploadMode = 'replace' | 'add';
@@ -51,6 +51,7 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
   const [loading, setLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState<MarketUploadResult | null>(null);
   const [successCount, setSuccessCount] = useState<number | null>(null);
+  const [ackErrors, setAckErrors] = useState(false);
 
   const handleFileSelect = useCallback((f: File | null) => {
     setFile(f ?? null);
@@ -106,6 +107,7 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
           return;
         }
         setPreviewResult(result);
+        setAckErrors(false);
         setStep(3);
       } catch {
         setPreviewResult({
@@ -113,6 +115,7 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
           errors: ['Parse failed. Check file format and encoding.'],
           mapping,
         });
+        setAckErrors(false);
         setStep(3);
       }
       setLoading(false);
@@ -123,11 +126,12 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
 
   const doImport = useCallback(() => {
     if (!previewResult || previewResult.rows.length === 0) return;
+    if (previewResult.errors.length > 0 && !ackErrors) return;
     onUpload(previewResult, surveyId, mode);
     persistLearnedMarketMapping(previewResult.mapping);
     setSuccessCount(previewResult.rows.length);
     setStep(4);
-  }, [previewResult, surveyId, mode, onUpload]);
+  }, [previewResult, surveyId, mode, onUpload, ackErrors]);
 
   const percentileKeys = [25, 50, 75, 90];
   const mappingKeys = [
@@ -145,6 +149,16 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
   };
   const previewRows = previewResult?.rows?.map(flattenMarketRowForPreview) ?? [];
   const previewColumns = previewRows[0] ? Object.keys(previewRows[0]) : [];
+  const highlightRowIndices = useMemo(() => {
+    const errs = previewResult?.errors ?? [];
+    const indices = new Set<number>();
+    for (const e of errs) {
+      const parsed = parseErrorRow(e);
+      if (parsed) indices.add(parsed.rowIndex);
+    }
+    return indices.size ? indices : undefined;
+  }, [previewResult?.errors]);
+  const importDisabled = !previewResult || previewResult.rows.length === 0 || (previewResult.errors.length > 0 && !ackErrors);
 
   return (
     <div className="bg-white rounded-2xl border border-indigo-100 p-6 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07),0_2px_4px_-2px_rgba(79,70,229,0.07)]">
@@ -233,6 +247,24 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
               </button>
             </div>
           )}
+          {previewResult.errors.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <label className="flex items-start gap-2 text-sm text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={ackErrors}
+                  onChange={(e) => setAckErrors(e.target.checked)}
+                  className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  I understand there are validation errors. I reviewed the error report and still want to import the rows that parsed successfully.
+                </span>
+              </label>
+              <p className="mt-2 text-xs text-amber-800">
+                Note: the preview shows parsed rows; error row numbers refer to the original file.
+              </p>
+            </div>
+          )}
           <div className="mb-4">
             <p className="text-sm font-medium text-slate-700 mb-2">Preview (first 10 rows)</p>
             <UploadPreviewTable<Record<string, string | number | undefined>>
@@ -240,6 +272,7 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
               columnOrder={previewColumns}
               maxRows={10}
               emptyMessage="No valid rows to preview."
+              highlightRowIndices={highlightRowIndices}
             />
           </div>
           {previewResult.rows.length === 0 && (
@@ -247,7 +280,7 @@ export function MarketUpload({ surveyId, surveyLabel, onUpload, onDone }: Market
           )}
           <div className="flex justify-between">
             <button type="button" onClick={() => setStep(2)} className="app-btn-secondary">Back</button>
-            <button type="button" onClick={doImport} disabled={previewResult.rows.length === 0} className="app-btn-primary disabled:opacity-50">
+            <button type="button" onClick={doImport} disabled={importDisabled} className="app-btn-primary disabled:opacity-50">
               Import market
             </button>
           </div>

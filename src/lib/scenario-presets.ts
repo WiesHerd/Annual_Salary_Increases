@@ -11,9 +11,9 @@ import {
 } from './policy-templates';
 
 export const SCENARIO_PRESET_LABELS: Record<ScenarioPresetId, string> = {
-  'merit-matrix-only': 'Merit matrix only',
-  'no-custom-models': 'No custom models',
-  'conservative-cap': 'Conservative cap',
+  'merit-matrix-only': 'Baseline (merit matrix only)',
+  'no-custom-models': 'Turn off custom models',
+  'conservative-cap': 'Tighter cap (replace cap/floor rules)',
 };
 
 /** Build Scenario B config from a preset. */

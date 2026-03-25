@@ -16,6 +16,11 @@ interface UploadPreviewTableProps<T extends object> {
   columnOrder?: string[];
   maxRows?: number;
   emptyMessage?: string;
+  /**
+   * One-based row indices to highlight (best-effort).
+   * Note: indices are relative to the `rows` array being previewed, not the original upload file.
+   */
+  highlightRowIndices?: Set<number> | number[];
 }
 
 export function UploadPreviewTable<T extends object>({
@@ -23,6 +28,7 @@ export function UploadPreviewTable<T extends object>({
   columnOrder,
   maxRows = DEFAULT_PREVIEW_ROWS,
   emptyMessage = 'No rows to preview.',
+  highlightRowIndices,
 }: UploadPreviewTableProps<T>) {
   const slice = rows.slice(0, maxRows);
   const cols = columnOrder?.length
@@ -30,6 +36,12 @@ export function UploadPreviewTable<T extends object>({
     : slice[0]
       ? Object.keys(slice[0])
       : [];
+  const highlight =
+    highlightRowIndices == null
+      ? null
+      : Array.isArray(highlightRowIndices)
+        ? new Set(highlightRowIndices)
+        : highlightRowIndices;
 
   if (cols.length === 0 || slice.length === 0) {
     return (
@@ -51,7 +63,14 @@ export function UploadPreviewTable<T extends object>({
         </thead>
         <tbody>
           {slice.map((row, i) => (
-            <tr key={i}>
+            <tr
+              key={i}
+              className={
+                highlight?.has(i + 1)
+                  ? 'bg-amber-50/60'
+                  : undefined
+              }
+            >
               {cols.map((col) => (
                 <td key={col} className="text-slate-900 whitespace-nowrap">
                   {formatCell((row as Record<string, unknown>)[col])}

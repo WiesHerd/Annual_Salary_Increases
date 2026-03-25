@@ -37,6 +37,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
   const [loading, setLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState<ProviderUploadResult | null>(null);
   const [successCount, setSuccessCount] = useState<number | null>(null);
+  const [ackErrors, setAckErrors] = useState(false);
 
   const handleFileSelect = useCallback((f: File | null) => {
     setFile(f ?? null);
@@ -97,6 +98,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
           return;
         }
         setPreviewResult(result);
+        setAckErrors(false);
         setStep(3);
       } catch {
         setPreviewResult({
@@ -104,6 +106,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
           errors: ['Parse failed. Check file format and encoding.'],
           mapping,
         });
+        setAckErrors(false);
         setStep(3);
       }
       setLoading(false);
@@ -114,11 +117,12 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
 
   const doImport = useCallback(() => {
     if (!previewResult || previewResult.rows.length === 0) return;
+    if (previewResult.errors.length > 0 && !ackErrors) return;
     onUpload(previewResult, cycleId, mode);
     persistLearnedProviderMapping(previewResult.mapping);
     setSuccessCount(previewResult.rows.length);
     setStep(4);
-  }, [previewResult, cycleId, mode, onUpload]);
+  }, [previewResult, cycleId, mode, onUpload, ackErrors]);
 
   const mappingKeys = [
     'Employee_ID',
@@ -265,6 +269,24 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
               </button>
             </div>
           )}
+          {previewResult.errors.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <label className="flex items-start gap-2 text-sm text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={ackErrors}
+                  onChange={(e) => setAckErrors(e.target.checked)}
+                  className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  I understand there are validation errors. I reviewed the error report and still want to import the rows that parsed successfully.
+                </span>
+              </label>
+              <p className="mt-2 text-xs text-amber-800">
+                Note: the preview shows parsed rows; error row numbers refer to the original file.
+              </p>
+            </div>
+          )}
           <div className="mb-4">
             <p className="text-sm font-medium text-slate-700 mb-2">Preview (first 10 rows)</p>
             <UploadPreviewTable<ProviderRecord>
@@ -284,7 +306,7 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
             <button
               type="button"
               onClick={doImport}
-              disabled={previewResult.rows.length === 0}
+              disabled={previewResult.rows.length === 0 || (previewResult.errors.length > 0 && !ackErrors)}
               className="app-btn-primary disabled:opacity-50"
             >
               Import

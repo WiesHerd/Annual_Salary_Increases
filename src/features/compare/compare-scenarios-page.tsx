@@ -237,7 +237,7 @@ export function CompareScenariosPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `compare-scenarios-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.download = `policy-sandbox-${new Date().toISOString().slice(0, 10)}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     setExportDropdownOpen(false);
@@ -287,9 +287,9 @@ export function CompareScenariosPage() {
         {/* Header row - same structure as Salary Review */}
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
           <div className="flex flex-col gap-0.5">
-            <h2 className="text-xl font-semibold text-slate-800">Compare scenarios</h2>
+            <h2 className="text-xl font-semibold text-slate-800">Policy sandbox</h2>
             <p className="text-xs text-slate-600">
-              Run two policy configurations on the same providers and compare results side-by-side. Scenario A and B use the policy set from <strong>Controls → Base increases → Policy library</strong>: choose <strong>Current configuration</strong> (all active policies), a <strong>single policy</strong> to compare that policy alone, or a saved snapshot.
+              Run two policy configurations on the same providers and compare results side-by-side. Scenario A and B use the policy set from <strong>Controls → Base increases → Policy library</strong>: choose <strong>Current configuration</strong> (all active policies), a <strong>single policy</strong> to test that policy alone, or a saved snapshot.
             </p>
             <p className="text-[11px] text-slate-500">
               {resultA && resultB ? (
@@ -406,7 +406,7 @@ export function CompareScenariosPage() {
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 min-w-[200px]"
               aria-label="Choose Scenario B"
             >
-              <optgroup label="Presets (from Scenario A)">
+              <optgroup label="What-if presets (based on Scenario A)">
                 {PRESET_IDS.map((id) => (
                   <option key={id} value={id}>
                     {SCENARIO_PRESET_LABELS[id]}

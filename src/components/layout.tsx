@@ -38,12 +38,12 @@ const navSections: {
     label: 'CONFIGURATION',
     items: [
       { label: 'Parameters', id: 'parameters', icon: 'settings' },
-      { label: 'Policy help', id: 'help', icon: 'help' },
+      { label: 'Policy guide', id: 'help', icon: 'help' },
     ],
   },
   {
     label: 'OUTPUT',
-    items: [{ label: 'Compare scenarios', id: 'compare', icon: 'compare', expandable: true }],
+    items: [{ label: 'Policy sandbox', id: 'compare', icon: 'compare', expandable: true }],
   },
 ];
 

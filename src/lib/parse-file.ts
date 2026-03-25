@@ -45,6 +45,24 @@ function num(val: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function isMissingSentinel(v: string): boolean {
+  const s = v.trim().toLowerCase();
+  if (!s) return true;
+  // Common “not available” / placeholder values from exports.
+  if (['n/a', 'na', 'n.a.', 'none', 'null', '--', '---', '-'].includes(s)) return true;
+  // Handles sequences like "-----" or em-dash placeholders.
+  if (/^-+$/.test(s)) return true;
+  if (s === '—' || s === '–') return true; // em/en dash
+  return false;
+}
+
+function numMaybe(val: string | number | undefined): number | undefined {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (typeof val === 'string' && isMissingSentinel(val)) return undefined;
+  const n = typeof val === 'number' ? val : parseFloat(String(val).replace(/[,$]/g, ''));
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function str(val: string | number | undefined): string {
   if (val === undefined || val === null) return '';
   return String(val).trim();
@@ -191,15 +209,67 @@ function parseMarketRow(
     const tccCol = mapping[`TCC_${p}`];
     const wrvuCol = mapping[`WRVU_${p}`];
     const cfCol = mapping[`CF_${p}`];
-    if (tccCol != null) tccPercentiles[p] = num(getCell(row, tccCol));
-    if (wrvuCol != null) wrvuPercentiles[p] = num(getCell(row, wrvuCol));
-    if (cfCol != null) cfPercentiles[p] = num(getCell(row, cfCol));
+    if (tccCol != null) {
+      const cell = getCell(row, tccCol);
+      if (cell !== undefined) {
+        const missing = typeof cell === 'string' && isMissingSentinel(cell);
+        if (!missing) {
+          const n = numMaybe(cell);
+          if (n === undefined) errors.push(`Row ${index + 1}: invalid TCC_${p}`);
+          else tccPercentiles[p] = n;
+        }
+      }
+    }
+    if (wrvuCol != null) {
+      const cell = getCell(row, wrvuCol);
+      if (cell !== undefined) {
+        const missing = typeof cell === 'string' && isMissingSentinel(cell);
+        if (!missing) {
+          const n = numMaybe(cell);
+          if (n === undefined) errors.push(`Row ${index + 1}: invalid WRVU_${p}`);
+          else wrvuPercentiles[p] = n;
+        }
+      }
+    }
+    if (cfCol != null) {
+      const cell = getCell(row, cfCol);
+      if (cell !== undefined) {
+        const missing = typeof cell === 'string' && isMissingSentinel(cell);
+        if (!missing) {
+          const n = numMaybe(cell);
+          if (n === undefined) errors.push(`Row ${index + 1}: invalid CF_${p}`);
+          else cfPercentiles[p] = n;
+        }
+      }
+    }
   }
   const label = mapping.label ? str(getCell(row, mapping.label)) : undefined;
   const incumbentsCol = mapping.incumbents;
   const orgCountCol = mapping.orgCount;
-  const incumbents = incumbentsCol != null ? num(getCell(row, incumbentsCol)) : undefined;
-  const orgCount = orgCountCol != null ? num(getCell(row, orgCountCol)) : undefined;
+  let incumbents: number | undefined;
+  let orgCount: number | undefined;
+  if (incumbentsCol != null) {
+    const cell = getCell(row, incumbentsCol);
+    if (cell !== undefined) {
+      const missing = typeof cell === 'string' && isMissingSentinel(cell);
+      if (!missing) {
+        const n = numMaybe(cell);
+        if (n === undefined) errors.push(`Row ${index + 1}: invalid incumbents`);
+        else incumbents = n;
+      }
+    }
+  }
+  if (orgCountCol != null) {
+    const cell = getCell(row, orgCountCol);
+    if (cell !== undefined) {
+      const missing = typeof cell === 'string' && isMissingSentinel(cell);
+      if (!missing) {
+        const n = numMaybe(cell);
+        if (n === undefined) errors.push(`Row ${index + 1}: invalid orgCount`);
+        else orgCount = n;
+      }
+    }
+  }
   return {
     specialty,
     tccPercentiles,
@@ -264,13 +334,15 @@ function parsePaymentRow(
   errors: string[]
 ): ParsedPaymentRow | null {
   const providerKey = str(getCell(row, mapping.providerKey ?? mapping.externalId));
-  const amount = num(getCell(row, mapping.amount));
+  const amount = numMaybe(getCell(row, mapping.amount));
   const date = str(getCell(row, mapping.date));
   if (!providerKey) errors.push(`Row ${index + 1}: missing provider key`);
   if (!date) errors.push(`Row ${index + 1}: missing date`);
+  if (amount === undefined) errors.push(`Row ${index + 1}: missing or invalid amount`);
   const category = mapping.category ? str(getCell(row, mapping.category)) : undefined;
   const cycleId = mapping.cycleId ? str(getCell(row, mapping.cycleId)) : undefined;
-  return { providerKey: providerKey || `row-${index + 1}`, amount, date, category, cycleId };
+  if (!providerKey || !date || amount === undefined) return null;
+  return { providerKey, amount, date, category: category || undefined, cycleId: cycleId || undefined };
 }
 
 export function parsePaymentCsv(csv: string, mapping: PaymentColumnMapping): PaymentUploadResult {
