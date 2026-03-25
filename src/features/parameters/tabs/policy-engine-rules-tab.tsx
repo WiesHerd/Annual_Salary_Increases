@@ -196,7 +196,7 @@ function SortablePolicyRow({
           className={`w-full min-w-0 max-w-[90px] text-xs border rounded px-1.5 py-1 bg-white ${
             policy.status === 'active' ? 'border-green-200 text-slate-700' : 'border-slate-200 text-slate-600'
           }`}
-          title="Active = runs in Salary Review. Inactive = skipped (turn off temporarily)."
+          title="Active = runs in Merit review. Inactive = skipped (turn off temporarily)."
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>

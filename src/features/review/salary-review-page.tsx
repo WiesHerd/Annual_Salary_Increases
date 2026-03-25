@@ -637,7 +637,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'salary-review.csv';
+    a.download = 'merit-review.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -648,7 +648,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'salary-review.xlsx';
+    a.download = 'merit-review.xlsx';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -776,7 +776,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   if (records.length === 0) {
     return (
       <EmptyStatePanel
-        title="Salary review"
+        title="Merit review"
         message="No providers yet."
         compact
       >
@@ -800,12 +800,12 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0 flex-1 flex flex-col gap-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-semibold text-slate-800">Salary review</h2>
+                <h2 className="text-xl font-semibold text-slate-800">Merit review</h2>
                 <span className="group relative inline-flex shrink-0">
                   <button
                     type="button"
                     className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                    aria-label="How salary review works"
+                    aria-label="How merit review works"
                     aria-describedby="salary-review-works-tooltip"
                   >
                     i
@@ -815,7 +815,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                     role="tooltip"
                     className="pointer-events-auto invisible absolute left-1/2 top-[calc(100%-4px)] z-50 max-h-[70vh] w-[min(22rem,calc(100vw-2.5rem))] -translate-x-1/2 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 pt-4 text-left text-[11px] leading-snug text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
                   >
-                    <p className="font-medium text-slate-800">How salary review works</p>
+                    <p className="font-medium text-slate-800">How merit review works</p>
                     <p className="mt-2">
                       Recommended increases are calculated from your merit matrix, experience band guardrails, and active
                       Compensation Policy Engine rules, using the current cycle&apos;s effective date.

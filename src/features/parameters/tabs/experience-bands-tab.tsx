@@ -199,7 +199,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg font-semibold text-slate-800">Salary review guardrails</h3>
+            <h3 className="text-lg font-semibold text-slate-800">Merit review guardrails</h3>
             <button
               type="button"
               onClick={() => setMatchingHelpOpen((v) => !v)}
@@ -575,7 +575,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                 <div className="rounded-xl border border-slate-200 border-l-[6px] border-l-indigo-400 bg-white p-3 sm:p-4 shadow-sm">
                   <p className="text-sm font-semibold text-slate-800 mb-2">Cohort scope</p>
                   <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                    For APPs, you can select an APP combined group name from Data → Specialty map. Salary review matches
+                    For APPs, you can select an APP combined group name from Data → Specialty map. Merit review matches
                     providers whose row specialty appears in that group&apos;s provider-specialty list, so one cohort label can
                     cover many titles. Benchmark group and raw specialty strings still work; leave all cohort fields empty to
                     apply by YOE only.
@@ -669,7 +669,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 sm:px-4 shadow-sm">
-                  <p className="text-sm font-semibold text-slate-800 mb-2">Salary Review suggestions</p>
+                  <p className="text-sm font-semibold text-slate-800 mb-2">Merit review suggestions</p>
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-8">
                     <label
                       className="flex gap-2 cursor-pointer items-center"

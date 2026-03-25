@@ -35,7 +35,7 @@ export function BudgetTargetsTab({
                 / <span className="font-medium text-slate-800">hard-stop</span> thresholds (share of budget).
               </p>
               <p className="text-slate-500">
-                Salary review prefers the budget row for the selected merit cycle; if none exists, it uses amounts on
+                Merit review prefers the budget row for the selected merit cycle; if none exists, it uses amounts on
                 the cycle row.
               </p>
             </InfoIconTip>

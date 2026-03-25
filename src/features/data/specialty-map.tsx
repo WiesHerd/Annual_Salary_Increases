@@ -757,7 +757,7 @@ export function SpecialtyMap({
                       On <strong>APP</strong>, use <strong>Map to market / bucket</strong>. Add combined names in <strong>Controls → Mappings → APP map buckets</strong>; they appear alongside survey specialties in that list.
                     </p>
                     <p className="mt-2 text-slate-500">
-                      Refresh matches when done so Salary review uses updated percentiles.
+                      Refresh matches when done so Merit review uses updated percentiles.
                     </p>
                   </div>
                 </span>

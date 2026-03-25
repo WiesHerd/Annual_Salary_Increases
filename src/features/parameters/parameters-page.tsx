@@ -35,7 +35,7 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'cycle-budget',
     label: 'Cycle & budget',
-    subtitle: 'Cycles and budget targets used in Salary review',
+    subtitle: 'Cycles and budget targets used in Merit review',
     tabs: [
       { id: 'review-cycles', label: 'Review cycles' },
       { id: 'budget-targets', label: 'Budget targets' },

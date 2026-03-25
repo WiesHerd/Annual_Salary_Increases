@@ -1,6 +1,6 @@
 # Compensation Policy Engine
 
-The policy engine computes **annual salary increase recommendations** using a staged, auditable pipeline. It is used by the Annual Salary Review table and supports general merit matrix, custom models (e.g. PCP YOE tiers), modifiers, guardrails, and caps/floors.
+The policy engine computes **annual salary increase recommendations** using a staged, auditable pipeline. It is used by the Merit review table and supports general merit matrix, custom models (e.g. PCP YOE tiers), modifiers, guardrails, and caps/floors.
 
 ## Evaluation stages (order)
 
@@ -34,7 +34,7 @@ Policies are sorted by stage, then by priority within stage. Each policy has a *
 
 ## Integration
 
-- **Salary Review page** – Builds context from `usePolicyEngineState()` and `useParametersState()`, runs `evaluatePolicyForProvider` per record (with market row), stores results in a `Map`. Table columns and recalc use this map; policy source is clickable and deep-links to Control Panel → Policy engine → Rules.
+- **Merit review page** – Builds context from `usePolicyEngineState()` and `useParametersState()`, runs `evaluatePolicyForProvider` per record (with market row), stores results in a `Map`. Table columns and recalc use this map; policy source is clickable and deep-links to Control Panel → Policy engine → Rules.
 - **recalculateProviderRow** – Accepts optional `policyResult`; uses `finalRecommendedIncreasePercent` as default when no user override and merges policy metadata onto the returned record.
 - **Export** – `exportToCsv` / `exportToXlsx` accept optional `evaluationResults` map so exported rows include policy source, type, explanation, tier, manual review flag.
 
@@ -65,7 +65,7 @@ To avoid policies stepping over each other, use **stage order** and **surgical t
 3. **Caps and floors last (CAP_FLOOR)**  
    Apply max/min (e.g. cap 6%, floor 2%) after the base increase is set.
 
-Add these policies via **Parameters → Policy engine → Rules** → **Add from library** (individual templates: FMV 75th guardrail, Cardiology 4% fixed, General Pediatrics YOE tiers, cap/floor). Run Salary Review to see who gets which policy; FMV will zero out anyone above 75th before any other policy applies.
+Add these policies via **Parameters → Policy engine → Rules** → **Add from library** (individual templates: FMV 75th guardrail, Cardiology 4% fixed, General Pediatrics YOE tiers, cap/floor). Run Merit review to see who gets which policy; FMV will zero out anyone above 75th before any other policy applies.
 
 ## Adding a new policy type or action
 

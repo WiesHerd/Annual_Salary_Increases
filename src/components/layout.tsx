@@ -23,7 +23,7 @@ const navSections: {
   }[];
 }[] = [
   {
-    label: 'GET STARTED',
+    label: 'DATA MANAGEMENT',
     items: [
       { label: 'Import data', id: 'import', icon: 'upload' },
       { label: 'Data browser', id: 'data-browser', icon: 'grid' },
@@ -32,7 +32,7 @@ const navSections: {
   },
   {
     label: 'REVIEW',
-    items: [{ label: 'Salary review', id: 'salary-review', icon: 'person' }],
+    items: [{ label: 'Merit review', id: 'salary-review', icon: 'person' }],
   },
   {
     label: 'CONFIGURATION',
@@ -42,7 +42,7 @@ const navSections: {
     ],
   },
   {
-    label: 'OUTPUT',
+    label: 'SCENARIOS & RESULTS',
     items: [{ label: 'Policy sandbox', id: 'compare', icon: 'compare', expandable: true }],
   },
 ];

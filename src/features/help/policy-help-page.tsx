@@ -155,7 +155,7 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
           order by <strong>stage</strong>, then by <strong>priority</strong> within each stage. When a policy matches
           a provider and applies (e.g. sets or modifies the increase), later policies may still run depending on
           conflict strategy and whether the policy has &quot;stop processing&quot; set. The final result is used in
-          Salary Review and Policy Sandbox.
+          Merit review and Policy Sandbox.
         </p>
         <PolicyConfigFlow />
       </Section>
@@ -284,14 +284,14 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
           <li>Use <strong>one</strong> General Merit Matrix policy as fallback so everyone has a default result.</li>
           <li>Put guardrails and exclusions first (they run in the Exclusions / Guardrails stage).</li>
           <li>Use <strong>Policy sandbox</strong> to run two policy configs (e.g. current vs merit-only) and see
-            impact side-by-side; use <strong>Salary Review</strong> and the provider detail panel to see why a given
+            impact side-by-side; use <strong>Merit review</strong> and the provider detail panel to see why a given
             provider got a specific recommendation.
           </li>
           <li>Start from <strong>Add from library</strong> templates and adjust targeting and conditions to fit
             your organization.
           </li>
-          <li>Name policies clearly (e.g. &quot;FMV cap – TCC above 75th&quot;) so the evaluation path in Salary
-            Review is easy to follow.
+          <li>Name policies clearly (e.g. &quot;FMV cap – TCC above 75th&quot;) so the evaluation path in Merit
+            review is easy to follow.
           </li>
         </ul>
       </Section>
@@ -302,7 +302,7 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
           then priority).
         </p>
         <p className="mt-3 text-sm text-slate-700">
-          Use <strong>Policy sandbox</strong> to test configs side-by-side; use <strong>Salary Review</strong> to run
+          Use <strong>Policy sandbox</strong> to test configs side-by-side; use <strong>Merit review</strong> to run
           the full cycle and open a provider to see the policy explanation.
         </p>
         {onNavigateToParameters && (

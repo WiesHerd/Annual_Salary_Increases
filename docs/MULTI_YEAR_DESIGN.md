@@ -88,7 +88,7 @@ Each year is a **distinct process**:
 - **Cycle selector** = active year. When changed, app switches context.
 - **Import**: Provider/Market/Evaluation uploads target the **selected cycle**. Replace/add applies only to that year’s data.
 - **Parameters**: Editing merit matrix, CF, policies, etc. affects **only the selected year**.
-- **Salary review / Compare scenarios**: Operate on the **selected year’s** providers and parameters.
+- **Merit review / Compare scenarios**: Operate on the **selected year’s** providers and parameters.
 - **Export**: Exports the active year only.
 
 ### Optional: “Copy from prior year”
@@ -125,7 +125,7 @@ Each year is a **distinct process**:
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Salary review / Compare scenarios                                       │
+│  Merit review / Compare scenarios                                       │
 │  - Use providers + parameters for selectedCycleId only                   │
 │  - CF: record.Current_CF/Proposed_CF else parameters.cfBySpecialty        │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -158,7 +158,7 @@ If the file has a single “CF” column, map it to `Current_CF`; `Proposed_CF` 
 ### Phase 3: YoY UI and flows
 - Scope all uploads to selected cycle.
 - Scope Parameters page to selected cycle.
-- Ensure Salary review and Compare scenarios use year-scoped data only.
+- Ensure Merit review and Compare scenarios use year-scoped data only.
 
 ### Phase 4: “Copy from prior year” (optional)
 - Add “Copy parameters from prior year” for new cycles.

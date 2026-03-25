@@ -1,5 +1,5 @@
 /**
- * Schematic: where in the app configuration and data feed salary review / compare.
+ * Schematic: where in the app configuration and data feed merit review / compare.
  */
 
 import type { ReactNode } from 'react';
@@ -84,7 +84,7 @@ export function PolicyConfigFlow() {
         </li>
         <li className="min-w-0 flex flex-1 flex-col list-none sm:flex-row sm:items-center">
           <FlowCard accent="outcomes" title="Outcomes">
-            <strong>Salary review</strong> shows recommended increases and overrides. <strong>Policy sandbox</strong>{' '}
+            <strong>Merit review</strong> shows recommended increases and overrides. <strong>Policy sandbox</strong>{' '}
             runs two configs side-by-side (optional what-if).
           </FlowCard>
         </li>

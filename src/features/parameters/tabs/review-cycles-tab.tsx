@@ -32,7 +32,7 @@ export function ReviewCyclesTab({
                 drives as-of logic for policy runs.
               </p>
               <p className="text-slate-500">
-                Salary review uses the budget row for the selected cycle when one exists; otherwise amounts on the
+                Merit review uses the budget row for the selected cycle when one exists; otherwise amounts on the
                 cycle row apply. Configure budgets under <span className="font-medium text-slate-700">Budget targets</span>.
               </p>
             </InfoIconTip>
