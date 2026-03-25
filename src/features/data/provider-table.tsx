@@ -334,13 +334,14 @@ export function ProviderTable({
       <EmptyStatePanel
         title="Provider data"
         message="No provider records yet."
+        compact
       >
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
           {onLoadSampleData && (
             <button
               type="button"
               onClick={onLoadSampleData}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+              className="app-btn-ghost-sm"
             >
               Load sample data
             </button>
@@ -349,7 +350,7 @@ export function ProviderTable({
             <button
               type="button"
               onClick={handleClearAllImportedData}
-              className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+              className="app-btn-ghost-sm"
             >
               Clear all imports
             </button>

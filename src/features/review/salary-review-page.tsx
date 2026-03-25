@@ -778,12 +778,13 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
       <EmptyStatePanel
         title="Salary review"
         message="No providers yet."
+        compact
       >
         {onNavigateToImport && (
           <button
             type="button"
             onClick={onNavigateToImport}
-            className="app-btn-ghost inline-flex items-center justify-center"
+            className="app-btn-ghost-sm"
           >
             Go to Import data
           </button>
