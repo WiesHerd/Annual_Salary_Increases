@@ -1,6 +1,6 @@
 /**
  * Specialty map: after Parameters assign each Provider_Type to a market survey, align
- * provider benchmark keys to market rows or APP combined groups. Per-survey tabs;
+ * provider benchmark keys to market rows or survey map buckets. Per-survey tabs;
  * direct 1:1 match vs APP sections; Auto Map and status badges.
  */
 
@@ -260,7 +260,11 @@ function HowMappingWorksIcon() {
           <div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full mt-1 z-50 w-72 max-w-[calc(100vw-2rem)] p-3 bg-white border border-slate-200 rounded-xl shadow-lg text-xs text-slate-600 space-y-2">
             <p><strong className="text-slate-800">Direct match:</strong> Match roster keys to market rows. Use Override when labels differ.</p>
-            <p><strong className="text-slate-800">APP:</strong> Use <strong>Map to market / bucket</strong> for each person. Configure bucket names under <strong>Controls → Mappings → APP map buckets</strong>; they appear in the same list as survey specialties.</p>
+            <p>
+              <strong className="text-slate-800">Surveys that use buckets</strong> (e.g. APP): use{' '}
+              <strong>Map to market / bucket</strong> for each person. Configure names under{' '}
+              <strong>Controls → Mappings → Survey map buckets</strong>; they appear in the same list as survey specialties.
+            </p>
           </div>
         </>
       )}
@@ -754,7 +758,9 @@ export function SpecialtyMap({
                       Here you tie each person&apos;s keys to a market row for that survey file.
                     </p>
                     <p className="mt-2">
-                      On <strong>APP</strong>, use <strong>Map to market / bucket</strong>. Add combined names in <strong>Controls → Mappings → APP map buckets</strong>; they appear alongside survey specialties in that list.
+                      On <strong>APP</strong> (and other bucket-style surveys), use <strong>Map to market / bucket</strong>.
+                      Add names in <strong>Controls → Mappings → Survey map buckets</strong>; they appear alongside survey
+                      specialties in that list.
                     </p>
                     <p className="mt-2 text-slate-500">
                       Refresh matches when done so Merit review uses updated percentiles.
@@ -942,9 +948,11 @@ export function SpecialtyMap({
                 <>
                   <div className="shrink-0 px-5 py-2.5 border-b border-slate-100 flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-semibold text-slate-700">APP roster</h3>
-                    <InfoIconTip aria-label="APP mapping">
+                    <InfoIconTip aria-label="Map to market or bucket">
                       <p>
-                        Use <strong className="text-slate-800">Map to market / bucket</strong> for each person. The dropdown lists every APP survey specialty plus <strong className="text-slate-800">custom buckets</strong> you define under <strong className="text-slate-800">Controls → Mappings → APP map buckets</strong>.
+                        Use <strong className="text-slate-800">Map to market / bucket</strong> for each person. The dropdown
+                        lists every survey specialty plus <strong className="text-slate-800">custom buckets</strong> you define
+                        under <strong className="text-slate-800">Controls → Mappings → Survey map buckets</strong>.
                       </p>
                       <p className="text-slate-500">Auto Map suggests matches when roster labels align to those rows or buckets.</p>
                     </InfoIconTip>

@@ -1,5 +1,5 @@
 /**
- * APP map buckets: bucket name (ties to survey row when labels match) + optional admin notes.
+ * Survey map buckets: bucket name (ties to survey row when labels match) + optional admin notes.
  */
 
 import { useState, useCallback, useMemo } from 'react';
@@ -89,12 +89,13 @@ export function AppCombinedGroupsTab({ records: _records, marketSurveys }: AppCo
     <div className="p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex flex-wrap items-center gap-1.5">
-          <h3 className={`${parametersSectionHeadingClass} mb-0`}>APP map buckets</h3>
-          <InfoIconTip aria-label="About APP map buckets" variant="minimal" align="left">
+          <h3 className={`${parametersSectionHeadingClass} mb-0`}>Survey map buckets</h3>
+          <InfoIconTip aria-label="About survey map buckets" variant="minimal" align="left">
             <p>
-              Name each bucket so it matches an APP market row when you want that survey line&apos;s benchmarks. Optional
-              notes are only for your team (not used for math or mapping). Bucket names appear in{' '}
-              <strong className="text-slate-800">Specialty map → APPs</strong>.
+              Name each bucket so it matches a market survey row when you want that line&apos;s benchmarks (often the APP
+              survey, but the same pattern works for other surveys you route here). Optional notes are only for your team
+              (not used for math or mapping). Bucket names appear in{' '}
+              <strong className="text-slate-800">Data → Specialty map</strong> for the matching survey tab.
             </p>
             <p>
               <strong className="text-slate-800">Auto Map</strong> can reuse saved label hints from prior sessions until you
@@ -103,7 +104,7 @@ export function AppCombinedGroupsTab({ records: _records, marketSurveys }: AppCo
             </p>
             {marketSpecialtyPreview.length > 0 && (
               <p className="text-slate-600">
-                <span className="font-medium text-slate-800">APP file specialties ({marketSpecialtyPreview.length}):</span>{' '}
+                <span className="font-medium text-slate-800">Survey specialties in file ({marketSpecialtyPreview.length}):</span>{' '}
                 {marketSpecialtyPreview.join(', ')}. Match a bucket name to a row when you need that benchmark.
               </p>
             )}
@@ -135,7 +136,9 @@ export function AppCombinedGroupsTab({ records: _records, marketSurveys }: AppCo
       </div>
 
       {marketSpecialtyPreview.length === 0 && (
-        <p className="text-xs text-amber-700 -mt-2 mb-3">Upload the APP market file so benchmarks can resolve to survey rows.</p>
+        <p className="text-xs text-amber-700 -mt-2 mb-3">
+          Upload the market survey file for this tab so benchmarks can resolve to survey rows.
+        </p>
       )}
 
       <div className={parametersTablePanelClass}>
@@ -151,7 +154,7 @@ export function AppCombinedGroupsTab({ records: _records, marketSurveys }: AppCo
             {groups.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-slate-500 text-sm">
-                  No buckets yet. Add a row and name it to align with your APP survey when possible.
+                  No buckets yet. Add a row and name it to align with a survey row label when possible.
                 </td>
               </tr>
             ) : (
@@ -163,7 +166,7 @@ export function AppCombinedGroupsTab({ records: _records, marketSurveys }: AppCo
                       value={g.combinedGroupName}
                       onChange={(e) => patchRow(g.id, { combinedGroupName: e.target.value })}
                       className={`w-full min-w-[12rem] ${parametersFieldInputClass}`}
-                      placeholder="e.g. match an APP survey row label"
+                      placeholder="e.g. match a survey row label"
                       aria-label="Bucket name"
                     />
                   </td>

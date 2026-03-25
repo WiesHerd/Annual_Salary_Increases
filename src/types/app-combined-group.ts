@@ -1,7 +1,7 @@
 /**
- * APP combined group: blend multiple survey specialties into one market benchmark.
- * Unlike physicians (1:1 mapping), APPs often combine several survey rows
- * (e.g. Medical Inpatient, Medical Outpatient) into a single blended benchmark.
+ * Survey map bucket (combined group): blend multiple survey specialties into one market benchmark.
+ * Unlike physicians (1:1 mapping), many teams combine several survey rows
+ * (e.g. APP lines like Medical Inpatient + Medical Outpatient) into one blended benchmark.
  */
 
 export interface AppCombinedGroupRow {
@@ -12,7 +12,7 @@ export interface AppCombinedGroupRow {
   surveySpecialties: string[];
   /**
    * Legacy: roster / benchmark labels that map to this bucket’s market row.
-   * Cleared when saving from the APP map buckets UI; prefer bucket name match + Auto Map memory.
+   * Cleared when saving from the survey map buckets UI; prefer bucket name match + Auto Map memory.
    */
   providerSpecialties?: string[];
   /** Optional free-text note for admins (not used in matching). */

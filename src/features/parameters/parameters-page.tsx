@@ -44,10 +44,10 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'mappings',
     label: 'Mappings',
-    subtitle: 'Provider type, survey routing, and APP map buckets',
+    subtitle: 'Provider type, survey routing, and survey map buckets',
     tabs: [
       { id: 'provider-type-survey', label: 'Type → Market' },
-      { id: 'app-combined-groups', label: 'APP map buckets' },
+      { id: 'app-combined-groups', label: 'Survey map buckets' },
     ],
   },
   {

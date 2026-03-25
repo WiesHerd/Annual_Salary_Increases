@@ -217,7 +217,7 @@ export function SpecialtyMapSummaryBar({
               label={isAppsSurvey ? 'APP buckets' : 'Unused rows'}
               hint={
                 isAppsSurvey
-                  ? 'Named combined groups saved for APP mapping on this survey (alongside survey rows).'
+                  ? 'Named survey map buckets saved for this survey (alongside survey rows).'
                   : 'Market survey rows with no roster match on this tab (informational).'
               }
               value={

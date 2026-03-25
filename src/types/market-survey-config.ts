@@ -27,7 +27,7 @@ export function getSurveyLabel(id: string, customMetadata?: SurveyMetadata): str
 /** Default survey ID for unmapped Provider_Types. */
 export const DEFAULT_SURVEY_ID = 'physicians';
 
-/** Per-survey specialty mapping (APP combined groups for that survey). */
+/** Per-survey specialty mapping (survey map buckets / combined groups for that survey). */
 export interface SurveySpecialtyMapping {
   appCombinedGroups: AppCombinedGroupRow[];
 }
@@ -91,7 +91,7 @@ export function sortSurveyIdsByLabel(ids: string[], surveyMetadata?: SurveyMetad
 
 /**
  * Survey mapping + provider-type routing for experience-band cohort matching.
- * When set, a band's specialty scope can use APP combined group names from Data → Specialty map.
+ * When set, a band's specialty scope can use survey map bucket names from Data → Specialty map.
  */
 export type ExperienceBandSurveyContext = {
   surveyMappings: SurveySpecialtyMappingSet;

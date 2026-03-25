@@ -410,7 +410,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
                   <div className="rounded-xl border border-slate-200 border-l-[6px] border-l-slate-500 bg-white p-3 sm:p-4 shadow-sm min-w-0 flex flex-col">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-800 mb-2">Tenure</p>
-                    <div className="grid grid-cols-2 gap-3 w-full mt-auto">
+                    <div className="grid grid-cols-2 gap-3 w-full">
                       <div className="min-w-0">
                         <label htmlFor={`band-min-${r.id}`} className={fieldLabelClass}>
                           Min YOE
@@ -440,7 +440,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
 
                   <div className="rounded-xl border border-amber-200/90 border-l-[6px] border-l-amber-500 bg-amber-50/40 p-3 sm:p-4 shadow-sm min-w-0 flex flex-col">
                     <p className="text-xs font-bold uppercase tracking-wide text-amber-950 mb-2">Pay · percentiles</p>
-                    <div className="grid grid-cols-2 gap-3 w-full mt-auto">
+                    <div className="grid grid-cols-2 gap-3 w-full">
                       <div className="min-w-0">
                         <label htmlFor={`band-tlow-${r.id}`} className={fieldLabelClass}>
                           TCC %ile low
@@ -474,7 +474,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
 
                   <div className="rounded-xl border border-violet-200/80 border-l-[6px] border-l-violet-500 bg-violet-50/50 p-3 sm:p-4 shadow-sm min-w-0 flex flex-col">
                     <p className="text-xs font-bold uppercase tracking-wide text-violet-950 mb-2">Pay · dollars</p>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 w-full mt-auto">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
                       <div className="min-w-0">
                         <label htmlFor={`band-fixed-anchor-${r.id}`} className={fieldLabelClass}>
                           Midpoint ($)
@@ -575,7 +575,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                 <div className="rounded-xl border border-slate-200 border-l-[6px] border-l-indigo-400 bg-white p-3 sm:p-4 shadow-sm">
                   <p className="text-sm font-semibold text-slate-800 mb-2">Cohort scope</p>
                   <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                    For APPs, you can select an APP combined group name from Data → Specialty map. Merit review matches
+                    When a survey uses map buckets, you can enter a bucket name from Data → Specialty map. Merit review matches
                     providers whose row specialty appears in that group&apos;s provider-specialty list, so one cohort label can
                     cover many titles. Benchmark group and raw specialty strings still work; leave all cohort fields empty to
                     apply by YOE only.
