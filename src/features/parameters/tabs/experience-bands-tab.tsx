@@ -527,7 +527,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                       <div className="min-w-0">
                         <label
                           htmlFor={`band-spread-min-${r.id}`}
-                          className={fieldLabelClass}
+                          className={`${fieldLabelClass} min-h-[2rem] flex items-center`}
                           title="% below midpoint (e.g. 15 → min = 85% of midpoint $)"
                         >
                           −%
@@ -549,7 +549,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                       <div className="min-w-0">
                         <label
                           htmlFor={`band-spread-max-${r.id}`}
-                          className={fieldLabelClass}
+                          className={`${fieldLabelClass} min-h-[2rem] flex items-center`}
                           title="% above midpoint (e.g. 10 → max = 110% of midpoint $)"
                         >
                           +%
