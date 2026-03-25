@@ -341,7 +341,7 @@ export function ProviderTable({
             <button
               type="button"
               onClick={onLoadSampleData}
-              className="app-btn-ghost-sm"
+              className="app-btn-primary"
             >
               Load sample data
             </button>

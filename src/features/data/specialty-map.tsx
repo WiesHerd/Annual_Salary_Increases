@@ -707,7 +707,7 @@ export function SpecialtyMap({
           <button
             type="button"
             onClick={onOpenProviderTypeSurvey}
-            className="app-btn-ghost-sm"
+            className="app-btn-secondary"
           >
             Open mapping
           </button>

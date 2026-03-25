@@ -784,7 +784,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
           <button
             type="button"
             onClick={onNavigateToImport}
-            className="app-btn-ghost-sm"
+            className="app-btn-secondary"
           >
             Go to Import data
           </button>
