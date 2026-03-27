@@ -4,7 +4,7 @@
  * free-text when options are empty (e.g. no data loaded yet).
  */
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface MultiSelectDropdownProps {
@@ -16,6 +16,8 @@ export interface MultiSelectDropdownProps {
   className?: string;
   /** When true, show as compact inline button (e.g. filter bar). When false, full-width form style. */
   compact?: boolean;
+  /** Sets `id` on the trigger button so an external `<label htmlFor>` can reference it. */
+  triggerId?: string;
 }
 
 export function MultiSelectDropdown({
@@ -26,6 +28,7 @@ export function MultiSelectDropdown({
   placeholder = 'Select…',
   className = '',
   compact = false,
+  triggerId,
 }: MultiSelectDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -34,6 +37,8 @@ export function MultiSelectDropdown({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const autoTriggerId = useId().replace(/:/g, '');
+  const buttonId = triggerId ?? `msdd-${autoTriggerId}`;
 
   useLayoutEffect(() => {
     if (open && triggerRef.current) {
@@ -80,10 +85,13 @@ export function MultiSelectDropdown({
   return (
     <div ref={ref} className={`relative ${compact ? 'inline-flex' : 'block'} ${className}`}>
       {label != null && !compact && (
-        <label className="block text-xs text-slate-500 mb-0.5">{label}</label>
+        <label className="block text-xs text-slate-500 mb-0.5" htmlFor={buttonId}>
+          {label}
+        </label>
       )}
       <button
         ref={triggerRef}
+        id={buttonId}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}

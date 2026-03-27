@@ -430,8 +430,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+            <label htmlFor="policy-rule-edit-name" className="block text-xs font-medium text-slate-600 mb-1">
+              Name
+            </label>
             <input
+              id="policy-rule-edit-name"
               type="text"
               value={policy.name}
               onChange={(e) => update({ name: e.target.value })}
@@ -439,8 +442,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+            <label htmlFor="policy-rule-edit-description" className="block text-xs font-medium text-slate-600 mb-1">
+              Description
+            </label>
             <input
+              id="policy-rule-edit-description"
               type="text"
               value={policy.description ?? ''}
               onChange={(e) => update({ description: e.target.value || undefined })}
@@ -450,8 +456,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+            <label htmlFor="policy-rule-edit-status" className="block text-xs font-medium text-slate-600 mb-1">
+              Status
+            </label>
             <select
+              id="policy-rule-edit-status"
               value={policy.status === 'draft' ? 'active' : policy.status}
               onChange={(e) => update({ status: e.target.value as AnnualIncreasePolicy['status'] })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
@@ -462,8 +471,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Stage</label>
+            <label htmlFor="policy-rule-edit-stage" className="block text-xs font-medium text-slate-600 mb-1">
+              Stage
+            </label>
             <select
+              id="policy-rule-edit-stage"
               value={policy.stage}
               onChange={(e) => update({ stage: e.target.value as PolicyStage })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
@@ -476,8 +488,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Policy type</label>
+            <label htmlFor="policy-rule-edit-type" className="block text-xs font-medium text-slate-600 mb-1">
+              Policy type
+            </label>
             <select
+              id="policy-rule-edit-type"
               value={policy.policyType}
               onChange={(e) => update({ policyType: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
@@ -491,8 +506,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Priority</label>
+            <label htmlFor="policy-rule-edit-priority" className="block text-xs font-medium text-slate-600 mb-1">
+              Priority
+            </label>
             <select
+              id="policy-rule-edit-priority"
               value={policy.isFallback ? 100 : policy.priority}
               onChange={(e) => {
                 const opt = PRIORITY_PRESETS.find((p) => String(p.value) === e.target.value);
@@ -514,7 +532,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         {stepIndex === 1 && (
         <div className="rounded-lg border border-slate-200 p-4 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Target scope (optional)</label>
+            <p className="block text-xs font-medium text-slate-600 mb-1">Target scope (optional)</p>
             <p className="text-xs text-slate-500 mb-3">Leave empty to apply to all providers.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
@@ -601,7 +619,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
 
         {stepIndex === 2 && (
         <div className="rounded-lg border border-slate-200 p-4">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Conditions (when to apply)</label>
+          <p className="block text-xs font-medium text-slate-600 mb-1">Conditions (when to apply)</p>
           <p className="text-xs text-slate-500 mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span>Empty = scope match.</span>
             {policy.stage === 'CUSTOM_MODEL' && (
@@ -752,10 +770,15 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
           {!isTieredModel && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1" title="Behavior is determined by stage and actions; strategy is for labeling and audit.">
+                <label
+                  htmlFor="policy-rule-conflict-strategy"
+                  className="block text-xs font-medium text-slate-600 mb-1"
+                  title="Behavior is determined by stage and actions; strategy is for labeling and audit."
+                >
                   Conflict strategy
                 </label>
                 <select
+                  id="policy-rule-conflict-strategy"
                   value={policy.conflictStrategy}
                   onChange={(e) => update({ conflictStrategy: e.target.value as ConflictStrategy })}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
@@ -1048,7 +1071,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
           {policy.stage !== 'CUSTOM_MODEL' && !policy.modelConfig && (
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="text-xs font-medium text-slate-600">Actions</label>
+              <span className="text-xs font-medium text-slate-600">Actions</span>
               <button type="button" onClick={addAction} className="text-xs text-indigo-600 hover:underline">
                 Add action
               </button>
@@ -1094,10 +1117,15 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
               <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Rule behavior</h4>
               <div className="flex flex-wrap items-end gap-4">
                 <div className="min-w-[200px] flex-1">
-                  <label className="block text-xs font-medium text-slate-600 mb-1" title="Behavior is determined by stage and actions; strategy is for labeling and audit.">
+                  <label
+                    htmlFor="policy-rule-tier-conflict-strategy"
+                    className="block text-xs font-medium text-slate-600 mb-1"
+                    title="Behavior is determined by stage and actions; strategy is for labeling and audit."
+                  >
                     Conflict strategy
                   </label>
                   <select
+                    id="policy-rule-tier-conflict-strategy"
                     value={policy.conflictStrategy}
                     onChange={(e) => update({ conflictStrategy: e.target.value as ConflictStrategy })}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"

@@ -212,8 +212,11 @@ export function CompareScenariosFilterBar({
               compact
             />
             <div className="flex items-center gap-2">
-              <label className="text-[13px] text-neutral-500">Delta %</label>
+              <label htmlFor="compare-filter-delta-min" className="text-[13px] text-neutral-500">
+                Delta %
+              </label>
               <input
+                id="compare-filter-delta-min"
                 type="number"
                 value={filters.deltaPercentMin ?? ''}
                 onChange={(e) => {
@@ -228,6 +231,7 @@ export function CompareScenariosFilterBar({
               />
               <span className="text-neutral-400">to</span>
               <input
+                id="compare-filter-delta-max"
                 type="number"
                 value={filters.deltaPercentMax ?? ''}
                 onChange={(e) => {

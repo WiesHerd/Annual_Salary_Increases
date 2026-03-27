@@ -131,35 +131,39 @@ export function CycleSettingsTab({
             </colgroup>
             <thead>
               <tr>
-                <th className="text-left">
+                <th
+                  className="text-left"
+                  aria-sort={
+                    sortKey === 'label'
+                      ? sortDir === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                >
                   <button
                     type="button"
                     className="inline-flex items-center gap-0.5 [font:inherit] uppercase tracking-wide text-left w-full cursor-pointer select-none hover:text-slate-900"
                     onClick={() => toggleSort('label')}
-                    aria-sort={
-                      sortKey === 'label'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
                   >
                     Cycle
                     <SortIndicator active={sortKey === 'label'} dir={sortDir} />
                   </button>
                 </th>
-                <th className="text-left whitespace-nowrap">
+                <th
+                  className="text-left whitespace-nowrap"
+                  aria-sort={
+                    sortKey === 'effectiveDate'
+                      ? sortDir === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                >
                   <button
                     type="button"
                     className="inline-flex items-center gap-0.5 [font:inherit] uppercase tracking-wide text-left w-full cursor-pointer select-none hover:text-slate-900"
                     onClick={() => toggleSort('effectiveDate')}
-                    aria-sort={
-                      sortKey === 'effectiveDate'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
                   >
                     Effective date
                     <SortIndicator active={sortKey === 'effectiveDate'} dir={sortDir} />

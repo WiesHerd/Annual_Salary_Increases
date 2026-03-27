@@ -173,8 +173,11 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
               {loading && <p className="text-sm text-slate-500 mt-1">Reading file…</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cycle</label>
+              <label htmlFor="upload-provider-cycle-id" className="block text-sm font-medium text-slate-700 mb-1">
+                Cycle
+              </label>
               <input
+                id="upload-provider-cycle-id"
                 type="text"
                 value={cycleId}
                 onChange={(e) => setCycleId(e.target.value)}

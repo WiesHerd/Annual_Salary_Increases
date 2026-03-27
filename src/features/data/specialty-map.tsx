@@ -356,8 +356,11 @@ function AutoMapPreviewModal({
             Review suggested mappings for {surveyLabel}. Uncheck any you want to skip.
           </p>
           <div className="mt-3 flex items-center gap-3">
-            <label className="text-xs font-medium text-slate-600">Min confidence</label>
+            <label htmlFor="specialty-preview-min-confidence" className="text-xs font-medium text-slate-600">
+              Min confidence
+            </label>
             <input
+              id="specialty-preview-min-confidence"
               type="range"
               min={0.5}
               max={1}
@@ -382,9 +385,12 @@ function AutoMapPreviewModal({
               {allSuggestions.map((s) => (
                 <label
                   key={s.employeeId}
+                  htmlFor={`specialty-preview-cb-${s.employeeId}`}
+                  aria-label={`Include mapping for ${s.providerName || s.employeeId}`}
                   className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50/50 cursor-pointer"
                 >
                   <input
+                    id={`specialty-preview-cb-${s.employeeId}`}
                     type="checkbox"
                     checked={selectedIds.has(s.employeeId)}
                     onChange={() => onToggleSelected(s.employeeId)}

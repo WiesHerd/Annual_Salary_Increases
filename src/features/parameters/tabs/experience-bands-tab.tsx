@@ -582,9 +582,12 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
                     <div>
-                      <label className={fieldLabelClass}>Provider type</label>
+                      <label htmlFor={`exp-band-${r.id}-provider`} className={fieldLabelClass}>
+                        Provider type
+                      </label>
                       {showProviderMulti ? (
                         <MultiSelectDropdown
+                          triggerId={`exp-band-${r.id}-provider`}
                           options={providerOptionsByRow.get(r.id) ?? providerBase}
                           selected={r.populationScope ?? []}
                           onChange={(selected) => update(r.id, { populationScope: selected })}
@@ -593,6 +596,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                         />
                       ) : (
                         <input
+                          id={`exp-band-${r.id}-provider`}
                           type="text"
                           value={r.populationScope?.join(', ') ?? ''}
                           onChange={(e) =>
@@ -610,9 +614,12 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                       )}
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>Specialty / cohort</label>
+                      <label htmlFor={`exp-band-${r.id}-specialty`} className={fieldLabelClass}>
+                        Specialty / cohort
+                      </label>
                       {showSpecialtyMulti ? (
                         <MultiSelectDropdown
+                          triggerId={`exp-band-${r.id}-specialty`}
                           options={specialtyOptionsByRow.get(r.id) ?? specialtyBase}
                           selected={r.specialtyScope ?? []}
                           onChange={(selected) => update(r.id, { specialtyScope: selected })}
@@ -621,6 +628,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                         />
                       ) : (
                         <input
+                          id={`exp-band-${r.id}-specialty`}
                           type="text"
                           value={r.specialtyScope?.join(', ') ?? ''}
                           onChange={(e) =>
@@ -638,9 +646,12 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                       )}
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>Comp plan</label>
+                      <label htmlFor={`exp-band-${r.id}-plan`} className={fieldLabelClass}>
+                        Comp plan
+                      </label>
                       {showPlanMulti ? (
                         <MultiSelectDropdown
+                          triggerId={`exp-band-${r.id}-plan`}
                           options={planOptionsByRow.get(r.id) ?? planBase}
                           selected={r.planScope ?? []}
                           onChange={(selected) => update(r.id, { planScope: selected })}
@@ -649,6 +660,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                         />
                       ) : (
                         <input
+                          id={`exp-band-${r.id}-plan`}
                           type="text"
                           value={r.planScope?.join(', ') ?? ''}
                           onChange={(e) =>

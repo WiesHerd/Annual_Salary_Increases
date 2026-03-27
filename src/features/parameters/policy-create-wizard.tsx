@@ -1048,8 +1048,11 @@ export function PolicyCreateWizard({
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Policy name <span className="text-red-500">*</span></label>
+                    <label htmlFor="policy-wizard-save-name" className="block text-xs font-medium text-slate-600 mb-1">
+                      Policy name <span className="text-red-500">*</span>
+                    </label>
                     <input
+                      id="policy-wizard-save-name"
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -1063,8 +1066,11 @@ export function PolicyCreateWizard({
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Description (optional)</label>
+                    <label htmlFor="policy-wizard-save-description" className="block text-xs font-medium text-slate-600 mb-1">
+                      Description (optional)
+                    </label>
                     <input
+                      id="policy-wizard-save-description"
                       type="text"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}

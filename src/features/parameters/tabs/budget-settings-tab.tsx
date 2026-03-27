@@ -192,56 +192,51 @@ export function BudgetSettingsTab({
             </colgroup>
             <thead>
               <tr>
-                <th className="text-left">
+                <th className="text-left" aria-sort={sortAria('cycle')}>
                   <button
                     type="button"
                     className={headerBtnLeft}
                     onClick={() => toggleSort('cycle')}
-                    aria-sort={sortAria('cycle')}
                   >
                     Cycle
                     <SortIndicator active={sortKey === 'cycle'} dir={sortDir} />
                   </button>
                 </th>
-                <th className="text-right whitespace-nowrap">
+                <th className="text-right whitespace-nowrap" aria-sort={sortAria('budgetTargetAmount')}>
                   <button
                     type="button"
                     className={headerBtn}
                     onClick={() => toggleSort('budgetTargetAmount')}
-                    aria-sort={sortAria('budgetTargetAmount')}
                   >
                     Budget target $
                     <SortIndicator active={sortKey === 'budgetTargetAmount'} dir={sortDir} />
                   </button>
                 </th>
-                <th className="text-right whitespace-nowrap">
+                <th className="text-right whitespace-nowrap" aria-sort={sortAria('budgetTargetPercent')}>
                   <button
                     type="button"
                     className={headerBtn}
                     onClick={() => toggleSort('budgetTargetPercent')}
-                    aria-sort={sortAria('budgetTargetPercent')}
                   >
                     Budget target %
                     <SortIndicator active={sortKey === 'budgetTargetPercent'} dir={sortDir} />
                   </button>
                 </th>
-                <th className="text-right whitespace-nowrap">
+                <th className="text-right whitespace-nowrap" aria-sort={sortAria('warningThresholdPercent')}>
                   <button
                     type="button"
                     className={headerBtn}
                     onClick={() => toggleSort('warningThresholdPercent')}
-                    aria-sort={sortAria('warningThresholdPercent')}
                   >
                     Warning threshold
                     <SortIndicator active={sortKey === 'warningThresholdPercent'} dir={sortDir} />
                   </button>
                 </th>
-                <th className="text-right whitespace-nowrap">
+                <th className="text-right whitespace-nowrap" aria-sort={sortAria('hardStopThresholdPercent')}>
                   <button
                     type="button"
                     className={headerBtn}
                     onClick={() => toggleSort('hardStopThresholdPercent')}
-                    aria-sort={sortAria('hardStopThresholdPercent')}
                   >
                     Hard stop threshold
                     <SortIndicator active={sortKey === 'hardStopThresholdPercent'} dir={sortDir} />

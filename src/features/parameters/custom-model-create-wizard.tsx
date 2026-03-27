@@ -551,8 +551,11 @@ export function CustomModelCreateWizard({
 
               {selectedType.id === 'FIXED_PERCENT' && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Increase %</label>
+                  <label htmlFor="custom-model-fixed-increase-pct" className="block text-xs font-medium text-slate-500 mb-1">
+                    Increase %
+                  </label>
                   <input
+                    id="custom-model-fixed-increase-pct"
                     type="number"
                     step={0.1}
                     value={fixedIncreasePercent}
@@ -570,8 +573,11 @@ export function CustomModelCreateWizard({
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Model name</label>
+                    <label htmlFor="custom-model-save-name" className="block text-xs font-medium text-slate-600 mb-1">
+                      Model name
+                    </label>
                     <input
+                      id="custom-model-save-name"
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -580,8 +586,11 @@ export function CustomModelCreateWizard({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Description (optional)</label>
+                    <label htmlFor="custom-model-save-description" className="block text-xs font-medium text-slate-600 mb-1">
+                      Description (optional)
+                    </label>
                     <input
+                      id="custom-model-save-description"
                       type="text"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -591,8 +600,11 @@ export function CustomModelCreateWizard({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                  <label htmlFor="custom-model-save-status" className="block text-xs font-medium text-slate-600 mb-1">
+                    Status
+                  </label>
                   <select
+                    id="custom-model-save-status"
                     value={status}
                     onChange={(e) => setStatus(e.target.value as CustomCompensationModel['status'])}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"

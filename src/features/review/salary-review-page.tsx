@@ -122,6 +122,13 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
   const DRAWER_DEFAULT_WIDTH = 380;
   const [drawerWidth, setDrawerWidth] = useState(DRAWER_DEFAULT_WIDTH);
   const drawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const saveViewNameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (saveViewOpen) {
+      queueMicrotask(() => saveViewNameInputRef.current?.focus());
+    }
+  }, [saveViewOpen]);
 
   const handleDrawerResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -945,6 +952,7 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                             {saveViewOpen ? (
                               <div className="flex gap-2">
                                 <input
+                                  ref={saveViewNameInputRef}
                                   type="text"
                                   value={saveViewName}
                                   onChange={(e) => setSaveViewName(e.target.value)}
@@ -954,7 +962,6 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
                                   }}
                                   placeholder="View name"
                                   className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                  autoFocus
                                 />
                                 <button
                                   type="button"
@@ -1356,8 +1363,11 @@ export function SalaryReviewPage({ onNavigateToImport, fullScreen = false, onFul
           {reviewViewMode === 'trend' ? (
             <div className="px-5 py-4 flex flex-col gap-4">
               <div className="flex items-center gap-3">
-                <label className="text-sm font-medium text-slate-700">Group by</label>
+                <label htmlFor="salary-review-trend-group-by" className="text-sm font-medium text-slate-700">
+                  Group by
+                </label>
                 <select
+                  id="salary-review-trend-group-by"
                   value={trendGroupBy}
                   onChange={(e) => setTrendGroupBy(e.target.value as ExperienceSalaryGroupBy)}
                   className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[160px]"

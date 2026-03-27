@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { useParametersState } from '../hooks/use-parameters-state';
 import { useSelectedCycle } from '../hooks/use-selected-cycle';
 import { getPreferredCycleId, sortCyclesNewestFirst } from '../lib/cycle-defaults';
+import { APP_VERSION } from '../lib/app-version';
 
 export type AppView = 'import' | 'data-browser' | 'specialty-map' | 'salary-review' | 'compare' | 'parameters' | 'help';
 
@@ -194,8 +195,13 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
           ))}
         </nav>
 
-        {/* Footer: collapse toggle */}
+        {/* Footer: version + collapse */}
         <div className="shrink-0 border-t border-slate-100 flex flex-col">
+          {!collapsed && (
+            <p className="px-4 pt-3 pb-1 text-[10px] text-slate-400 tabular-nums" title={`Meritly v${APP_VERSION}`}>
+              v{APP_VERSION}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
