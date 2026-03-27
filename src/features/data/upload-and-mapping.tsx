@@ -142,7 +142,6 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
     'Compensation_Plan',
     'Current_CF',
     'Prior_Year_WRVUs',
-    'Current_TCC',
     'Prior_Year_WRVU_Incentive',
     'Value_Based_Payment',
     'Shift_Incentive',

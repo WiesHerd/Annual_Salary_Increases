@@ -15,6 +15,7 @@ import { PolicyEngineRulesTab } from './tabs/policy-engine-rules-tab';
 import { ProviderTypeSurveyTab } from './tabs/provider-type-survey-tab';
 import { AppCombinedGroupsTab } from './tabs/app-combined-groups-tab';
 import { ConversionFactorTab } from './tabs/conversion-factor-tab';
+import { TccCalculationTab } from './tabs/tcc-calculation-tab';
 import { PolicyCreateWizard } from './policy-create-wizard';
 import type { AnnualIncreasePolicy } from '../../types/compensation-policy';
 import { CompensationPlanType } from '../../types/enums';
@@ -22,6 +23,7 @@ import { CompensationPlanType } from '../../types/enums';
 type ParametersTabId =
   | 'review-cycles'
   | 'budget-targets'
+  | 'tcc-calculation'
   | 'merit'
   | 'experience-bands'
   | 'conversion-factor'
@@ -35,10 +37,11 @@ const TAB_GROUPS: { id: TabGroupId; label: string; subtitle?: string; tabs: { id
   {
     id: 'cycle-budget',
     label: 'Cycle & budget',
-    subtitle: 'Cycles and budget targets used in Merit review',
+    subtitle: 'Cycles, budget targets, and how roster dollars roll up to Current TCC',
     tabs: [
       { id: 'review-cycles', label: 'Review cycles' },
       { id: 'budget-targets', label: 'Budget targets' },
+      { id: 'tcc-calculation', label: 'Current TCC' },
     ],
   },
   {
@@ -98,9 +101,11 @@ function getInitialTabFromUrl(): ParametersTabId {
   if (tab === 'cycle') return 'review-cycles';
   if (tab === 'budget') return 'budget-targets';
   if (tab === 'cycle-budget') return 'review-cycles';
+  if (tab === 'tcc-calculation') return 'tcc-calculation';
   const valid: ParametersTabId[] = [
     'review-cycles',
     'budget-targets',
+    'tcc-calculation',
     'merit',
     'experience-bands',
     'conversion-factor',
@@ -269,6 +274,12 @@ export function ParametersPage(_props: ParametersPageProps = {}) {
               cycles={params.cycles}
               budgetSettings={params.budgetSettings}
               setBudgetSettings={params.setBudgetSettings}
+            />
+          )}
+          {activeTab === 'tcc-calculation' && (
+            <TccCalculationTab
+              settings={params.tccCalculationSettings}
+              setSettings={params.setTccCalculationSettings}
             />
           )}
           {activeTab === 'merit' && <MeritMatrixTab {...params} />}

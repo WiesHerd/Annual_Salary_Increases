@@ -510,7 +510,7 @@ export function ProviderTable({
                   ['Department', 'Dept', 'left'],
                   ['Population', 'Provider Type', 'left'],
                   ['Compensation_Plan', 'Plan', 'left'],
-                  ['Current_FTE', 'FTE', 'right'],
+                  ['Current_FTE', 'Total FTE', 'right'],
                   ['Current_TCC', 'Current TCC', 'right'],
                   ['Current_Target_WRVUs', 'Target wRVU', 'right'],
                   ['Current_TCC_Percentile', 'TCC %ile', 'right'],

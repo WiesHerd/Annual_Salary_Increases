@@ -213,8 +213,8 @@ function CompareTable({ providers }: CompareTableProps) {
   rows.push({ label: 'TCC %', values: tccPercentiles, highlight: true });
   rows.push({ label: 'wRVU %', values: wrvuPercentiles, highlight: true });
   rows.push({ label: 'TCC at 1 FTE', values: tccAt1Values, highlight: true });
-  rows.push({ label: 'FTE', values: currentFte });
-  rows.push({ label: 'Clinical FTE', values: clinicalFte });
+  rows.push({ label: 'Total FTE', values: currentFte });
+  rows.push({ label: 'cFTE', values: clinicalFte });
   rows.push({ label: 'Base at 1 FTE', values: baseAt1Values, highlight: true });
   rows.push({ label: 'Base', values: baseSalary });
   rows.push({ label: 'Productivity', values: productivity });

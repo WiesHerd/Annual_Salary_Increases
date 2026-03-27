@@ -3,7 +3,16 @@
  * TCC incentive components live on each provider row (provider upload).
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { ProviderRecord } from '../types/provider';
 import type {
   ProviderUploadResult,
@@ -53,6 +62,8 @@ import { inferMissingProviderTypes } from '../lib/infer-missing-provider-type';
 import { DEFAULT_CYCLE_ID } from '../lib/parse-file';
 import { mapProvidersWithDerivedTcc } from '../lib/tcc-components';
 import { safeLocalStorageSetItem } from '../lib/safe-local-storage';
+import { useParametersState } from '../hooks/use-parameters-state';
+import { loadTccCalculationSettings } from '../lib/parameters-storage';
 
 export type AppStateValue = {
   records: ProviderRecord[];
@@ -111,6 +122,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   const [surveyMetadata, setSurveyMetadata] = useState<Record<string, { label: string }>>({});
   const [customDatasets, setCustomDatasets] = useState<CustomDataset[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const { tccCalculationSettings, loaded: paramsLoaded } = useParametersState();
 
   const recordsWithEvaluation = useMemo(
     () => mergeEvaluationsIntoProviders(records, evaluationRows),
@@ -122,6 +134,15 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     const typeToSurvey = loadProviderTypeToSurveyMapping();
     return mergeMarketIntoProvidersMulti(providers, surveys, mappings, typeToSurvey);
   }, []);
+
+  const applyMarketAndTcc = useCallback(
+    (providerRows: ProviderRecord[], surveys: MarketSurveySet) =>
+      mapProvidersWithDerivedTcc(mergeAll(providerRows, surveys), tccCalculationSettings),
+    [mergeAll, tccCalculationSettings]
+  );
+
+  const marketSurveysRef = useRef(marketSurveys);
+  marketSurveysRef.current = marketSurveys;
 
   useEffect(() => {
     const allowSeed = allowAutoSeedData();
@@ -156,7 +177,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
         }
       }
     }
-    recs = mapProvidersWithDerivedTcc(mergeAll(recs, surveys));
+    recs = mapProvidersWithDerivedTcc(mergeAll(recs, surveys), loadTccCalculationSettings());
     setRecords(recs);
 
     const evals = loadEvaluationRows();
@@ -168,6 +189,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     setCustomDatasets(loadCustomDatasets());
     setLoaded(true);
   }, [mergeAll]);
+
+  useEffect(() => {
+    if (!loaded || !paramsLoaded) return;
+    setRecords((prev) => applyMarketAndTcc(prev, marketSurveysRef.current));
+  }, [tccCalculationSettings, loaded, paramsLoaded, applyMarketAndTcc]);
 
   useEffect(() => {
     if (loaded) saveProviderRecords(records);
@@ -191,21 +217,21 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       setRecords((prev) => {
         const existingIds = new Set(prev.map((r) => r.Employee_ID));
         const toAdd = result.rows.filter((r) => !existingIds.has(r.Employee_ID));
-        return mapProvidersWithDerivedTcc(mergeAll([...prev, ...toAdd], marketSurveys));
+        return applyMarketAndTcc([...prev, ...toAdd], marketSurveys);
       });
       return result.rows.length;
     },
-    [marketSurveys, mergeAll]
+    [marketSurveys, applyMarketAndTcc]
   );
 
   const replaceFromUpload = useCallback(
     (result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
       safeLocalStorageSetItem('asi-demo-mode', 'false');
-      const merged = mapProvidersWithDerivedTcc(mergeAll(result.rows, marketSurveys));
+      const merged = applyMarketAndTcc(result.rows, marketSurveys);
       setRecords(merged);
       return merged.length;
     },
-    [marketSurveys, mergeAll]
+    [marketSurveys, applyMarketAndTcc]
   );
 
   const addMarketFromUpload = useCallback(
@@ -221,20 +247,20 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       }
       const next = { ...marketSurveys, [surveyId]: nextRows };
       setMarketSurveys(next);
-      setRecords((prev) => mergeAll(prev, next));
+      setRecords((prev) => applyMarketAndTcc(prev, next));
       return mode === 'replace' ? result.rows.length : nextRows.length - current.length;
     },
-    [marketSurveys, mergeAll]
+    [marketSurveys, applyMarketAndTcc]
   );
 
   const replaceMarketFromUpload = useCallback(
     (result: MarketUploadResult, surveyId: string) => {
       const next = { ...marketSurveys, [surveyId]: result.rows };
       setMarketSurveys(next);
-      setRecords((prev) => mergeAll(prev, next));
+      setRecords((prev) => applyMarketAndTcc(prev, next));
       return result.rows.length;
     },
-    [marketSurveys, mergeAll]
+    [marketSurveys, applyMarketAndTcc]
   );
 
   const addEvaluationFromUpload = useCallback(
@@ -275,11 +301,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       setMarketSurveys((prev) => {
         const rows = (prev[surveyId] ?? []).filter((r) => r.specialty !== specialty);
         const next = { ...prev, [surveyId]: rows };
-        setRecords((recs) => mergeAll(recs, next));
+        setRecords((recs) => applyMarketAndTcc(recs, next));
         return next;
       });
     },
-    [mergeAll]
+    [applyMarketAndTcc]
   );
 
   const clearAll = useCallback(() => {
@@ -320,10 +346,10 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       }
       setRecords((prev) => {
         const updated = prev.map((r) => (r.Employee_ID === employeeId ? { ...r, ...updates } : r));
-        return mergeAll(updated, marketSurveys);
+        return applyMarketAndTcc(updated, marketSurveys);
       });
     },
-    [records, marketSurveys, mergeAll]
+    [records, marketSurveys, applyMarketAndTcc]
   );
 
   const clearMarket = useCallback(
@@ -331,11 +357,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       safeLocalStorageSetItem('asi-demo-mode', 'false');
       setMarketSurveys((prev) => {
         const next = { ...prev, [surveyId]: [] };
-        setRecords((recs) => mergeAll(recs, next));
+        setRecords((recs) => applyMarketAndTcc(recs, next));
         return next;
       });
     },
-    [mergeAll]
+    [applyMarketAndTcc]
   );
 
   const addSurveySlot = useCallback((surveyId: string, label: string) => {
@@ -395,7 +421,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
   const loadDemoData = useCallback(() => {
     const { providerRecords, marketSurveys: seedSurveys, evaluationRows: demoEval } = getDemoData();
-    const merged = mapProvidersWithDerivedTcc(mergeAll(providerRecords, seedSurveys));
+    const merged = applyMarketAndTcc(providerRecords, seedSurveys);
     saveProviderRecords(merged);
     saveMarketSurveys(seedSurveys);
     saveSurveySpecialtyMappingSet(
@@ -411,7 +437,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     setMarketSurveys(seedSurveys);
     setCustomDatasets([]);
     safeLocalStorageSetItem('asi-demo-mode', 'true');
-  }, [mergeAll]);
+  }, [applyMarketAndTcc]);
 
   const value = useMemo(
     (): AppStateValue => ({

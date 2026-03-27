@@ -7,6 +7,8 @@ import type { ProviderRecord } from '../../types/provider';
 import { SearchableSelect } from '../../components/searchable-select';
 import { getChangeHistoryForEntity } from '../../lib/audit';
 import { formatCurrency } from '../../utils/format';
+import { sumExplicitTccComponents } from '../../lib/tcc-components';
+import { useParametersState } from '../../hooks/use-parameters-state';
 
 function extractOptions(records: ProviderRecord[], key: keyof ProviderRecord): string[] {
   const set = new Set<string>();
@@ -59,8 +61,8 @@ const SECTIONS: { label: string; fields: FieldDef[] }[] = [
   {
     label: 'FTE & Employment',
     fields: [
-      { key: 'Current_FTE', label: 'Current FTE', type: 'number' },
-      { key: 'Clinical_FTE', label: 'Clinical FTE', type: 'number' },
+      { key: 'Current_FTE', label: 'Total FTE', type: 'number' },
+      { key: 'Clinical_FTE', label: 'cFTE', type: 'number' },
       { key: 'Hire_Date', label: 'Hire Date', type: 'text' },
       { key: 'Years_of_Experience', label: 'Years of Experience', type: 'number' },
     ],
@@ -69,7 +71,6 @@ const SECTIONS: { label: string; fields: FieldDef[] }[] = [
     label: 'Current Compensation',
     fields: [
       { key: 'Current_Base_Salary', label: 'Base Salary', type: 'currency' },
-      { key: 'Current_TCC', label: 'Current TCC', type: 'currency' },
       { key: 'Prior_Year_WRVU_Incentive', label: 'wRVU / productivity incentive', type: 'currency' },
       { key: 'Value_Based_Payment', label: 'Value-based payment', type: 'currency' },
       { key: 'Shift_Incentive', label: 'Shift incentive', type: 'currency' },
@@ -103,6 +104,12 @@ export function ProviderEditModal({
   onClose,
 }: ProviderEditModalProps) {
   const [form, setForm] = useState<Partial<ProviderRecord>>(() => ({ ...record }));
+  const { tccCalculationSettings } = useParametersState();
+
+  const previewCurrentTcc = useMemo(() => {
+    const merged: ProviderRecord = { ...record, ...form };
+    return sumExplicitTccComponents(merged, tccCalculationSettings);
+  }, [record, form, tccCalculationSettings]);
 
   const options = useMemo(
     () => ({
@@ -215,6 +222,20 @@ export function ProviderEditModal({
             <div key={section.label}>
               <h3 className="text-sm font-medium text-slate-700 mb-2">{section.label}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {section.label === 'Current Compensation' && (
+                  <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-xs font-medium text-slate-600">Current TCC (calculated)</span>
+                      <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                        {formatCurrency(previewCurrentTcc)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Not uploaded. Sum of the components you include under Parameters → Cycle &amp; budget → Current TCC,
+                      using this row’s values (including edits not yet saved).
+                    </p>
+                  </div>
+                )}
                 {section.fields.map((field) => {
                   const { key, label, type } = field;
                   const optionsKey = field.type === 'select' && 'optionsKey' in field ? field.optionsKey : undefined;

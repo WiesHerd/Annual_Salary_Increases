@@ -23,7 +23,7 @@ import { meritMatrixEvaluationMatches } from '../evaluation-score';
 export const FTE_NORMALIZATION_CAUTION_THRESHOLD = 0.7;
 
 /**
- * True if the provider's Current FTE or Clinical FTE is below the caution threshold.
+ * True if the provider's Total FTE (Current_FTE) or cFTE (Clinical_FTE) is below the caution threshold.
  * Normalizing to 1.0 FTE (dividing by a small FTE) can make percentiles less reliable.
  */
 export function isLowFteForNormalization(record: ProviderRecord): boolean {

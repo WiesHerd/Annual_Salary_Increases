@@ -30,11 +30,11 @@ function str(val: string | number | undefined): string | undefined {
   return s === '' ? undefined : s;
 }
 
-/** Keys that are numeric (all others are string). */
+/** Keys that are numeric (all others are string). Current_TCC / Current_TCC_at_1FTE are app-calculated, not imported. */
 const NUMERIC_KEYS = new Set<keyof ProviderRecord>([
   'Years_of_Experience', 'APP_YOE', 'RN_YOE', 'Total_YOE', 'Percent_of_Year_Employed',
   'Current_FTE', 'Clinical_FTE', 'Administrative_FTE', 'Research_FTE', 'Teaching_FTE',
-  'Current_Base_Salary', 'Current_Salary_at_1FTE', 'Current_TCC', 'Current_TCC_at_1FTE', 'Current_CF',
+  'Current_Base_Salary', 'Current_Salary_at_1FTE', 'Current_CF',
   'Current_Target_WRVUs', 'Current_Threshold', 'Current_TCC_Percentile', 'Current_Compa_Ratio',
   'Proposed_Base_Salary', 'Proposed_Salary_at_1FTE', 'Proposed_CF', 'Proposed_Target_WRVUs', 'Proposed_Threshold',
   'Proposed_TCC', 'Proposed_TCC_at_1FTE', 'Proposed_TCC_Percentile', 'Proposed_Compa_Ratio',
@@ -57,7 +57,7 @@ export const PROVIDER_RECORD_KEYS: (keyof ProviderRecord)[] = [
   'Hire_Date', 'Adjusted_Hire_Date', 'Residency_Graduation_Date', 'RN_Start_Date', 'RN_End_Date', 'Non_RN_Start_Date',
   'Years_of_Experience', 'APP_YOE', 'RN_YOE', 'Total_YOE', 'Percent_of_Year_Employed',
   'Current_FTE', 'Clinical_FTE', 'Administrative_FTE', 'Research_FTE', 'Teaching_FTE',
-  'Current_Base_Salary', 'Current_Salary_at_1FTE', 'Current_TCC', 'Current_TCC_at_1FTE', 'Current_CF',
+  'Current_Base_Salary', 'Current_Salary_at_1FTE', 'Current_CF',
   'Current_Target_WRVUs', 'Current_Threshold', 'Current_TCC_Percentile', 'Current_Compa_Ratio',
   'Proposed_Base_Salary', 'Proposed_Salary_at_1FTE', 'Proposed_CF', 'Proposed_Target_WRVUs', 'Proposed_Threshold',
   'Proposed_TCC', 'Proposed_TCC_at_1FTE', 'Proposed_TCC_Percentile', 'Proposed_Compa_Ratio',
@@ -136,10 +136,9 @@ export function buildDefaultProviderMapping(headers: string[]): ProviderColumnMa
     else if (l.includes('adjusted hire date') && !m.Adjusted_Hire_Date) m.Adjusted_Hire_Date = h;
     else if (l.includes('residency graduation') && !m.Residency_Graduation_Date) m.Residency_Graduation_Date = h;
     else if (l.includes('years of experience') && !m.Years_of_Experience) m.Years_of_Experience = h;
-    else if (l.includes('current fte') && !m.Current_FTE) m.Current_FTE = h;
-    else if (l.includes('clinical fte') && !m.Clinical_FTE) m.Clinical_FTE = h;
+    else if ((l.includes('total fte') || l.includes('current fte')) && !m.Current_FTE) m.Current_FTE = h;
+    else if ((l === 'cfte' || l.includes('c fte') || l.includes('clinical fte')) && !m.Clinical_FTE) m.Clinical_FTE = h;
     else if (l.includes('current base salary') && !m.Current_Base_Salary) m.Current_Base_Salary = h;
-    else if (l.includes('current tcc') && !l.includes('percentile') && !l.includes('at_1fte') && !m.Current_TCC) m.Current_TCC = h;
     else if ((l.includes('current cf') || l.includes('current conversion factor') || (l.includes('conversion factor') && !l.includes('proposed'))) && !m.Current_CF) m.Current_CF = h;
     else if ((l.includes('proposed cf') || l.includes('proposed conversion factor')) && !m.Proposed_CF) m.Proposed_CF = h;
     else if ((l === 'cf' || l === 'conversion factor') && !m.Current_CF) m.Current_CF = h;

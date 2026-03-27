@@ -11,6 +11,7 @@ import type { PcpAppRuleRow } from '../types/pcp-app-rules';
 import type { PlanAssignmentRuleRow } from '../types/plan-assignment-row';
 import type { BudgetSettingsRow } from '../types/budget-settings';
 import type { CfBySpecialtyRow } from '../types/cf-by-specialty';
+import type { TccCalculationSettings } from '../types/tcc-calculation';
 import {
   loadCycles,
   saveCycles,
@@ -28,6 +29,8 @@ import {
   saveBudgetSettings,
   loadCfBySpecialty,
   saveCfBySpecialty,
+  loadTccCalculationSettings,
+  saveTccCalculationSettings,
 } from '../lib/parameters-storage';
 
 export type ParametersStateValue = {
@@ -47,6 +50,8 @@ export type ParametersStateValue = {
   setBudgetSettings: React.Dispatch<React.SetStateAction<BudgetSettingsRow[]>>;
   cfBySpecialty: CfBySpecialtyRow[];
   setCfBySpecialty: React.Dispatch<React.SetStateAction<CfBySpecialtyRow[]>>;
+  tccCalculationSettings: TccCalculationSettings;
+  setTccCalculationSettings: React.Dispatch<React.SetStateAction<TccCalculationSettings>>;
   loaded: boolean;
 };
 
@@ -61,6 +66,9 @@ export function ParametersStateProvider({ children }: { children: ReactNode }) {
   const [planAssignmentRules, setPlanAssignmentRules] = useState<PlanAssignmentRuleRow[]>([]);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettingsRow[]>([]);
   const [cfBySpecialty, setCfBySpecialty] = useState<CfBySpecialtyRow[]>([]);
+  const [tccCalculationSettings, setTccCalculationSettings] = useState<TccCalculationSettings>(() =>
+    loadTccCalculationSettings()
+  );
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -72,6 +80,7 @@ export function ParametersStateProvider({ children }: { children: ReactNode }) {
     setPlanAssignmentRules(loadPlanAssignmentRules());
     setBudgetSettings(loadBudgetSettings());
     setCfBySpecialty(loadCfBySpecialty());
+    setTccCalculationSettings(loadTccCalculationSettings());
     setLoaded(true);
   }, []);
 
@@ -99,6 +108,9 @@ export function ParametersStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loaded) saveCfBySpecialty(cfBySpecialty);
   }, [cfBySpecialty, loaded]);
+  useEffect(() => {
+    if (loaded) saveTccCalculationSettings(tccCalculationSettings);
+  }, [tccCalculationSettings, loaded]);
 
   const value = useMemo(
     () => ({
@@ -118,6 +130,8 @@ export function ParametersStateProvider({ children }: { children: ReactNode }) {
       setBudgetSettings,
       cfBySpecialty,
       setCfBySpecialty,
+      tccCalculationSettings,
+      setTccCalculationSettings,
       loaded,
     }),
     [
@@ -129,6 +143,7 @@ export function ParametersStateProvider({ children }: { children: ReactNode }) {
       planAssignmentRules,
       budgetSettings,
       cfBySpecialty,
+      tccCalculationSettings,
       loaded,
     ]
   );

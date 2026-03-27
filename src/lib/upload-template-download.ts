@@ -2,7 +2,8 @@
  * Download CSV/XLSX templates with column headers plus one example data row so users see expected formats.
  *
  * Provider / market / evaluation header lists align with `public/sample-*.csv`.
- * The provider parser accepts extra columns (Current_TCC, TCC components, market join fields, proposed pay).
+ * Current TCC is app-calculated from components (see Parameters → Current TCC). The provider parser accepts extra
+ * columns (TCC components, market join fields, proposed pay).
  */
 
 import * as XLSX from 'xlsx';
@@ -25,7 +26,6 @@ export const PROVIDER_UPLOAD_TEMPLATE_HEADERS = [
   'Clinical_FTE',
   'Current_FTE',
   'Current_Base_Salary',
-  'Current_TCC',
   'Prior_Year_WRVU_Incentive',
   'Value_Based_Payment',
   'Shift_Incentive',
@@ -60,7 +60,6 @@ export const PROVIDER_UPLOAD_TEMPLATE_SAMPLE_ROW: readonly string[] = [
   '0.85',
   '1',
   '280000',
-  '385000',
   '45000',
   '10000',
   '5000',

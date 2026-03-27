@@ -37,7 +37,9 @@ export interface ProviderRecord {
   Percent_of_Year_Employed?: number;
 
   // ─── 3. FTE Structure ───────────────────────────────────────────────────
+  /** Total FTE (UI label); full-scope FTE for the role. */
   Current_FTE?: number;
+  /** Clinical FTE (UI label: cFTE). */
   Clinical_FTE?: number;
   Administrative_FTE?: number;
   Research_FTE?: number;
@@ -46,7 +48,9 @@ export interface ProviderRecord {
   // ─── 4. Current Compensation ─────────────────────────────────────────────
   Current_Base_Salary?: number;
   Current_Salary_at_1FTE?: number;
+  /** Derived in-app from configured TCC components (Parameters → Current TCC); not imported from roster CSV. */
   Current_TCC?: number;
+  /** Current TCC ÷ Total FTE (Current_FTE; 1.0 FTE basis for market comparison). */
   Current_TCC_at_1FTE?: number;
   Current_CF?: number;
   Current_Target_WRVUs?: number;

@@ -14,6 +14,8 @@ import type { BudgetSettingsRow } from '../types/budget-settings';
 import type { CfBySpecialtyRow } from '../types/cf-by-specialty';
 import type { AppCombinedGroupRow } from '../types/app-combined-group';
 import type { SurveySpecialtyMappingSet, ProviderTypeToSurveyMapping } from '../types/market-survey-config';
+import type { TccCalculationSettings } from '../types/tcc-calculation';
+import { TCC_SUM_COMPONENT_KEYS, defaultTccCalculationSettings } from '../types/tcc-calculation';
 import { DEFAULT_SURVEY_ID } from '../types/market-survey-config';
 import {
   SAMPLE_CYCLES,
@@ -41,6 +43,7 @@ const KEY_SURVEY_SPECIALTY_MAPPING = 'tcc-survey-specialty-mapping';
 const KEY_PROVIDER_TYPE_TO_SURVEY = 'tcc-provider-type-to-survey';
 const KEY_BUDGET_SETTINGS = 'tcc-budget-settings';
 const KEY_CF_BY_SPECIALTY = 'tcc-cf-by-specialty';
+const KEY_TCC_CALCULATION = 'tcc-calculation-settings';
 
 function loadJson<T extends unknown[]>(key: string, defaultValue: T): T {
   try {
@@ -278,4 +281,31 @@ export function loadCfBySpecialty(): CfBySpecialtyRow[] {
 
 export function saveCfBySpecialty(rows: CfBySpecialtyRow[]): void {
   saveJson(KEY_CF_BY_SPECIALTY, rows);
+}
+
+export function loadTccCalculationSettings(): TccCalculationSettings {
+  try {
+    const raw = migratedStorageGetItem(KEY_TCC_CALCULATION);
+    if (!raw) return defaultTccCalculationSettings();
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || !('componentIncluded' in parsed)) {
+      return defaultTccCalculationSettings();
+    }
+    const base = defaultTccCalculationSettings();
+    const inc = (parsed as { componentIncluded?: Record<string, unknown> }).componentIncluded;
+    if (inc && typeof inc === 'object') {
+      for (const k of TCC_SUM_COMPONENT_KEYS) {
+        if (typeof inc[k] === 'boolean') {
+          base.componentIncluded[k] = inc[k];
+        }
+      }
+    }
+    return base;
+  } catch {
+    return defaultTccCalculationSettings();
+  }
+}
+
+export function saveTccCalculationSettings(settings: TccCalculationSettings): void {
+  migratedStorageSetItem(KEY_TCC_CALCULATION, JSON.stringify(settings));
 }

@@ -308,7 +308,7 @@ export function ProviderDetailPanel({
               <span className="tabular-nums">{provider.Percent_of_Year_Employed != null ? `${(provider.Percent_of_Year_Employed * 100).toFixed(0)}%` : '—'}</span>
             </div>
             <div className="flex justify-between">
-              <span>Clinical FTE</span>
+              <span>cFTE</span>
               <span className="tabular-nums">{provider.Clinical_FTE != null ? formatFte(provider.Clinical_FTE) : '—'}</span>
             </div>
             <div className="flex justify-between">
