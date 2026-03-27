@@ -1,12 +1,12 @@
 /**
- * Bundled sample rows (providers, market, payments, evaluations) for first-run / dev demos.
+ * Bundled sample rows (providers, market, evaluations) for first-run / dev demos.
  * AppStateProvider may auto-inject when local storage is empty and demo auto-seed is allowed — not fetched from a server.
  */
 
 import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 import type { MarketSurveySet } from '../types/market-survey-config';
-import type { ParsedPaymentRow, EvaluationJoinRow } from '../types/upload';
+import type { EvaluationJoinRow } from '../types/upload';
 
 export function getSeedProviderRecords(): ProviderRecord[] {
   return [
@@ -822,31 +822,6 @@ export function getSeedEvaluationRows(): EvaluationJoinRow[] {
   ];
 }
 
-export function getSeedPayments(): ParsedPaymentRow[] {
-  return [
-    { providerKey: 'EXT001', amount: 12500, date: '2025-01-15', category: 'bonus', cycleId: 'FY2025' },
-    { providerKey: 'EXT002', amount: 8000, date: '2025-01-15', category: 'bonus', cycleId: 'FY2025' },
-    { providerKey: 'EXT003', amount: 6000, date: '2025-01-20', category: 'incentive', cycleId: 'FY2025' },
-    { providerKey: 'EXT001', amount: 37500, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT002', amount: 26667, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT004', amount: 43333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT005', amount: 25833, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT006', amount: 31667, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT007', amount: 6833, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT008', amount: 11250, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT009', amount: 65625, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT010', amount: 23333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT011', amount: 10667, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT012', amount: 51667, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT013', amount: 18333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT014', amount: 12333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT015', amount: 9000, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT016', amount: 9833, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT017', amount: 10417, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-    { providerKey: 'EXT018', amount: 9333, date: '2025-01-31', category: 'base', cycleId: 'FY2025' },
-  ];
-}
-
 /**
  * Returns all seed data for development/testing. Use with mergeMarketIntoProviders
  * so records have market percentiles filled before storing.
@@ -855,7 +830,6 @@ export function getDemoData(): {
   providerRecords: ProviderRecord[];
   marketRows: MarketRow[];
   marketSurveys: Record<string, MarketRow[]>;
-  payments: ParsedPaymentRow[];
   evaluationRows: EvaluationJoinRow[];
 } {
   const marketSurveys = getSeedMarketSurveys();
@@ -864,7 +838,6 @@ export function getDemoData(): {
     providerRecords: getSeedProviderRecords(),
     marketRows,
     marketSurveys,
-    payments: getSeedPayments(),
     evaluationRows: getSeedEvaluationRows(),
   };
 }

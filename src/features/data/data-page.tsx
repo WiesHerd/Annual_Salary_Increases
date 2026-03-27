@@ -4,14 +4,13 @@ import { getSurveyLabel, sortSurveyIdsByLabel } from '../../types/market-survey-
 import { ImportCards } from './import-cards';
 import { ProviderTable } from './provider-table';
 import { MarketTable } from './market-table';
-import { PaymentsTable } from './payments-table';
 import { EvaluationTable } from './evaluation-table';
 import { SpecialtyMap } from './specialty-map';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { CustomStreamsTable } from './custom-streams-table';
 import { EmptyStatePanel } from '../../components/empty-state-panel';
 
-export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
+export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'custom';
 export type DataPageFocus = 'import' | 'browse';
 
 function withCount(label: string, count: number): string {
@@ -49,8 +48,6 @@ export function DataPage({
     clearMarket,
     evaluationRows,
     clearEvaluations,
-    payments,
-    clearPayments,
     customDatasets,
     loadDemoData,
     loaded,
@@ -76,7 +73,7 @@ export function DataPage({
   );
 
   const hasOtherImportedData = useMemo(() => {
-    if (totalMarketRows > 0 || evaluationRows.length > 0 || payments.length > 0 || customDatasets.length > 0) {
+    if (totalMarketRows > 0 || evaluationRows.length > 0 || customDatasets.length > 0) {
       return true;
     }
     if (customStreamDefinitions.length > 0) return true;
@@ -84,7 +81,6 @@ export function DataPage({
   }, [
     totalMarketRows,
     evaluationRows.length,
-    payments.length,
     customDatasets.length,
     customStreamDefinitions.length,
   ]);
@@ -94,9 +90,8 @@ export function DataPage({
     { id: 'market', label: withCount('Market survey', totalMarketRows) },
     { id: 'evaluation', label: withCount('Evaluations', evaluationRows.length) },
     { id: 'specialty-map', label: 'Specialty map' },
-    { id: 'payments', label: withCount('Payments', payments.length) },
     { id: 'custom', label: 'Custom data' },
-  ], [records.length, totalMarketRows, evaluationRows.length, payments.length]);
+  ], [records.length, totalMarketRows, evaluationRows.length]);
 
   const surveyIds = useMemo(() => {
     const withRows = Object.keys(marketSurveys).filter((id) => (marketSurveys[id]?.length ?? 0) > 0);
@@ -127,7 +122,6 @@ export function DataPage({
     records.length > 0 ||
     totalMarketRows > 0 ||
     evaluationRows.length > 0 ||
-    payments.length > 0 ||
     customDatasets.length > 0;
 
   return (
@@ -215,10 +209,6 @@ export function DataPage({
           setRecords={setRecords}
           onOpenProviderTypeSurvey={onOpenProviderTypeSurvey}
         />
-      )}
-
-      {activeTab === 'payments' && (
-        <PaymentsTable rows={payments} onClear={clearPayments} />
       )}
 
       {activeTab === 'custom' && (

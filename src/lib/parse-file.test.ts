@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
-import { parseMarketCsv, parsePaymentCsv } from './parse-file';
+import { parseMarketCsv } from './parse-file';
 import { exportCompareScenariosToXlsx } from './compare-scenarios-export';
-import type { MarketColumnMapping, PaymentColumnMapping } from '../types/upload';
+import type { MarketColumnMapping } from '../types/upload';
 import type { ProviderRecord } from '../types/provider';
 import type { PolicyEvaluationResult } from '../types/compensation-policy';
 import type { ScenarioDerivedResult, ScenarioRunResult } from '../types/scenario';
 
-describe('parse-file (market + payments)', () => {
+describe('parse-file (market)', () => {
   it('treats blank percentile cells as missing (not 0) while keeping true 0', () => {
     const mapping: MarketColumnMapping = {
       specialty: 'specialty',
@@ -106,38 +106,6 @@ describe('parse-file (market + payments)', () => {
     expect(result.rows[0].tccPercentiles[75]).toBeUndefined();
   });
 
-  it('drops payment rows missing required fields (providerKey/date/amount)', () => {
-    const mapping: PaymentColumnMapping = {
-      providerKey: 'providerKey',
-      amount: 'amount',
-      date: 'date',
-      category: 'category',
-      cycleId: 'cycleId',
-    };
-
-    const csv = [
-      'providerKey,amount,date,category,cycleId',
-      // missing providerKey
-      ',100,2020-01-01,cat1,2025',
-      // missing amount
-      'ABC,,2020-01-01,cat1,2025',
-      // missing date
-      'ABC,50,,cat1,2025',
-      // valid row with true 0 amount
-      'ABC,0,2020-01-01,cat1,2025',
-    ].join('\n');
-
-    const result = parsePaymentCsv(csv, mapping);
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]).toEqual({
-      providerKey: 'ABC',
-      amount: 0,
-      date: '2020-01-01',
-      category: 'cat1',
-      cycleId: '2025',
-    });
-    expect(result.errors).toHaveLength(3);
-  });
 });
 
 describe('compare-scenarios export', () => {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   parseProviderRecordsFromStorage,
   parseCyclesFromStorage,
-  parsePaymentRowsFromStorage,
   parseMarketSurveySetFromStorage,
 } from './persisted-data';
 
@@ -27,15 +26,6 @@ describe('parseCyclesFromStorage', () => {
     expect(parseCyclesFromStorage([{ id: 'FY26', label: 'FY2026' }])?.[0]?.id).toBe('FY26');
     expect(parseCyclesFromStorage([{ id: '', label: 'x' }])).toBeNull();
     expect(parseCyclesFromStorage(null)).toBeNull();
-  });
-});
-
-describe('parsePaymentRowsFromStorage', () => {
-  it('coerces amount to number', () => {
-    const rows = parsePaymentRowsFromStorage([
-      { providerKey: 'p1', amount: '100' as unknown as number, date: '2024-01-01' },
-    ]);
-    expect(rows[0]?.amount).toBe(100);
   });
 });
 

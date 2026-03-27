@@ -59,6 +59,7 @@ export function buildFactsFromRecord(
     providerName: record.Provider_Name,
     providerType: record.Provider_Type ?? record.Population,
     specialty: record.Specialty ?? record.Market_Specialty_Override ?? record.Benchmark_Group,
+    subspecialty: record.Subspecialty,
     division: record.Primary_Division,
     department: record.Department,
     location: record.Location,

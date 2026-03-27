@@ -1,5 +1,5 @@
 /**
- * Join additional datasets (market, incentives, productivity) into provider records.
+ * Join additional datasets (market, productivity) into provider records.
  * Market: match by Market_Specialty_Override, then Specialty, then Benchmark_Group.
  * Physicians: 1:1 mapping. APPs: many survey rows can blend into one combined benchmark.
  * Incentives/Productivity: match by Employee_ID.
@@ -14,7 +14,6 @@ import type {
   IncentiveJoinRow,
   ProductivityJoinRow,
   EvaluationJoinRow,
-  ParsedPaymentRow,
   CustomDataset,
   RawRow,
 } from '../types/upload';
@@ -265,12 +264,17 @@ export function mergeIncentivesIntoProviders(
     return {
       ...p,
       Prior_Year_WRVU_Incentive: row.Prior_Year_WRVU_Incentive ?? p.Prior_Year_WRVU_Incentive,
+      Value_Based_Payment: row.Value_Based_Payment ?? p.Value_Based_Payment,
+      Shift_Incentive: row.Shift_Incentive ?? p.Shift_Incentive,
       Division_Chief_Pay: row.Division_Chief_Pay ?? p.Division_Chief_Pay,
       Medical_Director_Pay: row.Medical_Director_Pay ?? p.Medical_Director_Pay,
       Teaching_Pay: row.Teaching_Pay ?? p.Teaching_Pay,
       PSQ_Pay: row.PSQ_Pay ?? p.PSQ_Pay,
       Quality_Bonus: row.Quality_Bonus ?? p.Quality_Bonus,
       Other_Recurring_Comp: row.Other_Recurring_Comp ?? p.Other_Recurring_Comp,
+      TCC_Other_Clinical_1: row.TCC_Other_Clinical_1 ?? p.TCC_Other_Clinical_1,
+      TCC_Other_Clinical_2: row.TCC_Other_Clinical_2 ?? p.TCC_Other_Clinical_2,
+      TCC_Other_Clinical_3: row.TCC_Other_Clinical_3 ?? p.TCC_Other_Clinical_3,
     };
   });
 }
@@ -310,43 +314,6 @@ export function mergeEvaluationsIntoProviders(
       Evaluation_Score: row.Evaluation_Score ?? p.Evaluation_Score,
       Performance_Category: row.Performance_Category ?? p.Performance_Category,
       Default_Increase_Percent: row.Default_Increase_Percent ?? p.Default_Increase_Percent,
-    };
-  });
-}
-
-/** Roll up payments by providerKey (matches Employee_ID) and merge TCC into providers. */
-export function rollupPaymentsByProvider(
-  payments: ParsedPaymentRow[],
-  options?: { cycleId?: string }
-): Map<string, number> {
-  const byProvider = new Map<string, number>();
-  for (const row of payments) {
-    if (options?.cycleId && row.cycleId && row.cycleId !== options.cycleId) continue;
-    const key = row.providerKey.trim();
-    if (!key) continue;
-    const current = byProvider.get(key) ?? 0;
-    byProvider.set(key, current + (Number.isFinite(row.amount) ? row.amount : 0));
-  }
-  return byProvider;
-}
-
-/** Merge rolled-up payment TCC into providers. providerKey in payments must match Employee_ID. */
-export function mergePaymentsIntoProviders(
-  providers: ProviderRecord[],
-  payments: ParsedPaymentRow[],
-  options?: { cycleId?: string }
-): ProviderRecord[] {
-  const tccByProvider = rollupPaymentsByProvider(payments, options);
-  if (tccByProvider.size === 0) return providers;
-  return providers.map((p) => {
-    const tcc = tccByProvider.get(p.Employee_ID.trim());
-    if (tcc == null || !Number.isFinite(tcc)) return p;
-    const fte = p.Current_FTE ?? 1;
-    const tccAt1Fte = fte > 0 ? tcc / fte : tcc;
-    return {
-      ...p,
-      Current_TCC: tcc,
-      Current_TCC_at_1FTE: tccAt1Fte,
     };
   });
 }

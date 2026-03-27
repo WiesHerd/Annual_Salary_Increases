@@ -66,7 +66,7 @@ export function PolicyConfigFlow() {
         <li className="min-w-0 flex flex-1 flex-col list-none sm:flex-row sm:items-center">
           <FlowCard accent="data" title="Data">
             <strong>Import data</strong> and <strong>Data browser</strong>: provider roster, compensation and wRVUs;
-            market survey; evaluations; payments. Feeds percentiles and facts policies use.
+            market survey; evaluations; incentives (TCC rollup). Feeds percentiles and facts policies use.
           </FlowCard>
         </li>
         <li className="flex list-none justify-center sm:contents" aria-hidden>

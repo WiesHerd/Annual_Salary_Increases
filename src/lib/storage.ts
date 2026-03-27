@@ -1,12 +1,12 @@
 /**
- * Persist provider records, market data, and payments to localStorage.
+ * Persist provider records and market data to localStorage.
  * Uses meritly-* keys with backward-compatible reads from tcc-* (see migrated-local-storage).
  */
 
 import type { ProviderRecord } from '../types/provider';
 import type { MarketRow } from '../types/market';
 import type { MarketSurveySet } from '../types/market-survey-config';
-import type { ParsedPaymentRow, EvaluationJoinRow, CustomDataset } from '../types/upload';
+import type { EvaluationJoinRow, CustomDataset } from '../types/upload';
 import { getSeedMarketSurveys } from './seed-data';
 import { DEFAULT_SURVEY_ID, type SurveyMetadata } from '../types/market-survey-config';
 import { migratedStorageGetItem, migratedStorageSetItem, migratedStorageRemoveItem } from './migrated-local-storage';
@@ -14,7 +14,6 @@ import {
   parseProviderRecordsFromStorage,
   parseMarketSurveySetFromStorage,
   parseSurveyMetadataFromStorage,
-  parsePaymentRowsFromStorage,
   parseEvaluationRowsFromStorage,
   parseCustomDatasetsFromStorage,
 } from './schemas/persisted-data';
@@ -171,20 +170,9 @@ export function saveSurveyMetadata(metadata: SurveyMetadata): void {
   migratedStorageSetItem(STORAGE_KEY_SURVEY_METADATA, JSON.stringify(metadata));
 }
 
-export function loadPayments(): ParsedPaymentRow[] {
-  try {
-    const raw = migratedStorageGetItem(STORAGE_KEY_PAYMENTS);
-    if (!raw) return [];
-    const data = JSON.parse(raw) as unknown;
-    if (!Array.isArray(data)) return [];
-    return parsePaymentRowsFromStorage(data);
-  } catch {
-    return [];
-  }
-}
-
-export function savePayments(rows: ParsedPaymentRow[]): void {
-  migratedStorageSetItem(STORAGE_KEY_PAYMENTS, JSON.stringify(rows));
+/** Remove legacy incentive-line upload storage (replaced by TCC columns on provider records). */
+export function clearLegacyPaymentLinesStorage(): void {
+  migratedStorageRemoveItem(STORAGE_KEY_PAYMENTS);
 }
 
 export function loadEvaluationRows(): EvaluationJoinRow[] {

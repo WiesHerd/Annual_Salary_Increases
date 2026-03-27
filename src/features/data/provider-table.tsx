@@ -52,12 +52,12 @@ interface ProviderTableProps {
   onRemove: (employeeId: string) => void;
   /** Optional: include these custom dataset columns in CSV/XLSX export when join key matches Employee_ID. */
   onClear: () => void;
-  /** Loads bundled demo providers/market/payments (browser-only). */
+  /** Loads bundled demo providers/market (browser-only). */
   onLoadSampleData?: () => void;
   customDatasets?: CustomDataset[];
   /** Optional: provider-linked custom streams to include in export. */
   customStreamLookups?: CustomStreamExportLookup[];
-  /** When true, empty state offers reset (e.g. market/payments still loaded). */
+  /** When true, empty state offers reset (e.g. market still loaded). */
   hasOtherImportedData?: boolean;
 }
 
@@ -239,7 +239,7 @@ export function ProviderTable({
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
-        'Remove all imported data on this device? Provider, market, evaluation, payment, and custom data will be deleted. Parameters and policies are unchanged.'
+        'Remove all imported data on this device? Provider, market, evaluation, and custom data will be deleted. Parameters and policies are unchanged.'
       )
     ) {
       return;

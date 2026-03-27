@@ -1,6 +1,6 @@
-Employee_ID,Provider_Name,Provider_Type,Specialty,Benchmark_Group,Department,Population,Compensation_Plan,Cycle,Current_FTE,Current_TCC,Current_Target_WRVUs,Current_TCC_Percentile,Review_Status
-EXT001,Jane Smith,Physician,Cardiology,Cardiology,Medical,physician,wrvu,FY2025,1,450000,6500,50,draft
-EXT002,John Doe,Physician,Internal Medicine,Internal Medicine,Medical,physician,hybrid,FY2025,1,320000,4800,48,in_review
-EXT003,Maria Garcia,Physician,Family Medicine,Family Medicine,Medical,physician,wrvu,FY2025,0.8,280000,4200,45,draft
-EXT004,Robert Lee,Physician,Orthopedics,Orthopedics,Medical,physician,wrvu,FY2025,1,520000,7200,48,approved
-EXT005,Susan Chen,APP,Pediatrics,Pediatrics,Medical,app,salary,FY2025,1,310000,4600,52,draft
+Primary_Division,Provider_Name,Department,Provider_Type,Employee_ID,Benchmark_Group,Subspecialty,Hire_Date,Years_of_Experience,Clinical_FTE,Current_FTE,Current_Base_Salary,Current_TCC,Prior_Year_WRVU_Incentive,Value_Based_Payment,Shift_Incentive,Quality_Bonus,Division_Chief_Pay,Medical_Director_Pay,Teaching_Pay,PSQ_Pay,Other_Recurring_Comp,TCC_Other_Clinical_1,TCC_Other_Clinical_2,TCC_Other_Clinical_3,Evaluation_Score,Compensation_Plan,Current_CF,Prior_Year_WRVUs
+Heart Center,Jane Smith,Medical,Physician,EXT001,Cardiology,Interventional Cardiology,2015-03-01,12,0.85,1,280000,,,,,,,,,,,,,4.2,wrvu,52.5,6500
+Internal Med,John Doe,Medical,Physician,EXT002,Internal Medicine,Hospitalist Medicine,2018-07-15,8,0.8,1,245000,,,,,,,,,,,,,3.8,hybrid,48.0,4800
+Family Practice,Maria Garcia,Medical,Physician,EXT003,Family Medicine,Outpatient Family,2019-01-10,6,0.72,0.8,198000,,,,,,,,,,,,,4.0,wrvu,51.0,4200
+Ortho,Robert Lee,Medical,Physician,EXT004,Orthopedics,Sports Medicine,2012-11-01,14,0.9,1,310000,,,,,,,,,,,,,4.5,wrvu,54.0,7200
+Pediatrics,Susan Chen,Medical,APP,EXT005,Pediatrics,General Pediatrics,2020-06-01,4,0.95,1,118000,,,,,,,,,,,,,3.9,salary,0,4600

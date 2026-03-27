@@ -5,7 +5,7 @@
 
 import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
 
-export type AuditEntityType = 'provider' | 'market' | 'evaluation' | 'payment';
+export type AuditEntityType = 'provider' | 'market' | 'evaluation';
 
 export interface AuditEntry {
   id: string;

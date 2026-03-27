@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketSurveySet } from '../../types/market-survey-config';
-import type { ParsedPaymentRow, EvaluationJoinRow, CustomDataset } from '../../types/upload';
+import type { EvaluationJoinRow, CustomDataset } from '../../types/upload';
 import type { Cycle } from '../../types/cycle';
 
 const providerRecordRow = z
@@ -41,20 +41,6 @@ export function parseSurveyMetadataFromStorage(data: unknown): Record<string, { 
   const r = surveyMetadataSchema.safeParse(data);
   if (!r.success) return {};
   return r.data;
-}
-
-const paymentRowSchema = z.object({
-  providerKey: z.string(),
-  amount: z.coerce.number(),
-  date: z.string(),
-  category: z.string().optional(),
-  cycleId: z.string().optional(),
-});
-
-export function parsePaymentRowsFromStorage(data: unknown): ParsedPaymentRow[] {
-  const r = z.array(paymentRowSchema.passthrough()).safeParse(data);
-  if (!r.success) return [];
-  return r.data as ParsedPaymentRow[];
 }
 
 const evaluationRowSchema = z

@@ -1,6 +1,6 @@
 /**
  * Upload source interfaces.
- * Raw rows, column mapping, and parsed results for provider/market/incentive/productivity uploads.
+ * Raw rows, column mapping, and parsed results for provider/market/evaluation/custom uploads.
  */
 
 import type { ProviderRecord } from './provider';
@@ -39,43 +39,21 @@ export interface MarketUploadResult {
   mapping: MarketColumnMapping;
 }
 
-/** Maps logical payment fields to source column names. */
-export interface PaymentColumnMapping {
-  providerKey?: string;
-  externalId?: string;
-  amount: string;
-  date: string;
-  category?: string;
-  cycleId?: string;
-  [key: string]: string | undefined;
-}
-
-/** One parsed payment/transaction row. */
-export interface ParsedPaymentRow {
-  providerKey: string;
-  amount: number;
-  date: string;
-  category?: string;
-  cycleId?: string;
-}
-
-/** Result of a payments file upload. */
-export interface PaymentUploadResult {
-  rows: ParsedPaymentRow[];
-  errors: string[];
-  mapping: PaymentColumnMapping;
-}
-
-/** Row from an incentive upload; joins to ProviderRecord by Employee_ID. */
+/** Row shape for optional incentive joins by Employee_ID (legacy / programmatic merge). */
 export interface IncentiveJoinRow {
   Employee_ID: string;
   Prior_Year_WRVU_Incentive?: number;
+  Value_Based_Payment?: number;
+  Shift_Incentive?: number;
   Division_Chief_Pay?: number;
   Medical_Director_Pay?: number;
   Teaching_Pay?: number;
   PSQ_Pay?: number;
   Quality_Bonus?: number;
   Other_Recurring_Comp?: number;
+  TCC_Other_Clinical_1?: number;
+  TCC_Other_Clinical_2?: number;
+  TCC_Other_Clinical_3?: number;
 }
 
 /** Row from a productivity upload; joins to ProviderRecord by Employee_ID. */
@@ -90,7 +68,7 @@ export interface ProductivityJoinRow {
 /** Row from a provider evaluation upload; joins to ProviderRecord by Employee_ID. */
 export interface EvaluationJoinRow {
   Employee_ID: string;
-  Evaluation_Score?: number;
+  Evaluation_Score?: string | number;
   Performance_Category?: string;
   Default_Increase_Percent?: number;
 }

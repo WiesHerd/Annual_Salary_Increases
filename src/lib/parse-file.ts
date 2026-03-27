@@ -1,6 +1,6 @@
 /**
  * Parse CSV/XLSX and apply column mapping to produce upload results.
- * Provider upload produces ProviderRecord[]; market and payments unchanged.
+ * Provider upload produces ProviderRecord[]; market uploads unchanged.
  */
 
 import Papa from 'papaparse';
@@ -11,9 +11,6 @@ import type {
   ProviderUploadResult,
   MarketColumnMapping,
   MarketUploadResult,
-  PaymentColumnMapping,
-  PaymentUploadResult,
-  ParsedPaymentRow,
   EvaluationColumnMapping,
   EvaluationUploadResult,
   EvaluationJoinRow,
@@ -26,9 +23,8 @@ import {
   applyLearnedMarketMapping,
   loadLearnedEvaluationMapping,
   applyLearnedEvaluationMapping,
-  loadLearnedPaymentsMapping,
-  applyLearnedPaymentsMapping,
 } from './column-mapping-storage';
+import { parseEvaluationScore } from './evaluation-score';
 
 const DEFAULT_CYCLE_ID = 'FY2025';
 
@@ -308,70 +304,6 @@ export function parseMarketXlsx(buffer: ArrayBuffer, mapping: MarketColumnMappin
   return { rows, errors, mapping };
 }
 
-// ---------- Payments ----------
-
-/** Build default payment mapping. */
-export function buildDefaultPaymentMapping(headers: string[]): PaymentColumnMapping {
-  const m: PaymentColumnMapping = { amount: '', date: '' };
-  const lower = (h: string) => h.trim().toLowerCase();
-  for (const h of headers) {
-    const l = lower(h);
-    if ((l.includes('provider') || l.includes('id') || l === 'externalid') && !m.providerKey) m.providerKey = h;
-    else if (l.includes('external') && !m.externalId) m.externalId = h;
-    else if ((l.includes('amount') || l.includes('pay')) && !m.amount) m.amount = h;
-    else if ((l.includes('date') || l === 'dt') && !m.date) m.date = h;
-    else if ((l.includes('category') || l.includes('type')) && !m.category) m.category = h;
-    else if (l.includes('cycle') && !m.cycleId) m.cycleId = h;
-  }
-  const learned = loadLearnedPaymentsMapping();
-  return applyLearnedPaymentsMapping(m, headers, learned) as PaymentColumnMapping;
-}
-
-function parsePaymentRow(
-  row: RawRow,
-  mapping: PaymentColumnMapping,
-  index: number,
-  errors: string[]
-): ParsedPaymentRow | null {
-  const providerKey = str(getCell(row, mapping.providerKey ?? mapping.externalId));
-  const amount = numMaybe(getCell(row, mapping.amount));
-  const date = str(getCell(row, mapping.date));
-  if (!providerKey) errors.push(`Row ${index + 1}: missing provider key`);
-  if (!date) errors.push(`Row ${index + 1}: missing date`);
-  if (amount === undefined) errors.push(`Row ${index + 1}: missing or invalid amount`);
-  const category = mapping.category ? str(getCell(row, mapping.category)) : undefined;
-  const cycleId = mapping.cycleId ? str(getCell(row, mapping.cycleId)) : undefined;
-  if (!providerKey || !date || amount === undefined) return null;
-  return { providerKey, amount, date, category: category || undefined, cycleId: cycleId || undefined };
-}
-
-export function parsePaymentCsv(csv: string, mapping: PaymentColumnMapping): PaymentUploadResult {
-  const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
-  const errors: string[] = parsed.errors.map((e) => e.message ?? 'Parse error');
-  const rawRows: RawRow[] = parsed.data as RawRow[];
-  const rows: ParsedPaymentRow[] = [];
-  rawRows.forEach((row, i) => {
-    const r = parsePaymentRow(row, mapping, i, errors);
-    if (r) rows.push(r);
-  });
-  return { rows, errors, mapping };
-}
-
-export function parsePaymentXlsx(buffer: ArrayBuffer, mapping: PaymentColumnMapping): PaymentUploadResult {
-  const wb = XLSX.read(buffer, { type: 'array' });
-  const first = wb.SheetNames[0];
-  if (!first) return { rows: [], errors: ['No sheet in workbook'], mapping };
-  const sheet = wb.Sheets[first];
-  const data = XLSX.utils.sheet_to_json<Record<string, string | number>>(sheet) as RawRow[];
-  const errors: string[] = [];
-  const rows: ParsedPaymentRow[] = [];
-  data.forEach((row, i) => {
-    const r = parsePaymentRow(row, mapping, i, errors);
-    if (r) rows.push(r);
-  });
-  return { rows, errors, mapping };
-}
-
 // ---------- Evaluation (join by Employee_ID) ----------
 
 /** Build default evaluation mapping from headers. */
@@ -400,14 +332,14 @@ function parseEvaluationRow(
     errors.push(`Row ${index + 1}: missing Employee_ID`);
     return null;
   }
-  const evalScoreRaw = getCell(row, mapping.Evaluation_Score);
-  const evaluationScore = evalScoreRaw !== undefined && evalScoreRaw !== '' ? num(evalScoreRaw) : undefined;
+  const evalScoreRaw = mapping.Evaluation_Score ? getCell(row, mapping.Evaluation_Score) : undefined;
+  const evaluationScore = parseEvaluationScore(evalScoreRaw);
   const performanceCategory = mapping.Performance_Category ? str(getCell(row, mapping.Performance_Category)) : undefined;
   const defaultPctRaw = mapping.Default_Increase_Percent ? getCell(row, mapping.Default_Increase_Percent) : undefined;
   const defaultIncreasePercent = defaultPctRaw !== undefined && defaultPctRaw !== '' ? num(defaultPctRaw) : undefined;
   return {
     Employee_ID: employeeId,
-    ...(evaluationScore !== undefined && Number.isFinite(evaluationScore) ? { Evaluation_Score: evaluationScore } : {}),
+    ...(evaluationScore !== undefined ? { Evaluation_Score: evaluationScore } : {}),
     ...(performanceCategory !== undefined && performanceCategory !== '' ? { Performance_Category: performanceCategory } : {}),
     ...(defaultIncreasePercent !== undefined && Number.isFinite(defaultIncreasePercent) ? { Default_Increase_Percent: defaultIncreasePercent } : {}),
   };

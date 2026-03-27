@@ -1,0 +1,2 @@
+Record_Key,Example_Metric,Notes
+RECORD-001,100,Example row — use your file key column name when you create the stream

@@ -4,12 +4,11 @@
  * Data status (row counts) lives in the Data Browser tab labels.
  */
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, type ReactNode } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
 import type {
   ProviderUploadResult,
   MarketUploadResult,
-  PaymentUploadResult,
   EvaluationUploadResult,
 } from '../../types';
 import {
@@ -21,7 +20,6 @@ import { loadProviderTypeToSurveyMapping } from '../../lib/parameters-storage';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { UploadAndMapping } from './upload-and-mapping';
 import { MarketUpload } from './market-upload';
-import { PaymentsUpload } from './payments-upload';
 import { EvaluationUpload } from './evaluation-upload';
 import { CustomStreamUpload } from './custom-stream-upload';
 import { AddCustomStreamModal } from './add-custom-stream-modal';
@@ -29,9 +27,9 @@ import type { CustomStreamUploadResult } from '../../types/custom-stream';
 import { UPLOAD_FORMAT_HINT } from '../../lib/upload-constants';
 import { downloadUploadTemplate, type UploadTemplateKind } from '../../lib/upload-template-download';
 
-type UploadCardType = 'provider' | 'market' | 'evaluation' | 'payments' | 'custom';
+type UploadCardType = 'provider' | 'market' | 'evaluation' | 'custom';
 
-type DataBrowserTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'payments' | 'custom';
+type DataBrowserTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'custom';
 
 function slugify(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -105,6 +103,10 @@ interface ImportCardsProps {
 const ICON_BG = 'rounded-xl bg-emerald-100 p-3.5 text-emerald-700 shrink-0 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-700';
 const ICON_SIZE = 'w-7 h-7';
 
+/** Same height on every import tile — single row; no flex-wrap (avoids thicker bar on Custom stream). */
+const IMPORT_TILE_FOOTER_CLASS =
+  'flex flex-nowrap items-center h-11 shrink-0 gap-x-2 sm:gap-x-3 px-6 border-t border-slate-100 bg-slate-50/70 text-xs';
+
 function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
   const onCsv = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -123,16 +125,11 @@ function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
         ? 'Market survey'
         : kind === 'evaluation'
           ? 'Evaluations'
-          : kind === 'payments'
-            ? 'Payments'
-            : kind === 'customProvider'
-              ? 'Custom (provider-linked)'
-              : 'Custom (standalone)';
+          : kind === 'customProvider'
+            ? 'Custom (provider-linked)'
+            : 'Custom (standalone)';
   return (
-    <div
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 py-2.5 border-t border-slate-100 bg-slate-50/70 text-xs"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className={IMPORT_TILE_FOOTER_CLASS} onClick={(e) => e.stopPropagation()}>
       <span className="text-slate-500 shrink-0">Upload structure</span>
       <button
         type="button"
@@ -157,12 +154,94 @@ function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
   );
 }
 
-const TILES = [
+/** Footer for Custom stream tile (provider-linked + standalone template links). */
+function CustomStreamUploadFooter() {
+  return (
+    <div className={IMPORT_TILE_FOOTER_CLASS} onClick={(e) => e.stopPropagation()}>
+      <span className="text-slate-500 shrink-0">Upload structure</span>
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-x-auto whitespace-nowrap sm:gap-x-3">
+        <span className="text-slate-400 shrink-0" aria-hidden>
+          ·
+        </span>
+        <span className="text-slate-600 shrink-0">Linked</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            downloadUploadTemplate('customProvider', 'csv');
+          }}
+          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+          aria-label="Download provider-linked (Employee_ID) custom stream template as CSV"
+        >
+          CSV
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            downloadUploadTemplate('customProvider', 'xlsx');
+          }}
+          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+          aria-label="Download provider-linked (Employee_ID) custom stream template as Excel"
+        >
+          XLSX
+        </button>
+        <span className="text-slate-400 shrink-0" aria-hidden>
+          ·
+        </span>
+        <span className="text-slate-600 shrink-0">Standalone</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            downloadUploadTemplate('customStandalone', 'csv');
+          }}
+          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+          aria-label="Download standalone custom stream template as CSV"
+        >
+          CSV
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            downloadUploadTemplate('customStandalone', 'xlsx');
+          }}
+          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+          aria-label="Download standalone custom stream template as Excel"
+        >
+          XLSX
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type ImportTileConfig =
+  | {
+      type: 'provider' | 'market' | 'evaluation';
+      templateKind: UploadTemplateKind;
+      title: string;
+      description: string;
+      icon: ReactNode;
+    }
+  | {
+      type: 'custom';
+      title: string;
+      description: string;
+      icon: ReactNode;
+    };
+
+const TILES: readonly ImportTileConfig[] = [
   {
     type: 'provider' as const,
     templateKind: 'provider' as const,
     title: 'Provider',
-    description: 'Roster with compensation, wRVUs, and plan details',
+    description: 'Roster with base pay, TCC components (wRVU incentive, VBP, shift, stipends), wRVUs, and plan details',
     icon: (
       <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -192,13 +271,12 @@ const TILES = [
     ),
   },
   {
-    type: 'payments' as const,
-    title: 'Payments',
-    description: 'Supplemental payment records by provider',
-    templateKind: 'payments' as const,
+    type: 'custom' as const,
+    title: 'Custom stream',
+    description: 'Upload or manage additional data streams — risk scores, quality metrics, and more',
     icon: (
       <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
       </svg>
     ),
   },
@@ -231,8 +309,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     addSurveySlot,
     addEvaluationFromUpload,
     replaceEvaluationFromUpload,
-    addPaymentsFromUpload,
-    replacePaymentsFromUpload,
     loadDemoData,
     loaded,
   } = useAppState();
@@ -286,11 +362,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     else addEvaluationFromUpload(result, mode);
   };
 
-  const handlePaymentsUpload = (result: PaymentUploadResult, mode: 'replace' | 'add') => {
-    if (mode === 'replace') replacePaymentsFromUpload(result);
-    else addPaymentsFromUpload(result, mode);
-  };
-
   const handleCustomStreamUpload = (streamId: string, result: CustomStreamUploadResult, mode: 'replace' | 'add') => {
     replaceStreamDataFromUpload(streamId, result, mode);
   };
@@ -341,115 +412,33 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
 
       {/* 2×2 type-selector tile grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        {TILES.map(({ type, title, description, icon, templateKind }) => (
+        {TILES.map((tile) => (
           <div
-            key={type}
+            key={tile.type}
             className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-indigo-300 hover:shadow-md overflow-hidden"
           >
             <button
               type="button"
               onClick={() => {
-                if (type === 'market') {
+                if (tile.type === 'market') {
                   setSurveyPickerOpen(true);
+                } else if (tile.type === 'custom') {
+                  openCustomStreams();
                 } else {
-                  setModalOpen(type);
+                  setModalOpen(tile.type);
                 }
               }}
               className="group flex flex-1 min-h-0 items-start gap-5 p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
             >
-              <div className={ICON_BG}>{icon}</div>
+              <div className={ICON_BG}>{tile.icon}</div>
               <div className="min-w-0 pt-0.5 space-y-1.5">
-                <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{title}</p>
-                <p className="text-sm leading-relaxed text-slate-500">{description}</p>
+                <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{tile.title}</p>
+                <p className="text-sm leading-relaxed text-slate-500">{tile.description}</p>
               </div>
             </button>
-            <TemplateDownloadFooter kind={templateKind} />
+            {'templateKind' in tile ? <TemplateDownloadFooter kind={tile.templateKind} /> : <CustomStreamUploadFooter />}
           </div>
         ))}
-      </div>
-
-      {/* Custom stream — full-width tile */}
-      <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-indigo-300 hover:shadow-md overflow-hidden">
-        <button
-          type="button"
-          onClick={openCustomStreams}
-          className="group flex w-full items-center gap-5 p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
-        >
-          <div className={ICON_BG}>
-            <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">Custom stream</p>
-            <p className="text-sm leading-relaxed text-slate-500">Upload or manage additional data streams — risk scores, quality metrics, and more</p>
-          </div>
-          <svg className="w-5 h-5 shrink-0 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-        <div
-          className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 py-2.5 border-t border-slate-100 bg-slate-50/70 text-xs"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="text-slate-500 shrink-0">Upload structure</span>
-          <span className="text-slate-400" aria-hidden>
-            ·
-          </span>
-          <span className="text-slate-600 shrink-0">Provider-linked</span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              downloadUploadTemplate('customProvider', 'csv');
-            }}
-            className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-            aria-label="Download provider-linked custom stream template as CSV"
-          >
-            CSV
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              downloadUploadTemplate('customProvider', 'xlsx');
-            }}
-            className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-            aria-label="Download provider-linked custom stream template as Excel"
-          >
-            XLSX
-          </button>
-          <span className="text-slate-400 hidden sm:inline" aria-hidden>
-            ·
-          </span>
-          <span className="text-slate-600 shrink-0">Standalone</span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              downloadUploadTemplate('customStandalone', 'csv');
-            }}
-            className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-            aria-label="Download standalone custom stream template as CSV"
-          >
-            CSV
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              downloadUploadTemplate('customStandalone', 'xlsx');
-            }}
-            className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-            aria-label="Download standalone custom stream template as Excel"
-          >
-            XLSX
-          </button>
-        </div>
       </div>
 
       <p className="text-xs text-slate-400">{UPLOAD_FORMAT_HINT}</p>
@@ -627,30 +616,6 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
           >
             <div className="p-5">
               <EvaluationUpload onUpload={handleEvaluationUpload} onDone={() => setModalOpen(null)} />
-            </div>
-            <div className="px-5 pb-5 flex justify-end">
-              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalOpen === 'payments' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Upload payments"
-          onClick={() => setModalOpen(null)}
-        >
-          <div
-            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <PaymentsUpload onUpload={handlePaymentsUpload} onDone={() => setModalOpen(null)} />
             </div>
             <div className="px-5 pb-5 flex justify-end">
               <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">

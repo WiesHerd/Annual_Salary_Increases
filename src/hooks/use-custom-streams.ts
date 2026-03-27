@@ -1,6 +1,6 @@
 /**
  * State and persistence for custom data streams (definitions + data).
- * Separate from provider/market/eval/payments; used by Import Custom Data card and Data browser.
+ * Separate from provider/market/eval; used by Import Custom Data card and Data browser.
  */
 
 import { useState, useCallback, useEffect } from 'react';

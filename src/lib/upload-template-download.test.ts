@@ -1,17 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  buildDefaultEvaluationMapping,
-  buildDefaultMarketMapping,
-  buildDefaultPaymentMapping,
-} from './parse-file';
+import { buildDefaultEvaluationMapping, buildDefaultMarketMapping } from './parse-file';
 import { buildDefaultProviderMapping } from './provider-parse';
 import {
+  CUSTOM_PROVIDER_TEMPLATE_SAMPLE_ROW,
+  CUSTOM_STANDALONE_TEMPLATE_SAMPLE_ROW,
   EVALUATION_UPLOAD_TEMPLATE_HEADERS,
+  EVALUATION_UPLOAD_TEMPLATE_SAMPLE_ROW,
   MARKET_UPLOAD_TEMPLATE_HEADERS,
-  PAYMENTS_UPLOAD_TEMPLATE_HEADERS,
+  MARKET_UPLOAD_TEMPLATE_SAMPLE_ROW,
   PROVIDER_UPLOAD_TEMPLATE_HEADERS,
+  PROVIDER_UPLOAD_TEMPLATE_SAMPLE_ROW,
 } from './upload-template-download';
 
 function csvHeaderCells(relativePath: string): string[] {
@@ -19,6 +19,16 @@ function csvHeaderCells(relativePath: string): string[] {
   const firstLine = readFileSync(path, 'utf8').trim().split(/\r?\n/)[0];
   return firstLine.split(',');
 }
+
+describe('Upload template sample rows align with headers', () => {
+  it('each template has one sample row with the same column count as its header row', () => {
+    expect(PROVIDER_UPLOAD_TEMPLATE_SAMPLE_ROW.length).toBe(PROVIDER_UPLOAD_TEMPLATE_HEADERS.length);
+    expect(MARKET_UPLOAD_TEMPLATE_SAMPLE_ROW.length).toBe(MARKET_UPLOAD_TEMPLATE_HEADERS.length);
+    expect(EVALUATION_UPLOAD_TEMPLATE_SAMPLE_ROW.length).toBe(EVALUATION_UPLOAD_TEMPLATE_HEADERS.length);
+    expect(CUSTOM_PROVIDER_TEMPLATE_SAMPLE_ROW.length).toBe(3);
+    expect(CUSTOM_STANDALONE_TEMPLATE_SAMPLE_ROW.length).toBe(3);
+  });
+});
 
 describe('Upload template headers vs public samples', () => {
   it('provider matches public/sample-providers.csv', () => {
@@ -31,10 +41,6 @@ describe('Upload template headers vs public samples', () => {
 
   it('evaluation matches public/sample-evaluations.csv', () => {
     expect([...EVALUATION_UPLOAD_TEMPLATE_HEADERS]).toEqual(csvHeaderCells('public/sample-evaluations.csv'));
-  });
-
-  it('payments matches public/sample-payments.csv', () => {
-    expect([...PAYMENTS_UPLOAD_TEMPLATE_HEADERS]).toEqual(csvHeaderCells('public/sample-payments.csv'));
   });
 });
 
@@ -57,16 +63,6 @@ describe('Default mapping covers each template column', () => {
     expect(m.CF_90).toBe('CF_90');
     expect(m.incumbents).toBe('incumbents');
     expect(m.orgCount).toBe('orgCount');
-  });
-
-  it('payments: provider key, amount, date, category, cycle', () => {
-    const headers = [...PAYMENTS_UPLOAD_TEMPLATE_HEADERS];
-    const m = buildDefaultPaymentMapping(headers);
-    expect(m.providerKey).toBe('providerKey');
-    expect(m.amount).toBe('amount');
-    expect(m.date).toBe('date');
-    expect(m.category).toBe('category');
-    expect(m.cycleId).toBe('cycleId');
   });
 
   it('evaluation: employee id + score + category + default increase', () => {

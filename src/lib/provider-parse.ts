@@ -9,6 +9,7 @@ import {
   loadLearnedProviderMapping,
   applyLearnedProviderMapping,
 } from './column-mapping-storage';
+import { parseEvaluationScore } from './evaluation-score';
 
 function getCell(row: RawRow, col: string | undefined): string | number | undefined {
   if (col == null || col === '') return undefined;
@@ -38,9 +39,11 @@ const NUMERIC_KEYS = new Set<keyof ProviderRecord>([
   'Proposed_Base_Salary', 'Proposed_Salary_at_1FTE', 'Proposed_CF', 'Proposed_Target_WRVUs', 'Proposed_Threshold',
   'Proposed_TCC', 'Proposed_TCC_at_1FTE', 'Proposed_TCC_Percentile', 'Proposed_Compa_Ratio',
   'Prior_Year_WRVUs', 'Adjusted_WRVUs', 'Normalized_WRVUs', 'WRVU_Percentile',
-  'Prior_Year_WRVU_Incentive', 'Division_Chief_Pay', 'Medical_Director_Pay', 'Teaching_Pay', 'PSQ_Pay', 'Quality_Bonus', 'Other_Recurring_Comp',
+  'Prior_Year_WRVU_Incentive', 'Value_Based_Payment', 'Shift_Incentive',
+  'Division_Chief_Pay', 'Medical_Director_Pay', 'Teaching_Pay', 'PSQ_Pay', 'Quality_Bonus', 'Other_Recurring_Comp',
+  'TCC_Other_Clinical_1', 'TCC_Other_Clinical_2', 'TCC_Other_Clinical_3',
   'Tier_Base_Salary', 'Fixed_Productivity_Target', 'CF_Override', 'Target_Override',
-  'Evaluation_Score', 'Default_Increase_Percent', 'Approved_Increase_Percent', 'Approved_Increase_Amount',
+  'Default_Increase_Percent', 'Approved_Increase_Percent', 'Approved_Increase_Amount',
   'Applied_Increase_Percent', 'Merit_Increase_Amount',
   'Market_TCC_25', 'Market_TCC_50', 'Market_TCC_75', 'Market_TCC_90',
   'Market_WRVU_25', 'Market_WRVU_50', 'Market_WRVU_75', 'Market_WRVU_90',
@@ -50,7 +53,7 @@ const NUMERIC_KEYS = new Set<keyof ProviderRecord>([
 /** All ProviderRecord keys that can be mapped from upload (wide roster; includes fields often filled later by the app or joins). */
 export const PROVIDER_RECORD_KEYS: (keyof ProviderRecord)[] = [
   'Employee_ID', 'Provider_Name', 'Primary_Division', 'Department', 'Location', 'Job_Code', 'Provider_Type',
-  'Specialty', 'Benchmark_Group', 'Population', 'Compensation_Plan', 'Cycle',
+  'Specialty', 'Benchmark_Group', 'Subspecialty', 'Population', 'Compensation_Plan', 'Cycle',
   'Hire_Date', 'Adjusted_Hire_Date', 'Residency_Graduation_Date', 'RN_Start_Date', 'RN_End_Date', 'Non_RN_Start_Date',
   'Years_of_Experience', 'APP_YOE', 'RN_YOE', 'Total_YOE', 'Percent_of_Year_Employed',
   'Current_FTE', 'Clinical_FTE', 'Administrative_FTE', 'Research_FTE', 'Teaching_FTE',
@@ -59,7 +62,9 @@ export const PROVIDER_RECORD_KEYS: (keyof ProviderRecord)[] = [
   'Proposed_Base_Salary', 'Proposed_Salary_at_1FTE', 'Proposed_CF', 'Proposed_Target_WRVUs', 'Proposed_Threshold',
   'Proposed_TCC', 'Proposed_TCC_at_1FTE', 'Proposed_TCC_Percentile', 'Proposed_Compa_Ratio',
   'Prior_Year_WRVUs', 'Adjusted_WRVUs', 'Normalized_WRVUs', 'WRVU_Percentile',
-  'Prior_Year_WRVU_Incentive', 'Division_Chief_Pay', 'Medical_Director_Pay', 'Teaching_Pay', 'PSQ_Pay', 'Quality_Bonus', 'Other_Recurring_Comp',
+  'Prior_Year_WRVU_Incentive', 'Value_Based_Payment', 'Shift_Incentive',
+  'Division_Chief_Pay', 'Medical_Director_Pay', 'Teaching_Pay', 'PSQ_Pay', 'Quality_Bonus', 'Other_Recurring_Comp',
+  'TCC_Other_Clinical_1', 'TCC_Other_Clinical_2', 'TCC_Other_Clinical_3',
   'Tier_System', 'Current_Tier', 'Proposed_Tier', 'Tier_Override', 'Tier_Base_Salary',
   'Fixed_Productivity_Target', 'CF_Override', 'Target_Override',
   'Evaluation_Score', 'Performance_Category', 'Default_Increase_Percent', 'Approved_Increase_Percent', 'Approved_Increase_Amount',
@@ -82,6 +87,11 @@ export function parseProviderRow(
     if (col == null) continue;
     const raw = getCell(row, col);
     if (raw === undefined) continue;
+    if (key === 'Evaluation_Score') {
+      const v = parseEvaluationScore(raw);
+      if (v !== undefined) record[key] = v;
+      continue;
+    }
     if (NUMERIC_KEYS.has(key as keyof ProviderRecord)) {
       const n = num(raw);
       if (n !== undefined) record[key] = n;
@@ -117,6 +127,8 @@ export function buildDefaultProviderMapping(headers: string[]): ProviderColumnMa
     else if (l.includes('provider type') && !m.Provider_Type) m.Provider_Type = h;
     else if ((l.includes('specialty') || l.includes('spec')) && !m.Specialty) m.Specialty = h;
     else if (l.includes('benchmark group') && !m.Benchmark_Group) m.Benchmark_Group = h;
+    else if ((l.includes('benchmark specialty') || l.includes('benchmark_specialty')) && !m.Benchmark_Group) m.Benchmark_Group = h;
+    else if ((l.includes('subspecialty') || l.includes('sub-specialty') || l === 'subspecialty') && !m.Subspecialty) m.Subspecialty = h;
     else if ((l.includes('population') || l.includes('provider type')) && !m.Population) m.Population = h;
     else if ((l.includes('compensation plan') || l.includes('comp plan')) && !m.Compensation_Plan) m.Compensation_Plan = h;
     else if (l.includes('cycle') && !m.Cycle) m.Cycle = h;
@@ -135,8 +147,44 @@ export function buildDefaultProviderMapping(headers: string[]): ProviderColumnMa
     else if (l.includes('current tcc percentile') && !m.Current_TCC_Percentile) m.Current_TCC_Percentile = h;
     else if (l.includes('proposed base salary') && !m.Proposed_Base_Salary) m.Proposed_Base_Salary = h;
     else if (l.includes('proposed tcc') && !l.includes('percentile') && !m.Proposed_TCC) m.Proposed_TCC = h;
-    else if (l.includes('prior year wrvu') && !m.Prior_Year_WRVUs) m.Prior_Year_WRVUs = h;
+    else if (l.includes('prior year wrvu') && !l.includes('incentive') && !m.Prior_Year_WRVUs) m.Prior_Year_WRVUs = h;
     else if (l.includes('wrvu percentile') && !m.WRVU_Percentile) m.WRVU_Percentile = h;
+    else if (
+      (l.includes('wrvu') && l.includes('incentive')) ||
+      l.includes('productivity incentive') ||
+      l.includes('wrvu incentive')
+    ) {
+      if (!m.Prior_Year_WRVU_Incentive) m.Prior_Year_WRVU_Incentive = h;
+    }
+    else if (
+      (l.includes('value') && l.includes('based')) ||
+      l.includes('value-based') ||
+      l.includes('vbp') ||
+      (l.includes('apm') && l.includes('incentive'))
+    ) {
+      if (!m.Value_Based_Payment) m.Value_Based_Payment = h;
+    }
+    else if (l.includes('shift') && (l.includes('incentive') || l.includes('premium') || l.includes('differential'))) {
+      if (!m.Shift_Incentive) m.Shift_Incentive = h;
+    }
+    else if (
+      (l.includes('tcc') && l.includes('other') && l.includes('1')) ||
+      l.includes('tcc_other_clinical_1')
+    ) {
+      if (!m.TCC_Other_Clinical_1) m.TCC_Other_Clinical_1 = h;
+    }
+    else if (
+      (l.includes('tcc') && l.includes('other') && l.includes('2')) ||
+      l.includes('tcc_other_clinical_2')
+    ) {
+      if (!m.TCC_Other_Clinical_2) m.TCC_Other_Clinical_2 = h;
+    }
+    else if (
+      (l.includes('tcc') && l.includes('other') && l.includes('3')) ||
+      l.includes('tcc_other_clinical_3')
+    ) {
+      if (!m.TCC_Other_Clinical_3) m.TCC_Other_Clinical_3 = h;
+    }
     else if (l.includes('division chief pay') && !m.Division_Chief_Pay) m.Division_Chief_Pay = h;
     else if ((l.includes('evaluation score') || l.includes('eval_score')) && !m.Evaluation_Score) m.Evaluation_Score = h;
     else if ((l.includes('performance category') || l.includes('performance_category') || l.includes('perf category')) && !m.Performance_Category) m.Performance_Category = h;

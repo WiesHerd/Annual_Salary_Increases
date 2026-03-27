@@ -17,6 +17,7 @@ import type { AppCombinedGroupRow } from '../../types/app-combined-group';
 import { getEffectiveCfForProvider } from '../cf-resolver';
 import { getEffectiveYoe } from '../effective-yoe';
 import { getBandMarketDollarRange, getDollarRangeAlignment, formatBandMarketDollarRangeSummary } from '../experience-band-dollar-range';
+import { meritMatrixEvaluationMatches } from '../evaluation-score';
 
 /** FTE below this is flagged as higher risk when normalizing to 1.0 FTE for market comparison. */
 export const FTE_NORMALIZATION_CAUTION_THRESHOLD = 0.7;
@@ -31,15 +32,21 @@ export function isLowFteForNormalization(record: ProviderRecord): boolean {
   return currentFte < FTE_NORMALIZATION_CAUTION_THRESHOLD || clinicalFte < FTE_NORMALIZATION_CAUTION_THRESHOLD;
 }
 
-/** Supplemental pay components that add to TCC. */
+/** Supplemental pay components that add to modeled Proposed_TCC (explicit $ from roster). */
 function getSupplementalTotal(p: ProviderRecord): number {
   return (
+    (p.Prior_Year_WRVU_Incentive ?? 0) +
+    (p.Value_Based_Payment ?? 0) +
+    (p.Shift_Incentive ?? 0) +
     (p.Division_Chief_Pay ?? 0) +
     (p.Medical_Director_Pay ?? 0) +
     (p.Teaching_Pay ?? 0) +
     (p.PSQ_Pay ?? 0) +
     (p.Quality_Bonus ?? 0) +
-    (p.Other_Recurring_Comp ?? 0)
+    (p.Other_Recurring_Comp ?? 0) +
+    (p.TCC_Other_Clinical_1 ?? 0) +
+    (p.TCC_Other_Clinical_2 ?? 0) +
+    (p.TCC_Other_Clinical_3 ?? 0)
   );
 }
 
@@ -300,9 +307,12 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
   // Otherwise keep default increase and derive proposed base (policy result, record, or merit matrix lookup)
   else {
     let defaultPct = p.Default_Increase_Percent ?? input.policyResult?.finalRecommendedIncreasePercent;
-    if (defaultPct == null && input.meritMatrixRows?.length && p.Evaluation_Score != null && p.Performance_Category) {
+    const evalScore = p.Evaluation_Score;
+    if (defaultPct == null && input.meritMatrixRows?.length && evalScore != null && p.Performance_Category) {
       const match = input.meritMatrixRows.find(
-        (m) => m.evaluationScore === Number(p.Evaluation_Score) && m.performanceLabel.toLowerCase().trim() === String(p.Performance_Category).toLowerCase().trim()
+        (m) =>
+          meritMatrixEvaluationMatches(m.evaluationScore, evalScore) &&
+          m.performanceLabel.toLowerCase().trim() === String(p.Performance_Category).toLowerCase().trim()
       );
       if (match) defaultPct = match.defaultIncreasePercent;
     }

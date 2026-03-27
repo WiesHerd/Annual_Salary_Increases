@@ -15,6 +15,8 @@ export interface ProviderRecord {
   Provider_Type?: string;
   Specialty?: string;
   Benchmark_Group?: string;
+  /** Finer-grained clinical focus (e.g. subspecialty); distinct from benchmark/market grouping. */
+  Subspecialty?: string;
   /** When set, used instead of Specialty/Benchmark_Group to match market survey row for TCC/wRVU percentiles. */
   Market_Specialty_Override?: string;
   Population?: string;
@@ -69,14 +71,23 @@ export interface ProviderRecord {
   Normalized_WRVUs?: number;
   WRVU_Percentile?: number;
 
-  // ─── 7. Incentive Components ─────────────────────────────────────────────
+  // ─── 7. TCC / incentive components (typical physician total cash vs market surveys) ──
+  /** Annual wRVU- or productivity-tied incentive (actual $), distinct from CF×wRVU imputation. */
   Prior_Year_WRVU_Incentive?: number;
+  /** Value-based / risk-sharing / APM-style payments often reported separately from quality bonus. */
+  Value_Based_Payment?: number;
+  /** Shift, weekend, or similar clinical premiums included in total cash for survey comparison. */
+  Shift_Incentive?: number;
   Division_Chief_Pay?: number;
   Medical_Director_Pay?: number;
   Teaching_Pay?: number;
   PSQ_Pay?: number;
   Quality_Bonus?: number;
   Other_Recurring_Comp?: number;
+  /** Map arbitrary extra clinical TCC lines (rename column in upload to match your org). */
+  TCC_Other_Clinical_1?: number;
+  TCC_Other_Clinical_2?: number;
+  TCC_Other_Clinical_3?: number;
 
   // ─── 8. PCP Tier Fields ───────────────────────────────────────────────────
   Tier_System?: string;
@@ -91,7 +102,8 @@ export interface ProviderRecord {
   Target_Override?: number;
 
   // ─── 10. Merit / Evaluation ──────────────────────────────────────────────
-  Evaluation_Score?: number;
+  /** Numeric (e.g. 4.2) or alphanumeric (e.g. letter grades) from roster or evaluation upload. */
+  Evaluation_Score?: string | number;
   Performance_Category?: string;
   Default_Increase_Percent?: number;
   Approved_Increase_Percent?: number;

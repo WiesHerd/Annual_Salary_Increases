@@ -1,5 +1,6 @@
 /**
- * App-wide provider/market/payments/evaluation state. Requires ParametersStateProvider above.
+ * App-wide provider/market/evaluation state. Requires ParametersStateProvider above.
+ * TCC incentive components live on each provider row (provider upload).
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -7,7 +8,6 @@ import type { ProviderRecord } from '../types/provider';
 import type {
   ProviderUploadResult,
   MarketUploadResult,
-  PaymentUploadResult,
   EvaluationUploadResult,
   CustomDataset,
   CustomUploadResult,
@@ -22,19 +22,17 @@ import {
   saveMarketSurveys,
   loadSurveyMetadata,
   saveSurveyMetadata,
-  loadPayments,
-  savePayments,
   loadEvaluationRows,
   saveEvaluationRows,
   loadCustomDatasets,
   saveCustomDatasets,
+  clearLegacyPaymentLinesStorage,
 } from '../lib/storage';
 import { appendAuditEntry } from '../lib/audit';
-import { getDemoData, getSeedProviderRecords, getSeedMarketSurveys, getSeedPayments } from '../lib/seed-data';
+import { getDemoData, getSeedProviderRecords, getSeedMarketSurveys } from '../lib/seed-data';
 import {
   loadSurveySpecialtyMappingSet,
   loadProviderTypeToSurveyMapping,
-  loadCycles,
   saveSurveySpecialtyMappingSet,
   saveProviderTypeToSurveyMapping,
   saveExperienceBands,
@@ -46,17 +44,15 @@ import {
 } from '../lib/parameters-sample-data';
 import type { SurveySpecialtyMappingSet } from '../types/market-survey-config';
 import type { ExperienceBand } from '../types/experience-band';
-import { mergeMarketIntoProvidersMulti, mergeEvaluationsIntoProviders, mergePaymentsIntoProviders } from '../lib/joins';
+import { mergeMarketIntoProvidersMulti, mergeEvaluationsIntoProviders } from '../lib/joins';
 import {
   ASI_CLEAR_ALL_APP_DATA_EVENT,
   clearAllCustomStreamStorage,
 } from '../lib/custom-stream-storage';
 import { inferMissingProviderTypes } from '../lib/infer-missing-provider-type';
 import { DEFAULT_CYCLE_ID } from '../lib/parse-file';
-import { getPreferredCycleId } from '../lib/cycle-defaults';
+import { mapProvidersWithDerivedTcc } from '../lib/tcc-components';
 import { safeLocalStorageSetItem } from '../lib/safe-local-storage';
-import { useParametersState } from './parameters-state-context';
-import { useSelectedCycle } from '../hooks/use-selected-cycle';
 
 export type AppStateValue = {
   records: ProviderRecord[];
@@ -79,11 +75,6 @@ export type AppStateValue = {
   addEvaluationFromUpload: (result: EvaluationUploadResult, mode: 'replace' | 'add') => number;
   replaceEvaluationFromUpload: (result: EvaluationUploadResult) => number;
   clearEvaluations: () => void;
-  payments: import('../types/upload').ParsedPaymentRow[];
-  setPayments: React.Dispatch<React.SetStateAction<import('../types/upload').ParsedPaymentRow[]>>;
-  addPaymentsFromUpload: (result: PaymentUploadResult, mode: 'replace' | 'add') => number;
-  replacePaymentsFromUpload: (result: PaymentUploadResult) => number;
-  clearPayments: () => void;
   customDatasets: CustomDataset[];
   addCustomDataset: (name: string, result: CustomUploadResult, joinKeyColumn: string | null) => string;
   replaceCustomDataset: (
@@ -101,7 +92,7 @@ export type AppStateValue = {
 const AppStateContext = createContext<AppStateValue | null>(null);
 
 /**
- * Sample providers/market/payments are injected only after the user explicitly loads demo data
+ * Sample providers/market/incentives are injected only after the user explicitly loads demo data
  * (`asi-demo-mode === 'true'`). That way clearing site data or wiping localStorage does not
  * immediately repopulate from the bundled seed — there is no server; the dataset ships in JS.
  */
@@ -114,30 +105,16 @@ function allowAutoSeedData(): boolean {
 }
 
 function AppStateProviderInner({ children }: { children: ReactNode }) {
-  const { cycles } = useParametersState();
-  const [selectedCycleId] = useSelectedCycle(cycles);
-  const paymentCycleId =
-    selectedCycleId ||
-    getPreferredCycleId(cycles) ||
-    getPreferredCycleId(loadCycles()) ||
-    DEFAULT_CYCLE_ID;
-
   const [records, setRecords] = useState<ProviderRecord[]>([]);
   const [evaluationRows, setEvaluationRows] = useState<import('../types/upload').EvaluationJoinRow[]>([]);
   const [marketSurveys, setMarketSurveys] = useState<MarketSurveySet>({});
   const [surveyMetadata, setSurveyMetadata] = useState<Record<string, { label: string }>>({});
-  const [payments, setPayments] = useState<import('../types/upload').ParsedPaymentRow[]>([]);
   const [customDatasets, setCustomDatasets] = useState<CustomDataset[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const recordsWithPayments = useMemo(
-    () => mergePaymentsIntoProviders(records, payments, { cycleId: paymentCycleId }),
-    [records, payments, paymentCycleId]
-  );
-
   const recordsWithEvaluation = useMemo(
-    () => mergeEvaluationsIntoProviders(recordsWithPayments, evaluationRows),
-    [recordsWithPayments, evaluationRows]
+    () => mergeEvaluationsIntoProviders(records, evaluationRows),
+    [records, evaluationRows]
   );
 
   const mergeAll = useCallback((providers: ProviderRecord[], surveys: MarketSurveySet) => {
@@ -179,7 +156,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
         }
       }
     }
-    recs = mergeAll(recs, surveys);
+    recs = mapProvidersWithDerivedTcc(mergeAll(recs, surveys));
     setRecords(recs);
 
     const evals = loadEvaluationRows();
@@ -187,13 +164,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
     setMarketSurveys(surveys);
     setSurveyMetadata(loadSurveyMetadata());
-
-    let pay = loadPayments();
-    if (pay.length === 0 && allowSeed) {
-      pay = getSeedPayments();
-      savePayments(pay);
-    }
-    setPayments(pay);
 
     setCustomDatasets(loadCustomDatasets());
     setLoaded(true);
@@ -212,9 +182,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     if (loaded) saveSurveyMetadata(surveyMetadata);
   }, [surveyMetadata, loaded]);
   useEffect(() => {
-    if (loaded) savePayments(payments);
-  }, [payments, loaded]);
-  useEffect(() => {
     if (loaded) saveCustomDatasets(customDatasets);
   }, [customDatasets, loaded]);
 
@@ -224,7 +191,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       setRecords((prev) => {
         const existingIds = new Set(prev.map((r) => r.Employee_ID));
         const toAdd = result.rows.filter((r) => !existingIds.has(r.Employee_ID));
-        return mergeAll([...prev, ...toAdd], marketSurveys);
+        return mapProvidersWithDerivedTcc(mergeAll([...prev, ...toAdd], marketSurveys));
       });
       return result.rows.length;
     },
@@ -234,7 +201,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   const replaceFromUpload = useCallback(
     (result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
       safeLocalStorageSetItem('asi-demo-mode', 'false');
-      const merged = mergeAll(result.rows, marketSurveys);
+      const merged = mapProvidersWithDerivedTcc(mergeAll(result.rows, marketSurveys));
       setRecords(merged);
       return merged.length;
     },
@@ -291,20 +258,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
   const clearEvaluations = useCallback(() => setEvaluationRows([]), []);
 
-  const addPaymentsFromUpload = useCallback((result: PaymentUploadResult, mode: 'replace' | 'add') => {
-    if (mode === 'replace') {
-      setPayments(result.rows);
-      return result.rows.length;
-    }
-    setPayments((prev) => [...prev, ...result.rows]);
-    return result.rows.length;
-  }, []);
-
-  const replacePaymentsFromUpload = useCallback((result: PaymentUploadResult) => {
-    setPayments(result.rows);
-    return result.rows.length;
-  }, []);
-
   const removeRecord = useCallback((employeeId: string) => {
     setRecords((prev) => {
       const next = prev.filter((r) => r.Employee_ID !== employeeId);
@@ -335,14 +288,13 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     saveMarketSurveys({});
     saveSurveyMetadata({});
     saveEvaluationRows([]);
-    savePayments([]);
+    clearLegacyPaymentLinesStorage();
     saveCustomDatasets([]);
     clearAllCustomStreamStorage();
     setRecords([]);
     setMarketSurveys({});
     setSurveyMetadata({});
     setEvaluationRows([]);
-    setPayments([]);
     setCustomDatasets([]);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(ASI_CLEAR_ALL_APP_DATA_EVENT));
@@ -395,11 +347,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
-  const clearPayments = useCallback(() => {
-    safeLocalStorageSetItem('asi-demo-mode', 'false');
-    setPayments([]);
-  }, []);
-
   const addCustomDataset = useCallback(
     (name: string, result: CustomUploadResult, joinKeyColumn: string | null) => {
       const id =
@@ -447,9 +394,8 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   const marketData = useMemo(() => Object.values(marketSurveys).flat(), [marketSurveys]);
 
   const loadDemoData = useCallback(() => {
-    const { providerRecords, marketSurveys: seedSurveys, payments: demoPay, evaluationRows: demoEval } =
-      getDemoData();
-    const merged = mergeAll(providerRecords, seedSurveys);
+    const { providerRecords, marketSurveys: seedSurveys, evaluationRows: demoEval } = getDemoData();
+    const merged = mapProvidersWithDerivedTcc(mergeAll(providerRecords, seedSurveys));
     saveProviderRecords(merged);
     saveMarketSurveys(seedSurveys);
     saveSurveySpecialtyMappingSet(
@@ -457,13 +403,12 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     );
     saveProviderTypeToSurveyMapping({ ...SAMPLE_PROVIDER_TYPE_TO_SURVEY });
     saveExperienceBands(JSON.parse(JSON.stringify(SAMPLE_EXPERIENCE_BANDS)) as ExperienceBand[]);
-    savePayments(demoPay);
+    clearLegacyPaymentLinesStorage();
     saveEvaluationRows(demoEval);
     saveCustomDatasets([]);
     setRecords(merged);
     setEvaluationRows(demoEval);
     setMarketSurveys(seedSurveys);
-    setPayments(demoPay);
     setCustomDatasets([]);
     safeLocalStorageSetItem('asi-demo-mode', 'true');
   }, [mergeAll]);
@@ -490,11 +435,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       addEvaluationFromUpload,
       replaceEvaluationFromUpload,
       clearEvaluations,
-      payments,
-      setPayments,
-      addPaymentsFromUpload,
-      replacePaymentsFromUpload,
-      clearPayments,
       customDatasets,
       addCustomDataset,
       replaceCustomDataset,
@@ -522,10 +462,6 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       addEvaluationFromUpload,
       replaceEvaluationFromUpload,
       clearEvaluations,
-      payments,
-      addPaymentsFromUpload,
-      replacePaymentsFromUpload,
-      clearPayments,
       customDatasets,
       addCustomDataset,
       replaceCustomDataset,
