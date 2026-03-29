@@ -404,6 +404,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
               onNavigateToBrowser?.('provider');
             }}
             className="font-medium text-indigo-700 hover:text-indigo-900"
+            title="Loads bundled sample providers, market surveys, and evaluations. Current TCC is computed from roster components per your Parameters → Current TCC settings."
           >
             load data
           </button>
