@@ -6,6 +6,7 @@
 import type { ProviderRecord } from '../../types/provider';
 import type { MarketRow } from '../../types/market';
 import { getEffectiveYoe } from '../effective-yoe';
+import { interpolateTccPercentile } from '../calculations/percentile';
 
 export interface PolicyFacts {
   employeeId: string;
@@ -94,18 +95,4 @@ export function buildFactsFromRecord(
   facts.divisionLower = facts.division?.toLowerCase();
 
   return facts;
-}
-
-function interpolateTccPercentile(tcc: number, market: MarketRow): number | undefined {
-  const p = market.tccPercentiles ?? {};
-  const p50 = p[50];
-  if (p50 == null) return undefined;
-  const p25 = p[25] ?? p50;
-  const p75 = p[75] ?? p50;
-  const p90 = p[90] ?? p75 ?? p50;
-  if (tcc <= p25) return 25 * (tcc / p25) || 0;
-  if (tcc <= p50) return 25 + 25 * ((tcc - p25) / (p50 - p25));
-  if (tcc <= p75) return 50 + 25 * ((tcc - p50) / (p75 - p50));
-  if (tcc <= p90) return 75 + 15 * ((tcc - p75) / (p90 - p75));
-  return 90 + 10 * Math.min(1, (tcc - p90) / (p90 - p50) || 0);
 }

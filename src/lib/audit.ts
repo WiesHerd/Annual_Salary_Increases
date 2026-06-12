@@ -4,6 +4,8 @@
  */
 
 import { migratedStorageGetItem, migratedStorageSetItem } from './migrated-local-storage';
+import { getSupabaseClient } from './supabase/client';
+import { scheduleCloudAuditPush } from './supabase/cloud-audit';
 
 export type AuditEntityType = 'provider' | 'market' | 'evaluation';
 
@@ -38,6 +40,7 @@ export function appendAuditEntry(
   entries.push(full);
   const trimmed = entries.slice(-MAX_ENTRIES);
   migratedStorageSetItem(STORAGE_KEY_AUDIT, JSON.stringify(trimmed));
+  scheduleCloudAuditPush(getSupabaseClient(), entry);
 }
 
 /** Load all audit entries, optionally filtered. */

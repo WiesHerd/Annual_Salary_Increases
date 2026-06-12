@@ -2,22 +2,12 @@
  * Visual pipeline for policy engine stages (single source for help copy + diagram).
  */
 
-import { POLICY_STAGE_LABELS, POLICY_STAGE_ORDER } from '../../types/compensation-policy';
-import type { PolicyStage } from '../../types/compensation-policy';
-
-/** One-line description per stage (matches POLICY_STAGE_ORDER). */
-export const POLICY_STAGE_DESCRIPTIONS: Record<PolicyStage, string> = {
-  EXCLUSION_GUARDRAIL:
-    'Hard stops and guardrails first—e.g. exclude from standard processing, zero out increases, or flag manual review before other stages apply.',
-  CUSTOM_MODEL:
-    'Plan-specific models (e.g. YOE tier tables) that set or replace the base increase for providers who match.',
-  MODIFIER:
-    'Adjustments on top of the current result—typically additive (e.g. +% for high productivity) after a base is set.',
-  GENERAL_MATRIX:
-    'Default merit matrix from evaluation score and performance category—often used as a single fallback when no custom model applied.',
-  CAP_FLOOR:
-    'Final limits on the increase %—maximum caps and minimum floors so every result stays within policy bounds.',
-};
+import {
+  POLICY_STAGE_LABELS,
+  POLICY_STAGE_ORDER,
+  POLICY_STAGE_DESCRIPTIONS,
+} from '../../types/compensation-policy';
+export { POLICY_STAGE_DESCRIPTIONS };
 
 function DownArrow() {
   return (

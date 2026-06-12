@@ -118,6 +118,7 @@ export interface SalaryReviewSummaryBarProps {
     percentOfBudget: number;
     budgetAmount: number;
     isWarning: boolean;
+    isHardStop?: boolean;
   };
 }
 
@@ -249,7 +250,7 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                     </span>
                     <div
                       className={`mt-0.5 truncate tabular-nums text-base font-semibold ${
-                        pctBudget > 100
+                        pctBudget > 100 || budgetUsage.isHardStop
                           ? 'text-red-600'
                           : budgetUsage.isWarning
                             ? 'text-amber-600'
@@ -261,6 +262,8 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                     <div className="mt-0.5 text-[11px] leading-snug text-slate-500">
                       {pctBudget > 100 ? (
                         <span className="font-medium text-red-600">Over cycle cap</span>
+                      ) : budgetUsage.isHardStop ? (
+                        <span className="font-medium text-red-600">At budget limit</span>
                       ) : budgetUsage.isWarning ? (
                         <span className="font-medium text-amber-700">Near cap</span>
                       ) : pctBudget <= 0 ? (
@@ -277,7 +280,7 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                 >
                   <div
                     className={`h-full rounded-full transition-[width] duration-300 ${
-                      pctBudget > 100
+                      pctBudget > 100 || budgetUsage.isHardStop
                         ? 'bg-red-500/90'
                         : pctBudget <= 0
                           ? 'bg-slate-400/70'
@@ -382,7 +385,7 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
             <SummaryMetricTile>
               <SummaryCard
                 icon={SummaryIcons.chartBars}
-                iconBgClassName="bg-indigo-100 text-indigo-700"
+                iconBgClassName="bg-indigo-100 text-indigo-800"
                 label="Avg TCC %ile"
                 hint={
                   !tccPctUsesProposed ? SUMMARY_HINTS.avgTccCurrentOnly : SUMMARY_HINTS.avgTccPct

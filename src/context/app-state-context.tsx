@@ -60,6 +60,7 @@ import {
 } from '../lib/custom-stream-storage';
 import { inferMissingProviderTypes } from '../lib/infer-missing-provider-type';
 import { DEFAULT_CYCLE_ID } from '../lib/parse-file';
+import { providerMatchesCycle, resolveCycleStampValue } from '../lib/cycle-match';
 import { mapProvidersWithDerivedTcc } from '../lib/tcc-components';
 import { safeLocalStorageSetItem } from '../lib/safe-local-storage';
 import { useParametersState } from '../hooks/use-parameters-state';
@@ -122,7 +123,7 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
   const [surveyMetadata, setSurveyMetadata] = useState<Record<string, { label: string }>>({});
   const [customDatasets, setCustomDatasets] = useState<CustomDataset[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const { tccCalculationSettings, loaded: paramsLoaded } = useParametersState();
+  const { tccCalculationSettings, cycles, loaded: paramsLoaded } = useParametersState();
 
   const recordsWithEvaluation = useMemo(
     () => mergeEvaluationsIntoProviders(records, evaluationRows),
@@ -211,27 +212,42 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     if (loaded) saveCustomDatasets(customDatasets);
   }, [customDatasets, loaded]);
 
+  const stampRowsForCycle = useCallback(
+    (rows: ProviderRecord[], cycleId: string) => {
+      const stamp = resolveCycleStampValue(cycleId, cycles);
+      return rows.map((r) => ({
+        ...r,
+        Cycle: r.Cycle?.trim() ? r.Cycle.trim() : stamp,
+      }));
+    },
+    [cycles]
+  );
+
   const addFromUpload = useCallback(
-    (result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
+    (result: ProviderUploadResult, cycleId: string = DEFAULT_CYCLE_ID) => {
       safeLocalStorageSetItem('asi-demo-mode', 'false');
+      const stamped = stampRowsForCycle(result.rows, cycleId);
       setRecords((prev) => {
         const existingIds = new Set(prev.map((r) => r.Employee_ID));
-        const toAdd = result.rows.filter((r) => !existingIds.has(r.Employee_ID));
+        const toAdd = stamped.filter((r) => !existingIds.has(r.Employee_ID));
         return applyMarketAndTcc([...prev, ...toAdd], marketSurveys);
       });
-      return result.rows.length;
+      return stamped.length;
     },
-    [marketSurveys, applyMarketAndTcc]
+    [marketSurveys, applyMarketAndTcc, stampRowsForCycle]
   );
 
   const replaceFromUpload = useCallback(
-    (result: ProviderUploadResult, _cycleId: string = DEFAULT_CYCLE_ID) => {
+    (result: ProviderUploadResult, cycleId: string = DEFAULT_CYCLE_ID) => {
       safeLocalStorageSetItem('asi-demo-mode', 'false');
-      const merged = applyMarketAndTcc(result.rows, marketSurveys);
-      setRecords(merged);
-      return merged.length;
+      const stamped = stampRowsForCycle(result.rows, cycleId);
+      setRecords((prev) => {
+        const kept = prev.filter((r) => !providerMatchesCycle(r, cycleId, cycles, { includeUnassigned: false }));
+        return applyMarketAndTcc([...kept, ...stamped], marketSurveys);
+      });
+      return stamped.length;
     },
-    [marketSurveys, applyMarketAndTcc]
+    [marketSurveys, applyMarketAndTcc, stampRowsForCycle, cycles]
   );
 
   const addMarketFromUpload = useCallback(

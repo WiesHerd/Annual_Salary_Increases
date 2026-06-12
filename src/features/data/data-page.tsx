@@ -8,9 +8,12 @@ import { EvaluationTable } from './evaluation-table';
 import { SpecialtyMap } from './specialty-map';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
 import { CustomStreamsTable } from './custom-streams-table';
+import { AuditLogTab } from './audit-log-tab';
 import { EmptyStatePanel } from '../../components/empty-state-panel';
+import { BackupControls } from '../../components/backup-controls';
+import { useAppNavigation } from '../../context/app-navigation-context';
 
-export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'custom';
+export type DataTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'custom' | 'audit';
 export type DataPageFocus = 'import' | 'browse';
 
 function withCount(label: string, count: number): string {
@@ -19,8 +22,6 @@ function withCount(label: string, count: number): string {
 
 interface DataPageProps {
   focus?: DataPageFocus;
-  onNavigateToBrowser?: (tab?: DataTab) => void;
-  initialTab?: DataTab;
   /** When set, render only this tab without the tab bar (e.g. standalone Specialty Map from nav). */
   standaloneTab?: DataTab;
   /** Navigate to Parameters → Provider type → Market survey (Specialty map empty states). */
@@ -29,12 +30,13 @@ interface DataPageProps {
 
 export function DataPage({
   focus = 'browse',
-  onNavigateToBrowser,
-  initialTab,
   standaloneTab,
   onOpenProviderTypeSurvey,
 }: DataPageProps) {
-  const [activeTab, setActiveTab] = useState<DataTab>(standaloneTab ?? initialTab ?? 'provider');
+  const { location, navigate } = useAppNavigation();
+  const [activeTab, setActiveTab] = useState<DataTab>(
+    standaloneTab ?? location.dataTab ?? 'provider'
+  );
   const {
     records,
     setRecords,
@@ -91,6 +93,7 @@ export function DataPage({
     { id: 'evaluation', label: withCount('Evaluations', evaluationRows.length) },
     { id: 'specialty-map', label: 'Specialty map' },
     { id: 'custom', label: 'Custom data' },
+    { id: 'audit', label: 'Audit log' },
   ], [records.length, totalMarketRows, evaluationRows.length]);
 
   const surveyIds = useMemo(() => {
@@ -105,6 +108,20 @@ export function DataPage({
     }
   }, [surveyIds, selectedMarketSurveyId]);
 
+  useEffect(() => {
+    if (standaloneTab || focus !== 'browse' || location.view !== 'data-browser') return;
+    if (location.dataTab && location.dataTab !== activeTab) {
+      setActiveTab(location.dataTab);
+    }
+  }, [location.dataTab, location.view, standaloneTab, focus, activeTab]);
+
+  const selectDataTab = (tab: DataTab) => {
+    setActiveTab(tab);
+    if (focus === 'browse' && !standaloneTab) {
+      navigate({ view: 'data-browser', dataTab: tab }, { replace: true });
+    }
+  };
+
   if (!loaded) {
     return (
       <div className="flex items-center justify-center min-h-[200px] text-slate-500 font-medium">
@@ -113,8 +130,8 @@ export function DataPage({
     );
   }
 
-  if (focus === 'import' && onNavigateToBrowser) {
-    return <ImportCards onNavigateToBrowser={onNavigateToBrowser} />;
+  if (focus === 'import') {
+    return <ImportCards />;
   }
 
   const showTabBar = !standaloneTab;
@@ -126,22 +143,25 @@ export function DataPage({
 
   return (
     <div className="space-y-6">
-      {showTabBar && hasAnyData && (
+      {showTabBar && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="app-segmented-track w-fit flex flex-wrap">
-            {TABS.map(({ id, label }, idx) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveTab(id)}
-                className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
-                  idx === TABS.length - 1 ? 'rounded-r-full' : ''
-                } ${activeTab === id ? 'app-segmented-segment-active' : ''}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {hasAnyData && (
+            <div className="app-segmented-track w-fit flex flex-wrap">
+              {TABS.map(({ id, label }, idx) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => selectDataTab(id)}
+                  className={`app-segmented-segment shrink-0 ${idx === 0 ? 'rounded-l-full' : ''} ${
+                    idx === TABS.length - 1 ? 'rounded-r-full' : ''
+                  } ${activeTab === id ? 'app-segmented-segment-active' : ''}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <BackupControls className="ml-auto" />
         </div>
       )}
 
@@ -217,6 +237,8 @@ export function DataPage({
           getStreamData={getStreamData}
         />
       )}
+
+      {activeTab === 'audit' && <AuditLogTab />}
     </div>
   );
 }

@@ -6,7 +6,7 @@
  * columns (TCC components, market join fields, proposed pay).
  */
 
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsx-loader';
 
 /**
  * Recommended roster columns aligned with typical HR/payroll extracts: division, name, org,
@@ -230,12 +230,13 @@ function buildCsv(headers: string[], sampleRow: string[]): string {
   return lines.join('\n');
 }
 
-function buildXlsxBuffer(headers: string[], sampleRow: string[]): ArrayBuffer {
+async function buildXlsxBuffer(headers: string[], sampleRow: string[]): Promise<ArrayBuffer> {
   if (sampleRow.length !== headers.length) {
     throw new Error(
       `Template sample row length (${sampleRow.length}) must match headers (${headers.length}).`
     );
   }
+  const XLSX = await loadXlsx();
   const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -252,7 +253,7 @@ function triggerDownload(blob: Blob, filename: string): void {
 }
 
 /** Download a template file (header row + one example data row) for the given upload kind. */
-export function downloadUploadTemplate(kind: UploadTemplateKind, format: 'csv' | 'xlsx'): void {
+export async function downloadUploadTemplate(kind: UploadTemplateKind, format: 'csv' | 'xlsx'): Promise<void> {
   const headers = templateHeaders(kind);
   const sampleRow = templateSampleRow(kind);
   const base = filenameBase(kind);
@@ -260,7 +261,7 @@ export function downloadUploadTemplate(kind: UploadTemplateKind, format: 'csv' |
     const csv = buildCsv(headers, sampleRow);
     triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `${base}.csv`);
   } else {
-    const buf = buildXlsxBuffer(headers, sampleRow);
+    const buf = await buildXlsxBuffer(headers, sampleRow);
     triggerDownload(
       new Blob([buf], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -154,6 +154,12 @@ export interface ProviderRecord {
   Policy_Tier_Assigned?: string;
   /** Manual review required by policy. */
   Manual_Review_Flag?: boolean;
+  /** Comma-separated reason codes from policy engine (audit). */
+  Policy_Reason_Codes?: string;
+  /** Comma-separated policy labels from policy engine (audit). */
+  Policy_Labels?: string;
+  /** Scale factor applied by budget allocator (1 = none). */
+  Budget_Scale_Factor?: number;
 }
 
 /** Column mapping keys for provider upload (logical field → source column name). */

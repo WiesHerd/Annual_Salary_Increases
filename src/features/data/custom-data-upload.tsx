@@ -22,7 +22,7 @@ export function CustomDataUpload({ onUpload }: CustomDataUploadProps) {
     if (!f) return;
     const isCsv = f.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const buf = reader.result;
       try {
         if (typeof buf === 'string') {
@@ -30,7 +30,7 @@ export function CustomDataUpload({ onUpload }: CustomDataUploadProps) {
           setResult(r);
           setJoinKeyColumn(r.columns.length > 0 ? null : null);
         } else if (buf instanceof ArrayBuffer) {
-          const r = parseCustomXlsx(buf);
+          const r = await parseCustomXlsx(buf);
           setResult(r);
           setJoinKeyColumn(r.columns.length > 0 ? null : null);
         }

@@ -249,6 +249,68 @@ export function SalaryReviewFilterBar({
     onFiltersChange({ ...filters, [key]: value });
   };
 
+  type ChipItem = { key: string; label: string; value: string; onRemove: () => void };
+
+  const activeChips: ChipItem[] = [];
+  if ((filters.searchText ?? '').trim()) {
+    activeChips.push({
+      key: 'search',
+      label: 'Search',
+      value: filters.searchText!.trim(),
+      onRemove: () => onFiltersChange({ ...filters, searchText: '' }),
+    });
+  }
+  for (const name of providerNames) {
+    activeChips.push({
+      key: `provider-${name}`,
+      label: 'Provider',
+      value: name,
+      onRemove: () => setDimension('providerNames', providerNames.filter((n) => n !== name)),
+    });
+  }
+  for (const item of DIMENSION_KEYS) {
+    for (const val of filters[item.key]) {
+      activeChips.push({
+        key: `${item.key}-${val}`,
+        label: item.label,
+        value: val,
+        onRemove: () => setDimension(item.key, filters[item.key].filter((v) => v !== val)),
+      });
+    }
+  }
+  if (filters.approvedIncreasePercentMin != null) {
+    activeChips.push({
+      key: 'inc-min',
+      label: 'Min increase %',
+      value: String(filters.approvedIncreasePercentMin),
+      onRemove: () => onFiltersChange({ ...filters, approvedIncreasePercentMin: undefined }),
+    });
+  }
+  if (filters.approvedIncreasePercentMax != null) {
+    activeChips.push({
+      key: 'inc-max',
+      label: 'Max increase %',
+      value: String(filters.approvedIncreasePercentMax),
+      onRemove: () => onFiltersChange({ ...filters, approvedIncreasePercentMax: undefined }),
+    });
+  }
+  if (filters.tccPercentileMin != null) {
+    activeChips.push({
+      key: 'tcc-min',
+      label: 'Min TCC %ile',
+      value: String(filters.tccPercentileMin),
+      onRemove: () => onFiltersChange({ ...filters, tccPercentileMin: undefined }),
+    });
+  }
+  if (filters.tccPercentileMax != null) {
+    activeChips.push({
+      key: 'tcc-max',
+      label: 'Max TCC %ile',
+      value: String(filters.tccPercentileMax),
+      onRemove: () => onFiltersChange({ ...filters, tccPercentileMax: undefined }),
+    });
+  }
+
   return (
     <div className="sticky top-0 z-30 py-4 bg-white/98 backdrop-blur-sm">
       {/* Single row: Search | All / presets | count | Clear all | rightAction (Full screen) */}
@@ -337,6 +399,27 @@ export function SalaryReviewFilterBar({
           </div>
         )}
       </div>
+
+      {activeChips.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 shrink-0">Active</span>
+          {activeChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={chip.onRemove}
+              className="inline-flex max-w-[14rem] items-center gap-1 rounded-full border border-indigo-200/80 bg-indigo-50/80 px-2.5 py-1 text-xs text-indigo-800 transition-colors hover:bg-indigo-100"
+              title={`Remove filter: ${chip.label} — ${chip.value}`}
+            >
+              <span className="shrink-0 font-medium text-indigo-600/80">{chip.label}</span>
+              <span className="min-w-0 truncate text-indigo-900">{chip.value}</span>
+              <span className="shrink-0 text-indigo-400" aria-hidden>
+                ×
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

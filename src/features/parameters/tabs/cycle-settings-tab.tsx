@@ -4,6 +4,7 @@ import {
   compareCycleEffectiveDate,
   compareCycleLabel,
 } from '../../../lib/cycle-defaults';
+import { isCycleLocked } from '../../../lib/cycle-finalize';
 import {
   parametersFieldInputClass,
   parametersPrimaryButtonClass,
@@ -18,6 +19,10 @@ interface CycleSettingsTabProps {
   hideAddButton?: boolean;
   /** Use full content width (Cycle & budget sub-tab). */
   wideLayout?: boolean;
+  /** Providers in each cycle (for finalize confirmation). */
+  providerCountByCycleId?: Map<string, number>;
+  onFinalizeCycle?: (cycleId: string) => void;
+  onUnlockCycle?: (cycleId: string) => void;
 }
 
 function newId() {
@@ -56,6 +61,9 @@ export function CycleSettingsTab({
   embedded = false,
   hideAddButton = false,
   wideLayout = false,
+  providerCountByCycleId,
+  onFinalizeCycle,
+  onUnlockCycle,
 }: CycleSettingsTabProps) {
   const [sortKey, setSortKey] = useState<CycleSortKey>('effectiveDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -121,13 +129,14 @@ export function CycleSettingsTab({
         </div>
       )}
       <div className="mb-2" />
-      <div className={`${TABLE_SHELL_OUTER} ${wideLayout ? 'w-full max-w-4xl' : 'max-w-2xl'}`}>
+      <div className={`${TABLE_SHELL_OUTER} ${wideLayout ? 'w-full max-w-5xl' : 'max-w-3xl'}`}>
         <div className={TABLE_SCROLL_BODY}>
-          <table className="app-data-table w-full min-w-[36rem] table-fixed border-collapse">
+          <table className="app-data-table w-full min-w-[42rem] table-fixed border-collapse">
             <colgroup>
-              <col style={{ width: '18rem' }} />
-              <col style={{ width: '12.5rem' }} />
-              <col style={{ width: '3.25rem' }} />
+              <col style={{ width: '16rem' }} />
+              <col style={{ width: '11rem' }} />
+              <col style={{ width: '10rem' }} />
+              <col style={{ width: '6rem' }} />
             </colgroup>
             <thead>
               <tr>
@@ -169,25 +178,30 @@ export function CycleSettingsTab({
                     <SortIndicator active={sortKey === 'effectiveDate'} dir={sortDir} />
                   </button>
                 </th>
+                <th className="text-left whitespace-nowrap">Status</th>
                 <th className="w-12 px-2 text-center" aria-label="Actions" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {cycles.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-sm">
                     No cycles. Click “Add cycle” to create one.
                   </td>
                 </tr>
               ) : (
-                displayCycles.map((r) => (
+                displayCycles.map((r) => {
+                  const locked = isCycleLocked(r);
+                  const providerCount = providerCountByCycleId?.get(r.id) ?? 0;
+                  return (
                   <tr key={r.id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-2 align-middle">
                       <input
                         type="text"
                         value={r.label}
                         onChange={(e) => update(r.id, { label: e.target.value })}
-                        className={`w-full max-w-[22rem] ${parametersFieldInputClass}`}
+                        disabled={locked}
+                        className={`w-full max-w-[22rem] ${parametersFieldInputClass} disabled:bg-slate-50 disabled:text-slate-500`}
                       />
                     </td>
                     <td className="px-4 py-2 align-middle">
@@ -195,14 +209,49 @@ export function CycleSettingsTab({
                         type="date"
                         value={r.effectiveDate ?? ''}
                         onChange={(e) => update(r.id, { effectiveDate: e.target.value || undefined })}
-                        className={`w-full min-w-0 ${parametersFieldInputClass}`}
+                        disabled={locked}
+                        className={`w-full min-w-0 ${parametersFieldInputClass} disabled:bg-slate-50 disabled:text-slate-500`}
                       />
+                    </td>
+                    <td className="px-4 py-2 align-middle">
+                      {locked ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                            Finalized
+                          </span>
+                          {onUnlockCycle && (
+                            <button
+                              type="button"
+                              onClick={() => onUnlockCycle(r.id)}
+                              className="text-left text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                            >
+                              Unlock for edits
+                            </button>
+                          )}
+                        </div>
+                      ) : onFinalizeCycle ? (
+                        <button
+                          type="button"
+                          onClick={() => onFinalizeCycle(r.id)}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                          title={
+                            providerCount > 0
+                              ? `Lock merit review for ${providerCount} provider${providerCount !== 1 ? 's' : ''} and save a snapshot`
+                              : 'No providers in this cycle yet'
+                          }
+                        >
+                          Finalize cycle
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">Active</span>
+                      )}
                     </td>
                     <td className="px-2 py-2 align-middle text-center">
                       <button
                         type="button"
                         onClick={() => remove(r.id)}
-                        className="app-icon-btn-danger inline-flex"
+                        disabled={locked}
+                        className="app-icon-btn-danger inline-flex disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="Remove cycle"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,7 +265,8 @@ export function CycleSettingsTab({
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -1,1 +1,1 @@
-export { PolicyHelpPage, type PolicyHelpPageProps } from './policy-help-page';
+export { PolicyHelpPage } from './policy-help-page';

@@ -9,6 +9,7 @@ import type { ExperienceBand } from '../../types/experience-band';
 import { isLowFteForNormalization } from '../../lib/calculations/recalculate-provider-row';
 import { buildProviderCompareInsights, getProviderCompBreakdown } from '../../lib/provider-compare-insights';
 import { formatCurrency, formatFte } from '../../utils/format';
+import { ModalShell } from '../../components/modal-shell';
 
 interface ProviderCompareModalProps {
   providerIds: string[];
@@ -31,48 +32,37 @@ export function ProviderCompareModal({
 
   if (providers.length === 0) {
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px]"
-        onClick={onClose}
-        role="presentation"
+      <ModalShell
+        open
+        onClose={onClose}
+        overlayClassName="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px]"
+        panelClassName="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xl shadow-slate-900/10 ring-1 ring-black/[0.03]"
+        aria-labelledby="compare-empty-title"
       >
-        <div
-          className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xl shadow-slate-900/10 ring-1 ring-black/[0.03]"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="compare-empty-title"
+        <p id="compare-empty-title" className="text-sm text-slate-600">
+          No providers to compare.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
         >
-          <p id="compare-empty-title" className="text-sm text-slate-600">
-            No providers to compare.
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
-          >
-            Close
-          </button>
-        </div>
-      </div>
+          Close
+        </button>
+      </ModalShell>
     );
   }
 
   const insightBullets = buildProviderCompareInsights(providers);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-[2px]"
-      onClick={onClose}
-      role="presentation"
+    <ModalShell
+      open
+      onClose={onClose}
+      overlayClassName="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-[2px]"
+      panelClassName="flex max-h-[min(90vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/12 ring-1 ring-black/[0.03]"
+      aria-labelledby="compare-modal-title"
     >
-      <div
-        className="flex max-h-[min(90vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/12 ring-1 ring-black/[0.03]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="compare-modal-title"
-      >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-4">
           <div className="min-w-0 pt-0.5">
             <h2 id="compare-modal-title" className="text-base font-semibold tracking-tight text-slate-900">
@@ -122,8 +112,7 @@ export function ProviderCompareModal({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 sm:px-6 sm:pb-5">
           <CompareTable providers={providers} />
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

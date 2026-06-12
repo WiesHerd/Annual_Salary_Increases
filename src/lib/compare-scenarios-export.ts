@@ -2,15 +2,16 @@
  * Export Compare Scenarios results to XLSX (wide format: both scenarios per row).
  */
 
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsx-loader';
 import type { ProviderRecord } from '../types/provider';
 import type { ScenarioRunResult } from '../types/scenario';
 
-export function exportCompareScenariosToXlsx(
+export async function exportCompareScenariosToXlsx(
   records: ProviderRecord[],
   resultA: ScenarioRunResult,
   resultB: ScenarioRunResult
-): ArrayBuffer {
+): Promise<ArrayBuffer> {
+  const XLSX = await loadXlsx();
   const rows = records.map((r) => {
     const evalA = resultA.evaluationResults.get(r.Employee_ID);
     const evalB = resultB.evaluationResults.get(r.Employee_ID);

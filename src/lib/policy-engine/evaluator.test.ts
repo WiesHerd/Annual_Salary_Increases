@@ -446,6 +446,89 @@ describe('policy-engine scenarios', () => {
     expect(result.finalRecommendedIncreasePercent).toBe(0);
     expect(result.appliedPolicies.some((p) => p.name === 'TCC Guardrail')).toBe(true);
   });
+
+  it('ADD_INCREASE_DOLLARS adds lump-sum on top of percent merit', () => {
+    const modifier: AnnualIncreasePolicy = {
+      id: 'lump',
+      key: 'lump',
+      name: 'Retention lump-sum',
+      status: 'active',
+      stage: 'MODIFIER',
+      policyType: 'Modifier',
+      priority: 10,
+      targetScope: {},
+      actions: [
+        { type: 'ADD_INCREASE_PERCENT', value: 3 },
+        { type: 'ADD_INCREASE_DOLLARS', value: 5_000 },
+      ],
+      conflictStrategy: 'ADDITIVE_MODIFIER',
+    };
+    const ctx: PolicyEvaluationContext = {
+      policies: [modifier],
+      customModels: [],
+      tierTables: [],
+      meritMatrixRows: [],
+    };
+    const result = evaluatePolicyForProvider(baseRecord, ctx);
+    expect(result.recommendedIncreaseDollars).toBe(11_000);
+    expect(result.lumpSumDollars).toBe(5_000);
+    expect(result.finalRecommendedIncreasePercent).toBeCloseTo(5.5, 5);
+  });
+
+  it('SET_INCREASE_DOLLARS sets fixed dollar merit increase', () => {
+    const policy: AnnualIncreasePolicy = {
+      id: 'fixed',
+      key: 'fixed',
+      name: 'Spot award',
+      status: 'active',
+      stage: 'MODIFIER',
+      policyType: 'Modifier',
+      priority: 10,
+      targetScope: {},
+      actions: [{ type: 'SET_INCREASE_DOLLARS', value: 8_000 }],
+      conflictStrategy: 'ADDITIVE_MODIFIER',
+    };
+    const ctx: PolicyEvaluationContext = {
+      policies: [policy],
+      customModels: [],
+      tierTables: [],
+      meritMatrixRows: meritMatrix,
+    };
+    const result = evaluatePolicyForProvider(baseRecord, ctx);
+    expect(result.recommendedIncreaseDollars).toBe(8_000);
+    expect(result.fixedIncreaseDollars).toBe(8_000);
+    expect(result.finalRecommendedIncreasePercent).toBe(4);
+  });
+
+  it('ADD_REASON_CODE and ADD_POLICY_LABEL populate audit fields', () => {
+    const policy: AnnualIncreasePolicy = {
+      id: 'audit',
+      key: 'audit',
+      name: 'Audit rule',
+      status: 'active',
+      stage: 'MODIFIER',
+      policyType: 'Modifier',
+      priority: 10,
+      targetScope: {},
+      actions: [
+        { type: 'ADD_INCREASE_PERCENT', value: 1 },
+        { type: 'ADD_REASON_CODE', metadata: 'RETENTION-2026' },
+        { type: 'ADD_POLICY_LABEL', metadata: 'High performer' },
+        { type: 'ANNOTATE_RESULT', metadata: 'Board-approved exception' },
+      ],
+      conflictStrategy: 'ADDITIVE_MODIFIER',
+    };
+    const ctx: PolicyEvaluationContext = {
+      policies: [policy],
+      customModels: [],
+      tierTables: [],
+      meritMatrixRows: [],
+    };
+    const result = evaluatePolicyForProvider(baseRecord, ctx);
+    expect(result.reasonCodes).toEqual(['RETENTION-2026']);
+    expect(result.policyLabels).toEqual(['High performer']);
+    expect(result.explanation.some((e) => e.includes('Board-approved exception'))).toBe(true);
+  });
 });
 
 describe('policy-engine targeting ranges', () => {

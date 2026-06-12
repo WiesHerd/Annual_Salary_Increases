@@ -438,7 +438,7 @@ function AutoMapPreviewModal({
               type="button"
               onClick={onApply}
               disabled={selectedCount === 0}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Apply {selectedCount} mapping{selectedCount !== 1 ? 's' : ''}
             </button>
@@ -738,7 +738,7 @@ export function SpecialtyMap({
 
   return (
     <div className="flex flex-col min-w-0">
-      <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
+      <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.08)]">
         <div className="shrink-0 border-b border-slate-200 px-5 pb-3 pt-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 flex flex-col gap-2">
@@ -810,7 +810,7 @@ export function SpecialtyMap({
                     disabled={!canAutoMap}
                     className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium leading-none transition-colors ${
                       canAutoMap
-                        ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+                        ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-800'
                         : 'app-btn-secondary opacity-60 cursor-not-allowed'
                     }`}
                     title={
@@ -864,7 +864,7 @@ export function SpecialtyMap({
                     <button
                       type="button"
                       onClick={onOpenProviderTypeSurvey}
-                      className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                      className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800"
                     >
                       Type → Market
                     </button>
@@ -890,7 +890,7 @@ export function SpecialtyMap({
               <button
                 type="button"
                 onClick={() => handleFiltersChange(DEFAULT_SPECIALTY_MAP_FILTERS)}
-                className="mt-4 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="mt-4 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
               >
                 Clear all filters
               </button>

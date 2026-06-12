@@ -8,6 +8,8 @@ export interface Cycle {
   label: string;
   /** Effective date of changes (ISO date). */
   effectiveDate?: string;
+  /** When set, the cycle is finalized and merit review edits are locked. */
+  finalizedAt?: string;
   /** Target increase pool amount for the cycle. */
   budgetTargetAmount?: number;
   /** Optional target as percent of current total comp. */

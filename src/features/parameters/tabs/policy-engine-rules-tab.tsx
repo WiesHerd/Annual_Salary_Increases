@@ -43,6 +43,7 @@ import {
   deleteUserTemplate,
   type UserPolicyTemplate,
 } from '../../../lib/policy-library-storage';
+import { useToast } from '../../../components/ui/toast';
 import { parametersPrimaryButtonClass, parametersSectionHeadingClass } from '../parameters-tab-ui';
 
 const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[] = [
@@ -106,7 +107,7 @@ function formatTargetScopeSummary(scope: PolicyTargetScope): string {
   if (scope.locations?.length) parts.push(scope.locations.join(', '));
   if (scope.providerIds?.length) parts.push(`${scope.providerIds.length} selected`);
   if (parts.length === 0) return 'All providers';
-  return parts.join(' Â· ');
+  return parts.join(' · ');
 }
 
 /** Sortable table row: drag handle uses dnd-kit; row click still selects. */
@@ -194,7 +195,7 @@ function SortablePolicyRow({
           value={policy.status === 'draft' ? 'active' : policy.status}
           onChange={(e) => onUpdateStatus(policy.id, e.target.value as AnnualIncreasePolicy['status'])}
           className={`w-full min-w-0 max-w-[90px] text-xs border rounded px-1.5 py-1 bg-white ${
-            policy.status === 'active' ? 'border-green-200 text-slate-700' : 'border-slate-200 text-slate-600'
+            policy.status === 'active' ? 'border-indigo-200 text-slate-700' : 'border-slate-200 text-slate-600'
           }`}
           title="Active = runs in Merit review. Inactive = skipped (turn off temporarily)."
         >
@@ -225,7 +226,7 @@ function SortablePolicyRow({
             title="Remove"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 1 0 00-1 1v3M4 7h16" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
         </div>
@@ -241,6 +242,9 @@ interface PolicyEngineRulesTabProps {
   selectedRuleId: string | null;
   onSelectRuleId: (id: string | null) => void;
   onStartCreatePolicy?: () => void;
+  meritMatrixRows: import('../../../types/merit-matrix-row').MeritMatrixRow[];
+  marketResolver: import('../../../types/market-survey-config').MarketResolver;
+  asOfDate?: string;
 }
 
 function newId() {
@@ -249,12 +253,16 @@ function newId() {
 
 export function PolicyEngineRulesTab({
   policyState,
-  records: _records = [],
+  records = [],
   parameterOptions,
   selectedRuleId,
   onSelectRuleId,
   onStartCreatePolicy,
+  meritMatrixRows,
+  marketResolver,
+  asOfDate,
 }: PolicyEngineRulesTabProps) {
+  const { toast } = useToast();
   const { policies, setPolicies, tierTables, setTierTables, customModels, setCustomModels, persistNow } = policyState;
   const [savePackOpen, setSavePackOpen] = useState(false);
   const [savePackName, setSavePackName] = useState('');
@@ -403,7 +411,6 @@ export function PolicyEngineRulesTab({
   const selectedPolicy = selectedRuleId ? policies.find((p) => p.id === selectedRuleId) : null;
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [showSavedToast, setShowSavedToast] = useState(false);
   const addFromLibraryButtonRef = useRef<HTMLButtonElement>(null);
   const [libraryDropdownRect, setLibraryDropdownRect] = useState<{ top: number; left: number } | null>(null);
 
@@ -418,16 +425,19 @@ export function PolicyEngineRulesTab({
   }, [libraryOpen]);
 
   const handleCloseEditor = useCallback(() => {
+    const policyName = selectedRuleId
+      ? policies.find((p) => p.id === selectedRuleId)?.name?.trim()
+      : undefined;
     persistNow?.();
     onSelectRuleId(null);
-    setShowSavedToast(true);
-  }, [persistNow, onSelectRuleId]);
-
-  useEffect(() => {
-    if (!showSavedToast) return;
-    const t = setTimeout(() => setShowSavedToast(false), 2500);
-    return () => clearTimeout(t);
-  }, [showSavedToast]);
+    toast({
+      variant: 'success',
+      title: 'Rule saved',
+      description: policyName
+        ? `"${policyName}" is saved and will apply on the next merit run.`
+        : 'Your rule changes are saved.',
+    });
+  }, [persistNow, onSelectRuleId, selectedRuleId, policies, toast]);
   const sortedPolicies = useMemo(() => sortPoliciesByStageAndPriority(policies), [policies]);
   const orderByPolicyId = useMemo(() => {
     const map = new Map<string, number>();
@@ -503,8 +513,12 @@ export function PolicyEngineRulesTab({
     setSavePackName('');
     setSavePackDescription('');
     setSavedPacksRefresh((n) => n + 1);
-    setShowSavedToast(true);
-  }, [policies, tierTables, customModels, savePackName, savePackDescription]);
+    toast({
+      variant: 'success',
+      title: 'Policy pack saved',
+      description: `"${name}" is available under Add from library → Saved packs.`,
+    });
+  }, [policies, tierTables, customModels, savePackName, savePackDescription, toast]);
 
   const handleLoadPackConfirm = useCallback(
     (packId: string) => {
@@ -523,8 +537,8 @@ export function PolicyEngineRulesTab({
 
   return (
     <div className={`flex flex-col min-h-0 w-full ${selectedPolicy ? 'min-h-fit' : 'h-full'}`}>
-      <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
-        <div>
+      <div className="shrink-0 px-5 pt-4 pb-3 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className={parametersSectionHeadingClass}>Policy library</h3>
             <button
@@ -547,7 +561,12 @@ export function PolicyEngineRulesTab({
           </p>
           {orderHelpOpen && (
             <p className="text-xs text-slate-500 mt-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
-              Order: Guardrails → Custom models → Modifiers → Merit matrix → Caps. Within each stage, <strong>1st runs first</strong>, then 2nd, 3rd, 4th; <strong>Fallback</strong> runs last. Use the <strong>Status</strong> dropdown to turn a policy off temporarily (Inactive) without deleting it.
+              Order: Exclusions → Custom models → Modifiers → Merit matrix → Caps. Within each stage, <strong>1st runs first</strong>, then 2nd, 3rd, 4th; <strong>Fallback</strong> runs last. Use the <strong>Status</strong> dropdown to turn a policy off temporarily (Inactive) without deleting it.
+            </p>
+          )}
+          {!selectedPolicy && (
+            <p className="text-xs text-slate-500 mt-2">
+              Runs in order: Exclusions → Custom → Modifier → Matrix → Caps (see table order and priority).
             </p>
           )}
         </div>
@@ -676,46 +695,68 @@ export function PolicyEngineRulesTab({
               title="Click to save and close editor"
             />
           )}
-          <table className="app-settings-table min-w-full border-collapse">
-            <thead>
-              <tr>
-                <th
-                  className="text-center w-14"
-                  title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback)."
-                >
-                  Order
-                </th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Target population</th>
-                <th className="min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">
-                  Priority
-                </th>
-                <th title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
-                <th>Last updated</th>
-                <th className="w-24" />
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-100">
-              {policies.length === 0 ? (
+          {policies.length === 0 ? (
+            <table className="app-settings-table min-w-full border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    className="text-center w-14"
+                    title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback)."
+                  >
+                    Order
+                  </th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Target population</th>
+                  <th className="min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">
+                    Priority
+                  </th>
+                  <th title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
+                  <th>Last updated</th>
+                  <th className="w-24" />
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-100">
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
                     No policies. Click &quot;Create new&quot; to create one.
                   </td>
                 </tr>
-              ) : (
-                <>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={verticalClosestRow}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={sortedPolicies.map((p) => p.id)}
-                      strategy={verticalListSortingStrategy}
+              </tbody>
+            </table>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={verticalClosestRow}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            >
+              <table className="app-settings-table min-w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      className="text-center w-14"
+                      title="Drag to reorder. Evaluation order: by stage, then by priority (1st → 2nd → 3rd → 4th → Fallback)."
                     >
+                      Order
+                    </th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Target population</th>
+                    <th className="min-w-[100px]" title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last.">
+                      Priority
+                    </th>
+                    <th title="Active = runs. Inactive = skipped (turn off without deleting).">Status</th>
+                    <th>Last updated</th>
+                    <th className="w-24" />
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100">
+                  <SortableContext
+                    items={sortedPolicies.map((p) => p.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
                     {sortedPolicies.map((p) => (
                       <SortablePolicyRow
                         key={p.id}
@@ -729,52 +770,51 @@ export function PolicyEngineRulesTab({
                         onRemove={removePolicy}
                       />
                     ))}
-                    </SortableContext>
-                    <DragOverlay dropAnimation={null}>
-                      {activeDragId ? (() => {
-                        const policy = sortedPolicies.find((p) => p.id === activeDragId);
-                        const orderNum = policy ? (orderByPolicyId.get(policy.id) ?? 0) : 0;
-                        if (!policy) return null;
-                        return (
-                          <table className="min-w-full border-collapse">
-                            <tbody>
-                              <tr className="bg-white shadow-lg border border-slate-200 rounded-md opacity-95 cursor-grabbing divide-x divide-slate-100">
-                                <td className="px-2 py-1.5 text-center text-sm tabular-nums text-slate-600 rounded-l-md">
-                                  <span className="inline-flex rounded p-0.5">
-                                    <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                                      <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
-                                    </svg>
-                                  </span>
-                                  <span className="ml-0.5">{orderNum}</span>
-                                </td>
-                                <td className="px-2 py-1.5 text-sm font-medium text-slate-800">{policy.name}</td>
-                                <td className="px-2 py-1.5 text-sm text-slate-600">{policy.policyType}</td>
-                                <td className="px-2 py-1.5 text-sm text-slate-600 max-w-[160px] truncate" title={formatTargetScopeSummary(policy.targetScope)}>
-                                  {formatTargetScopeSummary(policy.targetScope)}
-                                </td>
-                                <td className="px-2 py-1.5 text-sm text-slate-600">
-                                  {PRIORITY_OPTIONS.find((o) => (policy.isFallback ? 100 : policy.priority) === o.value)?.label ?? '—'}
-                                </td>
-                                <td className="px-2 py-1.5 text-sm text-slate-600">{policy.status}</td>
-                                <td className="px-2 py-1.5 text-sm text-slate-500">
-                                  {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : '—'}
-                                </td>
-                                <td className="px-2 py-1.5 rounded-r-md" />
-                              </tr>
-                            </tbody>
-                          </table>
-                        );
-                      })() : null}
-                    </DragOverlay>
-                  </DndContext>
-                </>
-              )}
-            </tbody>
-          </table>
+                  </SortableContext>
+                </tbody>
+              </table>
+              <DragOverlay dropAnimation={null}>
+                {activeDragId ? (() => {
+                  const policy = sortedPolicies.find((p) => p.id === activeDragId);
+                  const orderNum = policy ? (orderByPolicyId.get(policy.id) ?? 0) : 0;
+                  if (!policy) return null;
+                  return (
+                    <table className="min-w-full border-collapse">
+                      <tbody>
+                        <tr className="bg-white shadow-lg border border-slate-200 rounded-md opacity-95 cursor-grabbing divide-x divide-slate-100">
+                          <td className="px-2 py-1.5 text-center text-sm tabular-nums text-slate-600 rounded-l-md">
+                            <span className="inline-flex rounded p-0.5">
+                              <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+                              </svg>
+                            </span>
+                            <span className="ml-0.5">{orderNum}</span>
+                          </td>
+                          <td className="px-2 py-1.5 text-sm font-medium text-slate-800">{policy.name}</td>
+                          <td className="px-2 py-1.5 text-sm text-slate-600">{policy.policyType}</td>
+                          <td className="px-2 py-1.5 text-sm text-slate-600 max-w-[160px] truncate" title={formatTargetScopeSummary(policy.targetScope)}>
+                            {formatTargetScopeSummary(policy.targetScope)}
+                          </td>
+                          <td className="px-2 py-1.5 text-sm text-slate-600">
+                            {PRIORITY_OPTIONS.find((o) => (policy.isFallback ? 100 : policy.priority) === o.value)?.label ?? '—'}
+                          </td>
+                          <td className="px-2 py-1.5 text-sm text-slate-600">{policy.status}</td>
+                          <td className="px-2 py-1.5 text-sm text-slate-500">
+                            {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-2 py-1.5 rounded-r-md" />
+                        </tr>
+                      </tbody>
+                    </table>
+                  );
+                })() : null}
+              </DragOverlay>
+            </DndContext>
+          )}
         </div>
         {selectedPolicy && (
           <div
-            className="flex-1 min-w-0 flex flex-col bg-white border-l border-slate-200 overflow-y-auto"
+            className="flex-1 min-w-0 flex flex-col bg-white border-l border-slate-200 overflow-hidden min-h-0"
             role="dialog"
             aria-label="Edit rule"
           >
@@ -787,10 +827,21 @@ export function PolicyEngineRulesTab({
                 }}
                 onClose={handleCloseEditor}
                 parameterOptions={parameterOptions}
+                records={records}
+                meritMatrixRows={meritMatrixRows}
+                customModels={customModels}
+                tierTables={tierTables}
+                allPolicies={policies}
+                marketResolver={marketResolver}
+                asOfDate={asOfDate}
                 onSaveAsTemplate={(policy) => {
                   createUserTemplateFromPolicy(policy);
                   setUserTemplatesRefresh((n) => n + 1);
-                  setShowSavedToast(true);
+                  toast({
+                    variant: 'success',
+                    title: 'Template saved',
+                    description: `"${policy.name.trim() || 'Rule'}" is in your saved templates.`,
+                  });
                 }}
               />
           </div>
@@ -855,7 +906,7 @@ export function PolicyEngineRulesTab({
                   type="button"
                   onClick={handleSavePack}
                   disabled={!savePackName.trim()}
-                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none"
                 >
                   Save pack
                 </button>
@@ -887,7 +938,7 @@ export function PolicyEngineRulesTab({
                 <button
                   type="button"
                   onClick={() => handleLoadPackConfirm(packToLoad.id)}
-                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800"
                 >
                   Replace
                 </button>
@@ -950,7 +1001,7 @@ export function PolicyEngineRulesTab({
                             createUserTemplate(t.name, t.description, t.stage, t.policyType, policyPayload);
                             setUserTemplatesRefresh((n) => n + 1);
                           }}
-                          className="shrink-0 px-2 py-1 text-xs font-medium rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                          className="shrink-0 px-2 py-1 text-xs font-medium rounded border border-indigo-200 text-indigo-800 hover:bg-indigo-50"
                         >
                           Add to my templates
                         </button>
@@ -1000,7 +1051,7 @@ export function PolicyEngineRulesTab({
                             setEditingTemplateId(null);
                             setUserTemplatesRefresh((n) => n + 1);
                           }}
-                          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800"
                         >
                           Save
                         </button>
@@ -1061,18 +1112,6 @@ export function PolicyEngineRulesTab({
           document.body
         )}
 
-      {showSavedToast && (
-        <div
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg"
-          role="status"
-          aria-live="polite"
-        >
-          <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Changes saved
-        </div>
-      )}
     </div>
   );
 }

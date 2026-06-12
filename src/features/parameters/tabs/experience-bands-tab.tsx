@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState, useEffect } from 'react';
 import type { ExperienceBand } from '../../../types/experience-band';
 import { MultiSelectDropdown } from '../../../components/multi-select-dropdown';
 import { parametersEmptyRowsPanelClass, parametersPrimaryButtonClass } from '../parameters-tab-ui';
+import { ExperienceBandEquityPanel } from './experience-band-equity-panel';
+import { resolveEquityBandSettings } from '../../../lib/equity-settings';
 
 export interface ExperienceBandScopeListHints {
   providerTypes: string[];
@@ -18,6 +20,9 @@ interface ExperienceBandsTabProps {
   experienceBands: ExperienceBand[];
   setExperienceBands: (v: ExperienceBand[] | ((prev: ExperienceBand[]) => ExperienceBand[])) => void;
   scopeListHints?: ExperienceBandScopeListHints;
+  /** Deep-link from Controls search or merit review — scroll to equity panel */
+  initialFocus?: 'equity';
+  onFocusConsumed?: () => void;
 }
 
 function newId() {
@@ -41,7 +46,7 @@ const textInputClass =
 const BAND_VISUAL = [
   {
     left: 'border-l-indigo-600',
-    badge: 'bg-indigo-100 text-indigo-950 border border-indigo-300/60',
+    badge: 'bg-indigo-100 text-green-950 border border-indigo-300/60',
   },
   {
     left: 'border-l-violet-600',
@@ -91,10 +96,17 @@ export function summarizeExperienceBand(r: ExperienceBand): string {
   }
   if (r.planScope?.length) bits.push(r.planScope.join(', '));
   const who = bits.length ? `Applies: ${bits.join(' · ')}` : 'Applies: everyone';
-  return `${tenure} | ${payPct} | ${payDollar} | ${who}`;
+  const equity = resolveEquityBandSettings(r).enabled ? 'Equity: on' : 'Equity: off';
+  return `${tenure} | ${payPct} | ${payDollar} | ${equity} | ${who}`;
 }
 
-export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeListHints }: ExperienceBandsTabProps) {
+export function ExperienceBandsTab({
+  experienceBands,
+  setExperienceBands,
+  scopeListHints,
+  initialFocus,
+  onFocusConsumed,
+}: ExperienceBandsTabProps) {
   const providerBase = scopeListHints?.providerTypes ?? [];
   const planBase = scopeListHints?.planTypes ?? [];
   const specialtyBase = scopeListHints?.specialtyOptions ?? [];
@@ -139,6 +151,10 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
         specialtyScope: [],
         suggestBaseToHitTarget: false,
         suggestBaseToHitDollarRangeMidpoint: false,
+        equitySuggestionsEnabled: false,
+        equityTargetPoint: 'percentileLow',
+        equityGapClosePercent: 100,
+        equityJudgeOn: 'proposedOrCurrent',
       },
     ]);
     setExpandedIds((prev) => new Set(prev).add(id));
@@ -191,6 +207,17 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
     setExpandedIds(new Set());
   }, []);
 
+  useEffect(() => {
+    if (initialFocus !== 'equity' || experienceBands.length === 0) return;
+    const targetId = experienceBands[0].id;
+    setExpandedIds((prev) => new Set(prev).add(targetId));
+    const t = window.setTimeout(() => {
+      document.getElementById(`equity-panel-${targetId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      onFocusConsumed?.();
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [initialFocus, experienceBands, onFocusConsumed]);
+
   const scopeDropdownClass =
     'w-full [&_button]:w-full [&_button]:min-h-[2.5rem] [&_button]:justify-between [&_button]:px-3';
 
@@ -199,7 +226,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg font-semibold text-slate-800">Merit review guardrails</h3>
+            <h3 className="text-lg font-semibold text-slate-800">Experience bands &amp; equity</h3>
             <button
               type="button"
               onClick={() => setMatchingHelpOpen((v) => !v)}
@@ -219,6 +246,10 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
               </svg>
             </button>
           </div>
+          <p className="text-sm text-slate-600 mt-1 max-w-3xl">
+            Set market positioning by tenure. Band alignment colors and <strong className="font-medium text-slate-700">Apply equity</strong> in
+            merit review use the <strong className="font-medium text-slate-700">Internal equity suggestions</strong> panel on each band — not the Policy library.
+          </p>
           {matchingHelpOpen && (
             <div
               id="experience-bands-matching-help"
@@ -680,35 +711,7 @@ export function ExperienceBandsTab({ experienceBands, setExperienceBands, scopeL
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 sm:px-4 shadow-sm">
-                  <p className="text-sm font-semibold text-slate-800 mb-2">Merit review suggestions</p>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                    <label
-                      className="flex gap-2 cursor-pointer items-center"
-                      title="When TCC is below the target percentile band"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={r.suggestBaseToHitTarget === true}
-                        onChange={(e) => update(r.id, { suggestBaseToHitTarget: e.target.checked })}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
-                      />
-                      <span className="text-sm font-medium text-slate-800">Suggest base toward percentile low</span>
-                    </label>
-                    <label
-                      className="flex gap-2 cursor-pointer items-center"
-                      title="When TCC is below the dollar range"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={r.suggestBaseToHitDollarRangeMidpoint === true}
-                        onChange={(e) => update(r.id, { suggestBaseToHitDollarRangeMidpoint: e.target.checked })}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
-                      />
-                      <span className="text-sm font-medium text-slate-800">Suggest base toward dollar band midpoint</span>
-                    </label>
-                  </div>
-                </div>
+                <ExperienceBandEquityPanel band={r} onUpdate={(updates) => update(r.id, updates)} />
               </div>
               )}
             </li>

@@ -8,6 +8,7 @@ import {
   getExperienceBandAlignmentForProvider,
   getExperienceBandLabel,
   getTargetTccRange,
+  recalculateProviderRow,
 } from './recalculate-provider-row';
 
 const BANDS: ExperienceBand[] = [
@@ -157,6 +158,35 @@ describe('findMatchingExperienceBand', () => {
     } as ProviderRecord;
     expect(findMatchingExperienceBand(np, bands, ctx)?.label).toBe('Amb APP band');
     expect(findMatchingExperienceBand(np, bands)).toBeUndefined();
+  });
+});
+
+describe('recalculateProviderRow — Proposed TCC productivity', () => {
+  it('does not double-count productivity when a CF is present', () => {
+    const record = {
+      Employee_ID: 'E1',
+      Current_Base_Salary: 400_000,
+      Current_CF: 50,
+      Prior_Year_WRVUs: 6_500,
+      Prior_Year_WRVU_Incentive: 45_000,
+      Teaching_Pay: 5_000,
+    } as ProviderRecord;
+    const out = recalculateProviderRow({ record });
+    // proposedBase (no increase) 400k + CF×wRVU (50×6500=325k) + Teaching 5k; wRVU incentive excluded.
+    expect(out.Proposed_TCC).toBe(400_000 + 325_000 + 5_000);
+  });
+
+  it('counts the actual wRVU incentive when no CF is modeled', () => {
+    const record = {
+      Employee_ID: 'E2',
+      Current_Base_Salary: 400_000,
+      Prior_Year_WRVUs: 6_500,
+      Prior_Year_WRVU_Incentive: 45_000,
+      Teaching_Pay: 5_000,
+    } as ProviderRecord;
+    const out = recalculateProviderRow({ record });
+    // No CF → productivity 0 → actual incentive + teaching included.
+    expect(out.Proposed_TCC).toBe(400_000 + 45_000 + 5_000);
   });
 });
 

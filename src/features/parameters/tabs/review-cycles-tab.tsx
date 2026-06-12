@@ -1,7 +1,13 @@
+import { useCallback, useMemo } from 'react';
 import type { Cycle } from '../../../types/cycle';
 import { InfoIconTip } from '../../../components/info-icon-tip';
 import { CycleSettingsTab, createNewCycleRow } from './cycle-settings-tab';
 import { parametersPrimaryButtonClass } from '../parameters-tab-ui';
+import { useAppState } from '../../../hooks/use-app-state';
+import { filterProvidersForCycle } from '../../../lib/cycle-match';
+import { finalizeCycle, unlockCycle } from '../../../lib/cycle-finalize';
+import { useToast } from '../../../components/ui/toast';
+import { formatCurrency } from '../../../utils/format';
 
 export interface ReviewCyclesTabProps {
   cycles: Cycle[];
@@ -16,10 +22,64 @@ function PlusIcon({ className }: { className?: string }) {
   );
 }
 
-export function ReviewCyclesTab({
-  cycles,
-  setCycles,
-}: ReviewCyclesTabProps) {
+export function ReviewCyclesTab({ cycles, setCycles }: ReviewCyclesTabProps) {
+  const { records } = useAppState();
+  const { toast } = useToast();
+
+  const providerCountByCycleId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of cycles) {
+      map.set(c.id, filterProvidersForCycle(records, c.id, cycles).length);
+    }
+    return map;
+  }, [cycles, records]);
+
+  const handleFinalizeCycle = useCallback(
+    (cycleId: string) => {
+      const cycle = cycles.find((c) => c.id === cycleId);
+      const label = cycle?.label ?? cycleId;
+      const count = providerCountByCycleId.get(cycleId) ?? 0;
+      if (count === 0) {
+        toast({
+          variant: 'error',
+          title: 'Cannot finalize',
+          description: `No providers are assigned to ${label}. Import data or assign a Cycle value first.`,
+        });
+        return;
+      }
+      const confirmed = window.confirm(
+        `Finalize "${label}"?\n\nThis locks merit review for ${count} provider${count !== 1 ? 's' : ''} and saves a snapshot of approved increases. You can unlock later if needed.`
+      );
+      if (!confirmed) return;
+      const { nextCycles, snapshot } = finalizeCycle(cycleId, cycles, records);
+      setCycles(nextCycles);
+      toast({
+        variant: 'success',
+        title: 'Cycle finalized',
+        description: `${label}: ${snapshot.providerCount} providers, ${formatCurrency(snapshot.totalIncreaseDollars)} total increases saved.`,
+      });
+    },
+    [cycles, records, providerCountByCycleId, setCycles, toast]
+  );
+
+  const handleUnlockCycle = useCallback(
+    (cycleId: string) => {
+      const cycle = cycles.find((c) => c.id === cycleId);
+      const label = cycle?.label ?? cycleId;
+      const confirmed = window.confirm(
+        `Unlock "${label}" for editing?\n\nMerit review changes will be allowed again. The saved snapshot remains available until you finalize again.`
+      );
+      if (!confirmed) return;
+      setCycles(unlockCycle(cycleId, cycles));
+      toast({
+        variant: 'success',
+        title: 'Cycle unlocked',
+        description: `${label} is open for merit review edits again.`,
+      });
+    },
+    [cycles, setCycles, toast]
+  );
+
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-5 w-full" role="region" aria-label="Review cycles">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
@@ -32,8 +92,8 @@ export function ReviewCyclesTab({
                 drives as-of logic for policy runs.
               </p>
               <p className="text-slate-500">
-                Merit review uses the budget row for the selected cycle when one exists; otherwise amounts on the
-                cycle row apply. Configure budgets under <span className="font-medium text-slate-700">Budget targets</span>.
+                <span className="font-medium text-slate-700">Finalize</span> locks merit review and saves a snapshot of
+                all increases. Use when the cycle is approved and ready for payroll.
               </p>
             </InfoIconTip>
           </div>
@@ -54,6 +114,9 @@ export function ReviewCyclesTab({
         embedded
         hideAddButton
         wideLayout
+        providerCountByCycleId={providerCountByCycleId}
+        onFinalizeCycle={handleFinalizeCycle}
+        onUnlockCycle={handleUnlockCycle}
       />
     </div>
   );

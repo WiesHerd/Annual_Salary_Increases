@@ -1,86 +1,62 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Layout, type AppView } from './components/layout';
-import { DataPage, type DataTab } from './features/data/data-page';
+import { Layout } from './components/layout';
+import { NavigationBackBar } from './components/navigation-back-bar';
+import { AppNavigationProvider, useAppNavigation } from './context/app-navigation-context';
+import { DataPage } from './features/data/data-page';
 import { SalaryReviewPage } from './features/review/salary-review-page';
 import { CompareScenariosPage } from './features/compare/compare-scenarios-page';
 import { ParametersPage } from './features/parameters/parameters-page';
 import { PolicyHelpPage } from './features/help';
+import { useEffect, useState } from 'react';
 
-const VIEWS: AppView[] = ['import', 'data-browser', 'specialty-map', 'salary-review', 'compare', 'parameters', 'help'];
-
-function getInitialView(): AppView {
-  const hash = window.location.hash.slice(1);
-  if (hash && VIEWS.includes(hash as AppView)) return hash as AppView;
-  return 'import';
-}
-
-function App() {
-  const [view, setView] = useState<AppView>(getInitialView);
-  const [dataBrowserTab, setDataBrowserTab] = useState<DataTab>('provider');
+function AppRoutes() {
+  const { location, returnLabel, goBack, navigate, openProviderTypeSurvey } = useAppNavigation();
   const [salaryReviewFullScreen, setSalaryReviewFullScreen] = useState(false);
 
   useEffect(() => {
-    const hash = '#' + view;
-    if (window.location.hash !== hash) window.location.hash = hash;
-  }, [view]);
+    if (location.view !== 'salary-review') setSalaryReviewFullScreen(false);
+  }, [location.view]);
 
-  useEffect(() => {
-    if (view !== 'salary-review') setSalaryReviewFullScreen(false);
-  }, [view]);
-
-  useEffect(() => {
-    const onHashChange = () => {
-      const h = window.location.hash.slice(1);
-      if (h && VIEWS.includes(h as AppView)) setView(h as AppView);
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
-
-  const handleNavigateToBrowser = (tab?: DataTab) => {
-    if (tab) setDataBrowserTab(tab);
-    setView('data-browser');
-  };
-
-  const openProviderTypeSurveyInParameters = useCallback(() => {
-    const u = new URL(window.location.href);
-    u.searchParams.set('tab', 'provider-type-survey');
-    u.hash = '#parameters';
-    window.history.replaceState(null, '', `${u.pathname}${u.search}${u.hash}`);
-    setView('parameters');
-  }, []);
-
-  const sidebarHidden = view === 'salary-review' && salaryReviewFullScreen;
+  const sidebarHidden = location.view === 'salary-review' && salaryReviewFullScreen;
   const contentNoPadding = sidebarHidden;
 
   return (
-    <Layout currentView={view} onNavigate={setView} sidebarHidden={sidebarHidden} contentNoPadding={contentNoPadding}>
-      {view === 'import' && <DataPage focus="import" onNavigateToBrowser={handleNavigateToBrowser} />}
-      {view === 'data-browser' && (
-        <DataPage
-          focus="browse"
-          initialTab={dataBrowserTab}
-          onOpenProviderTypeSurvey={openProviderTypeSurveyInParameters}
-        />
+    <Layout
+      currentView={location.view}
+      onNavigate={(view) => navigate({ view })}
+      sidebarHidden={sidebarHidden}
+      contentNoPadding={contentNoPadding}
+    >
+      {!contentNoPadding && <NavigationBackBar returnLabel={returnLabel} onBack={goBack} />}
+
+      {location.view === 'import' && <DataPage focus="import" />}
+      {location.view === 'data-browser' && (
+        <DataPage focus="browse" onOpenProviderTypeSurvey={() => openProviderTypeSurvey()} />
       )}
-      {view === 'specialty-map' && (
+      {location.view === 'specialty-map' && (
         <DataPage
           focus="browse"
           standaloneTab="specialty-map"
-          onOpenProviderTypeSurvey={openProviderTypeSurveyInParameters}
+          onOpenProviderTypeSurvey={() => openProviderTypeSurvey()}
         />
       )}
-      {view === 'salary-review' && (
+      {location.view === 'salary-review' && (
         <SalaryReviewPage
-          onNavigateToImport={() => setView('import')}
           fullScreen={salaryReviewFullScreen}
           onFullScreenChange={setSalaryReviewFullScreen}
         />
       )}
-      {view === 'parameters' && <ParametersPage />}
-      {view === 'help' && <PolicyHelpPage onNavigateToParameters={() => setView('parameters')} />}
-      {view === 'compare' && <CompareScenariosPage />}
+      {location.view === 'parameters' && <ParametersPage />}
+      {location.view === 'help' && <PolicyHelpPage />}
+      {location.view === 'compare' && <CompareScenariosPage />}
     </Layout>
+  );
+}
+
+function App() {
+  return (
+    <AppNavigationProvider>
+      <AppRoutes />
+    </AppNavigationProvider>
   );
 }
 

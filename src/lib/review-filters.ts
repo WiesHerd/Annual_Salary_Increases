@@ -5,6 +5,7 @@
 
 import type { ProviderRecord } from '../types/provider';
 import type { ExperienceBand } from '../types/experience-band';
+import type { MarketRow } from '../types/market';
 import type { ExperienceBandSurveyContext } from '../types/market-survey-config';
 import {
   getExperienceBandAlignmentForProvider,
@@ -80,6 +81,41 @@ function tccPercentileForBandAlignment(record: ProviderRecord): number | undefin
   return record.Proposed_TCC_Percentile ?? record.Current_TCC_Percentile;
 }
 
+/** Effective approved increase % — matches review-table column display logic. */
+export function getEffectiveApprovedIncreasePercent(r: ProviderRecord): number | undefined {
+  if (r.Approved_Increase_Percent != null && Number.isFinite(r.Approved_Increase_Percent)) {
+    return r.Approved_Increase_Percent;
+  }
+  const curBase = r.Current_Base_Salary ?? 0;
+  const propBase = r.Proposed_Base_Salary;
+  if (curBase > 0 && propBase != null && Number.isFinite(propBase)) {
+    return ((propBase - curBase) / curBase) * 100;
+  }
+  return undefined;
+}
+
+function bandAlignmentDisplay(
+  r: ProviderRecord,
+  experienceBandsConfig: ExperienceBand[],
+  experienceBandSurveyContext?: ExperienceBandSurveyContext,
+  getMarketRowForRecord?: (record: ProviderRecord) => MarketRow | undefined
+): string {
+  const alignment = getExperienceBandAlignmentForProvider(
+    r,
+    tccPercentileForBandAlignment(r),
+    experienceBandsConfig,
+    getMarketRowForRecord?.(r),
+    experienceBandSurveyContext
+  );
+  return alignment === 'below'
+    ? 'Below target'
+    : alignment === 'in'
+      ? 'In range'
+      : alignment === 'above'
+        ? 'Above target'
+        : '—';
+}
+
 /**
  * Apply filters to a list of provider records. Returns a new array (does not mutate).
  * Pass experienceBandsConfig when filtering by experience band (band labels are derived from YOE + config).
@@ -91,7 +127,8 @@ export function applyFilters(
   filters: SalaryReviewFilters,
   experienceBandsConfig?: ExperienceBand[],
   policySourceByEmployeeId?: Map<string, string>,
-  experienceBandSurveyContext?: ExperienceBandSurveyContext
+  experienceBandSurveyContext?: ExperienceBandSurveyContext,
+  getMarketRowForRecord?: (record: ProviderRecord) => MarketRow | undefined
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
 
@@ -122,21 +159,12 @@ export function applyFilters(
     }
 
     if (filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
-      const alignment = getExperienceBandAlignmentForProvider(
+      const display = bandAlignmentDisplay(
         r,
-        tccPercentileForBandAlignment(r),
         experienceBandsConfig,
-        undefined,
-        experienceBandSurveyContext
+        experienceBandSurveyContext,
+        getMarketRowForRecord
       );
-      const display =
-        alignment === 'below'
-          ? 'Below target'
-          : alignment === 'in'
-            ? 'In range'
-            : alignment === 'above'
-              ? 'Above target'
-              : '—';
       if (!selectedSetMatches(display, filters.bandAlignments)) return false;
     }
 
@@ -146,7 +174,7 @@ export function applyFilters(
       if (!selectedSetMatches(policySource, filters.policySources)) return false;
     }
 
-    const incPct = r.Approved_Increase_Percent;
+    const incPct = getEffectiveApprovedIncreasePercent(r);
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
     if (filters.approvedIncreasePercentMax != null && (incPct == null || incPct > filters.approvedIncreasePercentMax))
@@ -348,7 +376,8 @@ export function deriveFilterOptions(
   records: ProviderRecord[],
   experienceBandsConfig?: ExperienceBand[],
   policySourceByEmployeeId?: Map<string, string>,
-  experienceBandSurveyContext?: ExperienceBandSurveyContext
+  experienceBandSurveyContext?: ExperienceBandSurveyContext,
+  getMarketRowForRecord?: (record: ProviderRecord) => MarketRow | undefined
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -389,22 +418,9 @@ export function deriveFilterOptions(
     add(policySources, policySource);
     if (experienceBandsConfig?.length) {
       add(experienceBands, getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext));
-      const alignment = getExperienceBandAlignmentForProvider(
-        r,
-        tccPercentileForBandAlignment(r),
-        experienceBandsConfig,
-        undefined,
-        experienceBandSurveyContext
+      bandAlignments.add(
+        bandAlignmentDisplay(r, experienceBandsConfig, experienceBandSurveyContext, getMarketRowForRecord)
       );
-      const display =
-        alignment === 'below'
-          ? 'Below target'
-          : alignment === 'in'
-            ? 'In range'
-            : alignment === 'above'
-              ? 'Above target'
-              : '—';
-      bandAlignments.add(display);
     }
   }
 
@@ -458,7 +474,8 @@ function applyFiltersExceptDimension(
   excludeDimension: DimensionKey,
   experienceBandsConfig?: ExperienceBand[],
   policySourceByEmployeeId?: Map<string, string>,
-  experienceBandSurveyContext?: ExperienceBandSurveyContext
+  experienceBandSurveyContext?: ExperienceBandSurveyContext,
+  getMarketRowForRecord?: (record: ProviderRecord) => MarketRow | undefined
 ): ProviderRecord[] {
   const searchLower = normalizeSearch(filters.searchText);
   return records.filter((r) => {
@@ -484,28 +501,19 @@ function applyFiltersExceptDimension(
       if (!selectedSetMatches(bandLabel, filters.experienceBands)) return false;
     }
     if (excludeDimension !== 'bandAlignments' && filters.bandAlignments.length > 0 && experienceBandsConfig?.length) {
-      const alignment = getExperienceBandAlignmentForProvider(
+      const display = bandAlignmentDisplay(
         r,
-        tccPercentileForBandAlignment(r),
         experienceBandsConfig,
-        undefined,
-        experienceBandSurveyContext
+        experienceBandSurveyContext,
+        getMarketRowForRecord
       );
-      const display =
-        alignment === 'below'
-          ? 'Below target'
-          : alignment === 'in'
-            ? 'In range'
-            : alignment === 'above'
-              ? 'Above target'
-              : '—';
       if (!selectedSetMatches(display, filters.bandAlignments)) return false;
     }
     if (excludeDimension !== 'policySources' && filters.policySources.length > 0) {
       const policySource = policySourceByEmployeeId?.get(r.Employee_ID) ?? r.Policy_Source_Name ?? '—';
       if (!selectedSetMatches(policySource, filters.policySources)) return false;
     }
-    const incPct = r.Approved_Increase_Percent;
+    const incPct = getEffectiveApprovedIncreasePercent(r);
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
     if (filters.approvedIncreasePercentMax != null && (incPct == null || incPct > filters.approvedIncreasePercentMax))
@@ -528,7 +536,8 @@ export function deriveFilterOptionsCascading(
   filters: SalaryReviewFilters,
   experienceBandsConfig?: ExperienceBand[],
   policySourceByEmployeeId?: Map<string, string>,
-  experienceBandSurveyContext?: ExperienceBandSurveyContext
+  experienceBandSurveyContext?: ExperienceBandSurveyContext,
+  getMarketRowForRecord?: (record: ProviderRecord) => MarketRow | undefined
 ): {
   providerNames: string[];
   reviewStatuses: string[];
@@ -568,7 +577,8 @@ export function deriveFilterOptionsCascading(
       key,
       experienceBandsConfig,
       policySourceByEmployeeId,
-      experienceBandSurveyContext
+      experienceBandSurveyContext,
+      getMarketRowForRecord
     );
     const set = new Set<string>();
     for (const r of subset) add(set, r[field] as string | undefined);
@@ -583,7 +593,8 @@ export function deriveFilterOptionsCascading(
     'reviewStatuses',
     experienceBandsConfig,
     policySourceByEmployeeId,
-    experienceBandSurveyContext
+    experienceBandSurveyContext,
+    getMarketRowForRecord
   );
   const statusSet = new Set<string>();
   for (const r of subsetStatus) statusSet.add(getReviewStatusBucket(r.Review_Status));
@@ -596,7 +607,8 @@ export function deriveFilterOptionsCascading(
       'experienceBands',
       experienceBandsConfig,
       policySourceByEmployeeId,
-      experienceBandSurveyContext
+      experienceBandSurveyContext,
+      getMarketRowForRecord
     );
     const set = new Set<string>();
     for (const r of subset) add(set, getExperienceBandLabelForProvider(r, experienceBandsConfig, experienceBandSurveyContext));
@@ -610,26 +622,12 @@ export function deriveFilterOptionsCascading(
       'bandAlignments',
       experienceBandsConfig,
       policySourceByEmployeeId,
-      experienceBandSurveyContext
+      experienceBandSurveyContext,
+      getMarketRowForRecord
     );
     const set = new Set<string>();
     for (const r of subset) {
-      const alignment = getExperienceBandAlignmentForProvider(
-        r,
-        tccPercentileForBandAlignment(r),
-        experienceBandsConfig,
-        undefined,
-        experienceBandSurveyContext
-      );
-      const display =
-        alignment === 'below'
-          ? 'Below target'
-          : alignment === 'in'
-            ? 'In range'
-            : alignment === 'above'
-              ? 'Above target'
-              : '—';
-      set.add(display);
+      set.add(bandAlignmentDisplay(r, experienceBandsConfig, experienceBandSurveyContext, getMarketRowForRecord));
     }
     result.bandAlignments = Array.from(set).sort(sort);
   }
@@ -640,7 +638,8 @@ export function deriveFilterOptionsCascading(
     'policySources',
     experienceBandsConfig,
     policySourceByEmployeeId,
-    experienceBandSurveyContext
+    experienceBandSurveyContext,
+    getMarketRowForRecord
   );
   const policySet = new Set<string>();
   for (const r of subsetPolicy) {

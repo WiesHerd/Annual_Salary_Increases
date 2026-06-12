@@ -643,7 +643,7 @@ export function CustomModelCreateWizard({
               type="button"
               onClick={() => setStepIndex((i) => Math.min(STEPS.length - 1, i + 1))}
               disabled={!canNext}
-              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none"
             >
               Next
             </button>
@@ -651,7 +651,7 @@ export function CustomModelCreateWizard({
             <button
               type="button"
               onClick={handleSave}
-              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800"
             >
               Save model
             </button>

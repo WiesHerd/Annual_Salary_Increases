@@ -15,7 +15,7 @@ import type { ProviderRecord } from '../../types/provider';
 
 // Deeper, dashboard-style palette
 const SERIES_COLORS = [
-  '#4338ca', // indigo-700
+  '#4338ca', // indigo-800
   '#047857', // emerald-700
   '#b91c1c', // red-700
   '#b45309', // amber-700

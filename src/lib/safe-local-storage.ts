@@ -3,6 +3,9 @@
  * can surface in the UI via subscribeStorageWriteErrors.
  */
 
+import { scheduleCloudSync } from './cloud-sync-scheduler';
+import { isAppStorageKey } from './storage';
+
 export type StorageWriteErrorDetail = {
   message: string;
   key?: string;
@@ -49,6 +52,7 @@ function failureMessage(err: unknown, storage: 'local' | 'session'): string {
 export function safeLocalStorageSetItem(key: string, value: string): boolean {
   try {
     localStorage.setItem(key, value);
+    if (isAppStorageKey(key)) scheduleCloudSync();
     return true;
   } catch (e) {
     notify({ message: failureMessage(e, 'local'), key, storage: 'local' });

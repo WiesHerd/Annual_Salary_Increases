@@ -8,6 +8,7 @@
 import type { ProviderRecord } from '../types/provider';
 import type { TccCalculationSettings, TccSumComponentKey } from '../types/tcc-calculation';
 import { TCC_SUM_COMPONENT_KEYS, defaultTccCalculationSettings } from '../types/tcc-calculation';
+import { interpolatePercentile, tccPercentilesFromRecordFields } from './calculations/percentile';
 
 function getComponentValue(p: ProviderRecord, key: TccSumComponentKey): number {
   const v = p[key];
@@ -39,10 +40,19 @@ export function applyDerivedCurrentTcc(
   const sum = sumExplicitTccComponents(p, settings);
   const fte = p.Current_FTE ?? 1;
   const at1 = fte > 0 ? sum / fte : sum;
+
+  // When market TCC knots are present on the row (set during the market merge), derive the
+  // current market percentile from the same interpolation engine used for the proposed value,
+  // so the before/after comparison is on one ruler. Falls back to any existing value otherwise.
+  const tccKnots = tccPercentilesFromRecordFields(p);
+  const derivedCurrentPercentile =
+    tccKnots[50] != null ? interpolatePercentile(at1, tccKnots) : undefined;
+
   return {
     ...p,
     Current_TCC: sum,
     Current_TCC_at_1FTE: at1,
+    Current_TCC_Percentile: derivedCurrentPercentile ?? p.Current_TCC_Percentile,
   };
 }
 

@@ -51,6 +51,7 @@ export type ReviewTableColumnId =
   | 'targetTccRange'
   | 'bandAlignment'
   | 'equityRecommendation'
+  | 'equityMethod'
   | 'wrvuPercentile'
   | 'tccWrvuGap'
   | 'currentCf'
@@ -99,6 +100,7 @@ export const REVIEW_TABLE_COLUMNS: ReviewTableColumnDef[] = [
   { id: 'targetTccRange', label: 'Target TCC Range', align: 'left', format: 'text' },
   { id: 'bandAlignment', label: 'Band alignment', align: 'left', format: 'text' },
   { id: 'equityRecommendation', label: 'Recommendation', align: 'left', format: 'text' },
+  { id: 'equityMethod', label: 'Equity method', align: 'left', format: 'text' },
   { id: 'wrvuPercentile', label: 'wRVU Percentile', align: 'right', format: 'percent' },
   { id: 'tccWrvuGap', label: 'TCC - wRVU Gap', align: 'right', format: 'currency' },
   { id: 'currentCf', label: 'Current CF', align: 'right', format: 'currency' },
@@ -134,6 +136,7 @@ const WIDER_DEFAULT_IDS: ReviewTableColumnId[] = [
   'targetTccRange',
   'bandAlignment',
   'equityRecommendation',
+  'equityMethod',
   'experienceBand',
   'evaluationScore',
   'defaultIncreasePercent',
@@ -267,6 +270,7 @@ export const REVIEW_VIEW_PRESETS: Record<ReviewViewPresetId, ReviewTableColumnId
     'targetTccRange',
     'bandAlignment',
     'equityRecommendation',
+    'equityMethod',
     'wrvuPercentile',
     'currentCf',
     'proposedCf',
@@ -396,12 +400,23 @@ export function getReviewCellValue(
         bandOptions?.experienceBandSurveyContext
       );
       if (!rec) return '—';
-      const suffix =
-        rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte)
-          ? ` ~${formatCurrencyTwoDecimals(rec.suggestedTccAt1Fte)} at 1.0 FTE`
-          : '';
-      return rec.action + suffix;
+      const parts = [rec.action];
+      if (rec.suggestedIncreaseAmount != null && Number.isFinite(rec.suggestedIncreaseAmount)) {
+        parts.push(`+${formatCurrencyTwoDecimals(rec.suggestedIncreaseAmount)}`);
+      } else if (rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte)) {
+        parts.push(`~${formatCurrencyTwoDecimals(rec.suggestedTccAt1Fte)} TCC @ 1.0 FTE`);
+      }
+      return parts.join(' · ');
     }
+    case 'equityMethod':
+      return (
+        getEquityRecommendation(
+          r,
+          experienceBands,
+          bandOptions?.marketRow,
+          bandOptions?.experienceBandSurveyContext
+        )?.methodSummary ?? '—'
+      );
     case 'wrvuPercentile':
       return r.WRVU_Percentile ?? '—';
     case 'tccWrvuGap':

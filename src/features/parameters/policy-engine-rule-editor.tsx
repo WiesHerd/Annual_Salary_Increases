@@ -5,9 +5,14 @@
  */
 
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
+import { BookmarkPlus, RotateCcw, X } from 'lucide-react';
 import type { AnnualIncreasePolicy, PolicyStage, ConflictStrategy, PolicyAction, PolicyModelConfig } from '../../types/compensation-policy';
 import type { ConditionTree } from '../../types/compensation-policy';
-import { POLICY_STAGE_LABELS } from '../../types/compensation-policy';
+import {
+  POLICY_STAGE_LABELS,
+  POLICY_STAGE_DESCRIPTIONS,
+  POLICY_STAGE_PIPELINE_HINT,
+} from '../../types/compensation-policy';
 import { DEFAULT_PROVIDER_TYPES, type ParameterOptions } from '../../lib/parameter-options';
 import {
   CONDITION_FACT_OPTIONS,
@@ -21,12 +26,35 @@ import {
 import { MultiSelectDropdown } from '../../components/multi-select-dropdown';
 import { RangeInputs } from '../../components/range-inputs';
 import { validatePolicy } from '../../lib/policy-engine/validation';
+import { computePolicyImpactPreview } from '../../lib/policy-impact-preview';
+import { HorizontalStepper, horizontalStepperStepsFromLabels } from '../../components/horizontal-stepper';
+import type { ProviderRecord } from '../../types/provider';
+import type { MeritMatrixRow } from '../../types/merit-matrix-row';
+import type { CustomCompensationModel } from '../../types/compensation-policy';
+import type { TierTable } from '../../types/tier-table';
+import type { MarketResolver } from '../../types/market-survey-config';
+import {
+  POLICY_ACTION_OPTIONS,
+  policyActionUsesMetadata,
+  policyActionUsesValue,
+} from '../../lib/policy-action-ui';
+import { useToast } from '../../components/ui/toast';
+import { StepContextHelp } from '../../components/step-context-help';
+import { POLICY_EDIT_STEP_HELP } from '../../lib/policy-wizard-step-help';
+import { Button } from '../../components/ui/button';
 
 interface PolicyRuleEditorProps {
   policy: AnnualIncreasePolicy;
   onUpdate: (updates: Partial<AnnualIncreasePolicy>) => void;
   onClose: () => void;
   parameterOptions: ParameterOptions;
+  records?: ProviderRecord[];
+  meritMatrixRows?: MeritMatrixRow[];
+  customModels?: CustomCompensationModel[];
+  tierTables?: TierTable[];
+  allPolicies?: AnnualIncreasePolicy[];
+  marketResolver?: MarketResolver;
+  asOfDate?: string;
   /** When provided, shows "Save as template" to add current policy to the user template library. */
   onSaveAsTemplate?: (policy: AnnualIncreasePolicy) => void;
 }
@@ -77,18 +105,30 @@ const CONFLICT_STRATEGY_PLAIN: { value: ConflictStrategy; label: string }[] = [
   { value: 'ANNOTATE_ONLY', label: 'Annotate only (do not change the result)' },
 ];
 
+/** Setup → Who → When → What */
 const EDIT_STEPS = [
-  { id: 'basics', label: 'Basics' },
-  { id: 'target', label: 'Target scope' },
-  { id: 'conditions', label: 'Conditions' },
-  { id: 'actions', label: 'Actions' },
+  { id: 'basics', label: 'Setup', caption: 'Name, pipeline stage, and priority' },
+  { id: 'target', label: 'Who', caption: 'Optional population filters — blank means all providers' },
+  { id: 'conditions', label: 'When', caption: 'Optional match rules — blank means everyone in scope' },
+  { id: 'actions', label: 'What', caption: 'Increase, cap, or review action when the rule matches' },
 ] as const;
 
-const SAVED_INDICATOR_DURATION_MS = 2500;
-
-export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, onSaveAsTemplate }: PolicyRuleEditorProps) {
+export function PolicyRuleEditor({
+  policy,
+  onUpdate,
+  onClose,
+  parameterOptions,
+  records = [],
+  meritMatrixRows = [],
+  customModels = [],
+  tierTables = [],
+  allPolicies = [],
+  marketResolver,
+  asOfDate,
+  onSaveAsTemplate,
+}: PolicyRuleEditorProps) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  const { toast } = useToast();
   const initialPolicyRef = useRef<AnnualIncreasePolicy>(JSON.parse(JSON.stringify(policy)));
 
   useEffect(() => {
@@ -104,24 +144,40 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
 
   const handleRevert = useCallback(() => {
     onUpdate(initialPolicyRef.current);
-    setShowSavedIndicator(true);
-  }, [onUpdate]);
+    toast({
+      variant: 'default',
+      title: 'Changes reverted',
+      description: 'Restored this rule to how it looked when you opened the editor.',
+    });
+  }, [onUpdate, toast]);
 
   const update = useCallback(
     (u: Partial<AnnualIncreasePolicy>) => {
       onUpdate(u);
-      setShowSavedIndicator(true);
     },
     [onUpdate]
   );
 
-  useEffect(() => {
-    if (!showSavedIndicator) return;
-    const t = setTimeout(() => setShowSavedIndicator(false), SAVED_INDICATOR_DURATION_MS);
-    return () => clearTimeout(t);
-  }, [showSavedIndicator]);
-
   const policyValidation = useMemo(() => validatePolicy(policy), [policy]);
+
+  const impactPreview = useMemo(() => {
+    if (!marketResolver || records.length === 0) {
+      return { inScope: 0, affected: 0, changes: [], hasData: false };
+    }
+    return computePolicyImpactPreview(
+      policy,
+      records,
+      {
+        policies: allPolicies,
+        customModels,
+        tierTables,
+        meritMatrixRows,
+        asOfDate,
+      },
+      marketResolver,
+      'replace'
+    );
+  }, [policy, records, allPolicies, customModels, tierTables, meritMatrixRows, asOfDate, marketResolver]);
 
   const updateScope = useCallback(
     (key: keyof NonNullable<AnnualIncreasePolicy['targetScope']>, value: string[] | number | undefined) => {
@@ -134,7 +190,6 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         (next as Record<string, number | undefined>)[key] = value;
       }
       onUpdate({ targetScope: next });
-      setShowSavedIndicator(true);
     },
     [policy.targetScope, onUpdate]
   );
@@ -145,20 +200,17 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
       const next = [...actionsList];
       next[index] = { ...next[index], ...u };
       onUpdate({ actions: next });
-      setShowSavedIndicator(true);
     },
     [actionsList, onUpdate]
   );
 
   const addAction = useCallback(() => {
     onUpdate({ actions: [...actionsList, { type: 'ADD_INCREASE_PERCENT', value: 0 }] });
-    setShowSavedIndicator(true);
   }, [actionsList, onUpdate]);
 
   const removeAction = useCallback(
     (index: number) => {
       onUpdate({ actions: actionsList.filter((_, i) => i !== index) });
-      setShowSavedIndicator(true);
     },
     [actionsList, onUpdate]
   );
@@ -166,7 +218,6 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
   const updateModelConfig = useCallback(
     (config: PolicyModelConfig | undefined) => {
       onUpdate({ modelConfig: config });
-      setShowSavedIndicator(true);
     },
     [onUpdate]
   );
@@ -258,7 +309,6 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
       } else {
         onUpdate({ conditions: tree });
       }
-      setShowSavedIndicator(true);
     },
     [onUpdate]
   );
@@ -324,84 +374,102 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
     conditionsToJsonLogic(conditionList.filter((c) => c.factKey !== ''), conditionCombine) ?? undefined
   );
 
-  const step = EDIT_STEPS[stepIndex];
   const canPrev = stepIndex > 0;
   const canNext = stepIndex < EDIT_STEPS.length - 1;
   const isLastStep = stepIndex === EDIT_STEPS.length - 1;
 
   const isTieredModel = policy.stage === 'CUSTOM_MODEL' && (policy.modelConfig?.type === 'YOE_TIER_TABLE' || policy.modelConfig?.type === 'YOE_TIER_BASE_SALARY');
 
+  const editStepperSteps = useMemo(
+    () =>
+      horizontalStepperStepsFromLabels(
+        EDIT_STEPS.map((s, i) => ({
+          id: s.id,
+          label: s.label,
+          caption: s.caption,
+          ready: i < stepIndex,
+          onClick: () => setStepIndex(i),
+        })),
+        EDIT_STEPS[stepIndex]?.id
+      ),
+    [stepIndex]
+  );
+
   return (
-    <div className="flex flex-col w-full min-w-0 relative">
-      <div className="shrink-0 px-6 py-4 flex justify-between items-center border-b border-slate-100">
-        <h4 className="text-base font-semibold text-slate-800">Edit rule</h4>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRevert}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-            title="Revert to original"
-            aria-label="Revert to original"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-            </svg>
-            Revert
-          </button>
-          {onSaveAsTemplate && (
-            <button
-              type="button"
-              onClick={() => onSaveAsTemplate(policy)}
-              className="text-indigo-600 hover:text-indigo-800 text-sm px-2 py-1 font-medium"
-            >
-              Save as template
-            </button>
+    <div className="flex flex-col w-full min-w-0 relative min-h-0 flex-1">
+      <div className="shrink-0 px-6 py-3.5 flex justify-between items-center gap-4 border-b border-slate-100">
+        <div className="min-w-0">
+          <h4 className="text-base font-semibold text-slate-800 truncate">
+            {policy.name.trim() || 'Edit rule'}
+          </h4>
+          {marketResolver && impactPreview.hasData && (
+            <p className="mt-0.5 text-[11px] text-slate-400 tabular-nums">
+              {impactPreview.inScope} in scope
+              {impactPreview.affected > 0
+                ? ` · ${impactPreview.affected} would change`
+                : ' · no change vs current'}
+            </p>
           )}
-          <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-700 text-sm px-2 py-1">
-            Close
-          </button>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleRevert}
+            title="Revert to how this rule looked when you opened the editor"
+          >
+            <RotateCcw aria-hidden />
+            Revert
+          </Button>
+          {onSaveAsTemplate && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onSaveAsTemplate(policy)}
+              title="Save a copy to your template library for reuse"
+            >
+              <BookmarkPlus aria-hidden />
+              Save template
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            className="ml-0.5 text-slate-500"
+            aria-label="Close editor"
+            title="Close"
+          >
+            <X aria-hidden />
+          </Button>
         </div>
       </div>
 
-      {/* Stepper: clickable numbered steps with connecting line */}
-      <div className="shrink-0 px-6 pt-4">
-        <nav className="flex items-center gap-1" aria-label="Edit steps">
-          {EDIT_STEPS.map((s, i) => {
-            const isActive = i === stepIndex;
-            const isPast = i < stepIndex;
-            return (
-              <div key={s.id} className="flex items-center shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setStepIndex(i)}
-                  className={`flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-indigo-600 text-white ring-2 ring-indigo-200 ring-offset-2'
-                      : isPast
-                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                  title={s.label}
-                  aria-current={isActive ? 'step' : undefined}
-                >
-                  {i + 1}
-                </button>
-                {i < EDIT_STEPS.length - 1 && (
-                  <div
-                    className={`w-8 sm:w-12 h-0.5 mx-0.5 ${
-                      isPast ? 'bg-indigo-200' : 'bg-slate-200'
-                    }`}
-                    aria-hidden
-                  />
-                )}
-              </div>
-            );
-          })}
-        </nav>
-        <p className="mt-1.5 text-xs text-slate-500 font-medium">{step.label}</p>
+      <div className="shrink-0 px-6 py-3 border-b border-slate-100 bg-slate-50/40">
+        {EDIT_STEPS[stepIndex] && POLICY_EDIT_STEP_HELP[EDIT_STEPS[stepIndex].id] && (
+          <div className="mb-2 flex justify-end">
+            <StepContextHelp content={POLICY_EDIT_STEP_HELP[EDIT_STEPS[stepIndex].id]} popoverAlign="end" />
+          </div>
+        )}
+        <HorizontalStepper
+          steps={editStepperSteps.map((s, i) => ({
+            ...s,
+            state: i === stepIndex ? 'active' : i < stepIndex ? 'complete' : 'upcoming',
+          }))}
+          activeStepId={EDIT_STEPS[stepIndex]?.id}
+          ariaLabel="Edit rule: Setup, Who, When, What"
+          showStepLabels
+          showActiveCaption={false}
+        />
+        {EDIT_STEPS[stepIndex] && (
+          <p className="mt-2 text-xs text-slate-500 leading-snug">{EDIT_STEPS[stepIndex].caption}</p>
+        )}
       </div>
 
-      <div className="p-6 pt-4 pb-6 w-full min-w-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-6 pb-6 w-full overflow-y-auto">
         {(policyValidation.errors.length > 0 || policyValidation.warnings.length > 0) && (
           <div className="mb-4 space-y-2">
             {policyValidation.errors.length > 0 && (
@@ -470,18 +538,38 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
               <option value="archived">Archived</option>
             </select>
           </div>
-          <div>
-            <label htmlFor="policy-rule-edit-stage" className="block text-xs font-medium text-slate-600 mb-1">
-              Stage
-            </label>
+          <div className="sm:col-span-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <label htmlFor="policy-rule-edit-stage" className="text-xs font-medium text-slate-600">
+                Stage
+              </label>
+              <span className="group relative inline-flex shrink-0">
+                <button
+                  type="button"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-white text-[9px] font-semibold text-slate-500 hover:bg-slate-50"
+                  aria-label="How policy stages work"
+                  aria-describedby="policy-stage-pipeline-hint"
+                >
+                  i
+                </button>
+                <span
+                  id="policy-stage-pipeline-hint"
+                  role="tooltip"
+                  className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-slate-200 bg-white p-2 text-[10px] leading-snug text-slate-600 opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+                >
+                  {POLICY_STAGE_PIPELINE_HINT}. Rules at the same stage run by priority (1st → Fallback).
+                </span>
+              </span>
+            </div>
             <select
               id="policy-rule-edit-stage"
               value={policy.stage}
               onChange={(e) => update({ stage: e.target.value as PolicyStage })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              aria-describedby="policy-stage-description"
             >
               {STAGES.map((s) => (
-                <option key={s} value={s}>
+                <option key={s} value={s} title={POLICY_STAGE_DESCRIPTIONS[s]}>
                   {POLICY_STAGE_LABELS[s]}
                 </option>
               ))}
@@ -517,23 +605,19 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 if (opt) update({ priority: opt.value, isFallback: opt.isFallback ?? false });
               }}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-              title="Within this stage: 1st runs first, then 2nd, 3rd, 4th; Fallback runs last"
+              title="Within this stage: highest priority runs first; Fallback runs only if nothing else matched"
             >
               {PRIORITY_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
-            <p className="text-[11px] text-slate-500 mt-0.5">Within stage: 1st → 2nd → 3rd → 4th → Fallback</p>
           </div>
         </div>
         </div>
         )}
 
         {stepIndex === 1 && (
-        <div className="rounded-lg border border-slate-200 p-4 space-y-4">
-          <div>
-            <p className="block text-xs font-medium text-slate-600 mb-1">Target scope (optional)</p>
-            <p className="text-xs text-slate-500 mb-3">Leave empty to apply to all providers.</p>
+        <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="min-w-0 flex flex-col items-center text-center rounded-md border border-slate-100 bg-slate-50/50 px-3 py-3">
                 {parameterOptions.divisions && parameterOptions.divisions.length > 0 ? (
@@ -613,19 +697,11 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                 />
               </div>
             </div>
-          </div>
         </div>
         )}
 
         {stepIndex === 2 && (
-        <div className="rounded-lg border border-slate-200 p-4">
-          <p className="block text-xs font-medium text-slate-600 mb-1">Conditions (when to apply)</p>
-          <p className="text-xs text-slate-500 mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span>Empty = scope match.</span>
-            {policy.stage === 'CUSTOM_MODEL' && (
-              <span className="text-indigo-600">YOE tier: empty = all.</span>
-            )}
-          </p>
+        <div>
           <div className="flex gap-2 mb-3">
             <button
               type="button"
@@ -970,7 +1046,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
               <button
                 type="button"
                 onClick={addTierRow}
-                className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+                className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
               >
                 + Add tier
               </button>
@@ -1062,7 +1138,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
               <button
                 type="button"
                 onClick={addTierBaseRow}
-                className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+                className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
               >
                 + Add tier
               </button>
@@ -1084,22 +1160,47 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
                   onChange={(e) => updateAction(i, { type: e.target.value as PolicyAction['type'] })}
                   className="flex-1 text-sm border border-slate-300 rounded px-2 py-1 bg-white"
                 >
-                  <option value="ADD_INCREASE_PERCENT">Add increase %</option>
-                  <option value="CAP_INCREASE_PERCENT">Cap increase %</option>
-                  <option value="FLOOR_INCREASE_PERCENT">Floor increase %</option>
-                  <option value="ZERO_OUT_INCREASE">Zero out increase</option>
-                  <option value="SET_BASE_INCREASE_PERCENT">Set base increase %</option>
-                  <option value="FORCE_INCREASE_PERCENT">Force increase %</option>
-                  <option value="FLAG_MANUAL_REVIEW">Flag manual review</option>
-                  <option value="EXCLUDE_FROM_STANDARD_PROCESS">Exclude from standard process</option>
+                  {POLICY_ACTION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
-                {(a.type === 'ADD_INCREASE_PERCENT' || a.type === 'CAP_INCREASE_PERCENT' || a.type === 'FLOOR_INCREASE_PERCENT' || a.type === 'SET_BASE_INCREASE_PERCENT' || a.type === 'FORCE_INCREASE_PERCENT') && (
+                {policyActionUsesValue(a.type) === 'percent' && (
                   <input
                     type="number"
                     value={a.value ?? 0}
                     onChange={(e) => updateAction(i, { value: Number(e.target.value) })}
                     className="w-20 text-sm border border-slate-300 rounded px-2 py-1 text-right bg-white"
                     step={0.1}
+                    aria-label="Percent value"
+                  />
+                )}
+                {policyActionUsesValue(a.type) === 'dollars' && (
+                  <input
+                    type="number"
+                    value={a.value ?? 0}
+                    onChange={(e) => updateAction(i, { value: Number(e.target.value) })}
+                    className="w-28 text-sm border border-slate-300 rounded px-2 py-1 text-right bg-white"
+                    step={100}
+                    min={0}
+                    aria-label="Dollar value"
+                  />
+                )}
+                {policyActionUsesMetadata(a.type) && (
+                  <input
+                    type="text"
+                    value={a.metadata ?? ''}
+                    onChange={(e) => updateAction(i, { metadata: e.target.value })}
+                    placeholder={
+                      a.type === 'ADD_REASON_CODE'
+                        ? 'Reason code'
+                        : a.type === 'ADD_POLICY_LABEL'
+                          ? 'Policy label'
+                          : 'Note'
+                    }
+                    className="flex-1 min-w-[8rem] text-sm border border-slate-300 rounded px-2 py-1 bg-white"
+                    aria-label="Action metadata"
                   />
                 )}
                 <button type="button" onClick={() => removeAction(i)} className="p-1 text-slate-400 hover:text-red-600">
@@ -1172,7 +1273,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-800"
             >
               Done
             </button>
@@ -1181,7 +1282,7 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
               type="button"
               onClick={() => setStepIndex((i) => Math.min(EDIT_STEPS.length - 1, i + 1))}
               disabled={!canNext}
-              className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none"
             >
               Next
             </button>
@@ -1189,18 +1290,6 @@ export function PolicyRuleEditor({ policy, onUpdate, onClose, parameterOptions, 
         </div>
       </div>
 
-      {showSavedIndicator && (
-        <div
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-900/20"
-          role="status"
-          aria-live="polite"
-        >
-          <svg className="h-4 w-4 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Saved
-        </div>
-      )}
     </div>
   );
 }

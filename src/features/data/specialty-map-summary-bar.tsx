@@ -134,7 +134,7 @@ export function SpecialtyMapSummaryBar({
           <SummaryMetricTile>
             <SummaryCard
               icon={Icons.chartBars}
-              iconBgClassName="bg-indigo-100 text-indigo-700"
+              iconBgClassName="bg-indigo-100 text-indigo-800"
               label="Match rate"
               hint="Share of the visible roster on this survey that resolves to a market row (direct match or override)."
               value={

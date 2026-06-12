@@ -4,7 +4,7 @@
  */
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsx-loader';
 import type { RawRow } from '../types';
 import type {
   CustomStreamColumnMapping,
@@ -117,11 +117,12 @@ export function parseCustomStreamCsv(
   return { ...result, errors: [...parseErrors, ...result.errors] };
 }
 
-export function parseCustomStreamXlsx(
+export async function parseCustomStreamXlsx(
   buffer: ArrayBuffer,
   mapping: CustomStreamColumnMapping,
   linkKeyLogicalName: string
-): CustomStreamUploadResult {
+): Promise<CustomStreamUploadResult> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return { rows: [], errors: ['No sheet in workbook'], mapping, columnOrder: [] };

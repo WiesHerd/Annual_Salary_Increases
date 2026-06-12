@@ -34,20 +34,53 @@ function isPolicyActive(p: AnnualIncreasePolicy): boolean {
   return p.status === 'active';
 }
 
+interface PolicyApplyState {
+  increasePercent: number;
+  fixedIncreaseDollars: number | undefined;
+  lumpSumDollars: number;
+  capDollars: number | undefined;
+  floorDollars: number | undefined;
+  manualReview: boolean;
+  explanation: string[];
+  reasonCodes: string[];
+  policyLabels: string[];
+}
+
+function newPolicyApplyState(
+  increasePercent: number,
+  manualReview: boolean,
+  explanation: string[]
+): PolicyApplyState {
+  return {
+    increasePercent,
+    fixedIncreaseDollars: undefined,
+    lumpSumDollars: 0,
+    capDollars: undefined,
+    floorDollars: undefined,
+    manualReview,
+    explanation,
+    reasonCodes: [],
+    policyLabels: [],
+  };
+}
+
 function applyPolicyActions(
   actions: AnnualIncreasePolicy['actions'],
-  state: { increasePercent: number; manualReview: boolean; explanation: string[] },
+  state: PolicyApplyState,
   policyName: string
 ): void {
   for (const a of actions) {
     switch (a.type) {
       case 'ZERO_OUT_INCREASE':
         state.increasePercent = 0;
+        state.fixedIncreaseDollars = 0;
+        state.lumpSumDollars = 0;
         state.explanation.push(`${policyName}: increase set to 0%`);
         break;
       case 'SET_BASE_INCREASE_PERCENT':
         if (a.value != null) {
           state.increasePercent = a.value;
+          state.fixedIncreaseDollars = undefined;
           state.explanation.push(`${policyName}: base set to ${a.value}%`);
         }
         break;
@@ -57,10 +90,29 @@ function applyPolicyActions(
           state.explanation.push(`${policyName}: added ${a.value}%`);
         }
         break;
+      case 'ADD_INCREASE_DOLLARS':
+        if (a.value != null) {
+          state.lumpSumDollars += a.value;
+          state.explanation.push(`${policyName}: added $${a.value.toLocaleString()} lump-sum`);
+        }
+        break;
+      case 'SET_INCREASE_DOLLARS':
+        if (a.value != null) {
+          state.fixedIncreaseDollars = a.value;
+          state.explanation.push(`${policyName}: set increase to $${a.value.toLocaleString()}`);
+        }
+        break;
       case 'CAP_INCREASE_PERCENT':
         if (a.value != null && state.increasePercent > a.value) {
           state.increasePercent = a.value;
           state.explanation.push(`${policyName}: capped at ${a.value}%`);
+        }
+        break;
+      case 'CAP_INCREASE_DOLLARS':
+        if (a.value != null) {
+          state.capDollars =
+            state.capDollars == null ? a.value : Math.min(state.capDollars, a.value);
+          state.explanation.push(`${policyName}: cap at $${a.value.toLocaleString()}`);
         }
         break;
       case 'FLOOR_INCREASE_PERCENT':
@@ -69,10 +121,24 @@ function applyPolicyActions(
           state.explanation.push(`${policyName}: floored at ${a.value}%`);
         }
         break;
+      case 'FLOOR_INCREASE_DOLLARS':
+        if (a.value != null) {
+          state.floorDollars =
+            state.floorDollars == null ? a.value : Math.max(state.floorDollars, a.value);
+          state.explanation.push(`${policyName}: floor at $${a.value.toLocaleString()}`);
+        }
+        break;
       case 'FORCE_INCREASE_PERCENT':
         if (a.value != null) {
           state.increasePercent = a.value;
+          state.fixedIncreaseDollars = undefined;
           state.explanation.push(`${policyName}: forced to ${a.value}%`);
+        }
+        break;
+      case 'FORCE_INCREASE_DOLLARS':
+        if (a.value != null) {
+          state.fixedIncreaseDollars = a.value;
+          state.explanation.push(`${policyName}: forced to $${a.value.toLocaleString()}`);
         }
         break;
       case 'FLAG_MANUAL_REVIEW':
@@ -83,15 +149,63 @@ function applyPolicyActions(
         state.manualReview = true;
         state.explanation.push(`${policyName}: excluded from standard process`);
         break;
-      case 'ANNOTATE_RESULT':
       case 'ADD_REASON_CODE':
+        if (a.metadata?.trim()) {
+          state.reasonCodes.push(a.metadata.trim());
+          state.explanation.push(`${policyName}: reason ${a.metadata.trim()}`);
+        }
+        break;
       case 'ADD_POLICY_LABEL':
-        if (a.metadata) state.explanation.push(`${policyName}: ${a.metadata}`);
+        if (a.metadata?.trim()) {
+          state.policyLabels.push(a.metadata.trim());
+          state.explanation.push(`${policyName}: label ${a.metadata.trim()}`);
+        }
+        break;
+      case 'ANNOTATE_RESULT':
+        if (a.metadata?.trim()) {
+          state.explanation.push(`${policyName}: ${a.metadata.trim()}`);
+        }
         break;
       default:
         break;
     }
   }
+}
+
+function finalizePolicyDollars(
+  state: PolicyApplyState,
+  currentBaseSalary: number
+): {
+  recommendedIncreaseDollars: number;
+  finalRecommendedIncreasePercent: number;
+  lumpSumDollars?: number;
+  fixedIncreaseDollars?: number;
+} {
+  let totalDollars: number;
+  if (state.fixedIncreaseDollars != null) {
+    totalDollars = state.fixedIncreaseDollars;
+  } else {
+    totalDollars = (currentBaseSalary * state.increasePercent) / 100;
+  }
+  if (state.lumpSumDollars !== 0) {
+    totalDollars += state.lumpSumDollars;
+  }
+  if (state.capDollars != null && totalDollars > state.capDollars) {
+    totalDollars = state.capDollars;
+  }
+  if (state.floorDollars != null && totalDollars < state.floorDollars) {
+    totalDollars = state.floorDollars;
+  }
+
+  const finalRecommendedIncreasePercent =
+    currentBaseSalary > 0 ? (totalDollars / currentBaseSalary) * 100 : state.increasePercent;
+
+  return {
+    recommendedIncreaseDollars: totalDollars,
+    finalRecommendedIncreasePercent,
+    lumpSumDollars: state.lumpSumDollars !== 0 ? state.lumpSumDollars : undefined,
+    fixedIncreaseDollars: state.fixedIncreaseDollars,
+  };
 }
 
 /**
@@ -113,9 +227,10 @@ export function evaluatePolicyForProvider(
   let tierAssigned: string | undefined;
   let finalPolicySource: string | undefined;
   let finalModelType: string | undefined;
-  let manualReview = false;
   let blocked = false;
   let stopProcessing = false;
+
+  const applyState = newPolicyApplyState(0, false, explanation);
 
   const activePolicies = context.policies.filter((p) => isPolicyActive(p));
   const sortedPolicies = sortPoliciesByStageAndPriority(activePolicies);
@@ -130,10 +245,9 @@ export function evaluatePolicyForProvider(
     matched.push({ id: policy.id, name: policy.name, stage: policy.stage, matched: true });
     applied.push({ id: policy.id, name: policy.name, stage: policy.stage, matched: true, applied: true });
 
-    const state: { increasePercent: number; manualReview: boolean; explanation: string[] } = { increasePercent: baseIncreasePercent ?? 0, manualReview, explanation };
-    applyPolicyActions(policy.actions, state, policy.name);
-    baseIncreasePercent = state.increasePercent;
-    manualReview = state.manualReview;
+    applyState.increasePercent = baseIncreasePercent ?? applyState.increasePercent;
+    applyPolicyActions(policy.actions, applyState, policy.name);
+    baseIncreasePercent = applyState.increasePercent;
     if (policy.conflictStrategy === 'BLOCK_AUTOMATION') blocked = true;
     if (policy.stopProcessing) stopProcessing = true;
     finalPolicySource = policy.name;
@@ -198,14 +312,9 @@ export function evaluatePolicyForProvider(
 
       if (policy.stage === 'MODIFIER') {
         applied.push({ id: policy.id, name: policy.name, stage: policy.stage, matched: true, applied: true });
-        const state: { increasePercent: number; manualReview: boolean; explanation: string[] } = {
-          increasePercent: baseIncreasePercent ?? 0,
-          manualReview,
-          explanation,
-        };
-        applyPolicyActions(policy.actions, state, policy.name);
-        baseIncreasePercent = state.increasePercent;
-        manualReview = state.manualReview;
+        applyState.increasePercent = baseIncreasePercent ?? applyState.increasePercent;
+        applyPolicyActions(policy.actions, applyState, policy.name);
+        baseIncreasePercent = applyState.increasePercent;
       }
 
       if (policy.stage === 'GENERAL_MATRIX' && baseIncreasePercent == null && !policy.isFallback) {
@@ -231,13 +340,14 @@ export function evaluatePolicyForProvider(
 
     matched.push({ id: policy.id, name: policy.name, stage: policy.stage, matched: true });
     applied.push({ id: policy.id, name: policy.name, stage: policy.stage, matched: true, applied: true });
-    const state: { increasePercent: number; manualReview: boolean; explanation: string[] } = { increasePercent: baseIncreasePercent ?? 0, manualReview, explanation };
-    applyPolicyActions(policy.actions, state, policy.name);
-    baseIncreasePercent = state.increasePercent;
-    manualReview = state.manualReview;
+    applyState.increasePercent = baseIncreasePercent ?? applyState.increasePercent;
+    applyPolicyActions(policy.actions, applyState, policy.name);
+    baseIncreasePercent = applyState.increasePercent;
   }
 
-  const finalRecommendedIncreasePercent = baseIncreasePercent ?? 0;
+  applyState.increasePercent = baseIncreasePercent ?? applyState.increasePercent;
+  const currentBase = facts.currentBaseSalary ?? record.Current_Base_Salary ?? 0;
+  const finalized = finalizePolicyDollars(applyState, currentBase);
 
   return {
     providerId: record.Employee_ID,
@@ -247,10 +357,15 @@ export function evaluatePolicyForProvider(
     overriddenPolicies: overridden,
     finalPolicySource,
     finalModelType,
-    finalRecommendedIncreasePercent,
+    finalRecommendedIncreasePercent: finalized.finalRecommendedIncreasePercent,
+    recommendedIncreaseDollars: finalized.recommendedIncreaseDollars,
+    lumpSumDollars: finalized.lumpSumDollars,
+    fixedIncreaseDollars: finalized.fixedIncreaseDollars,
+    reasonCodes: applyState.reasonCodes.length > 0 ? [...applyState.reasonCodes] : undefined,
+    policyLabels: applyState.policyLabels.length > 0 ? [...applyState.policyLabels] : undefined,
     proposedBaseSalary,
     tierAssigned,
-    manualReview,
+    manualReview: applyState.manualReview,
     blocked,
     explanation,
   };

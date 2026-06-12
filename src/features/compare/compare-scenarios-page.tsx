@@ -63,7 +63,7 @@ export function CompareScenariosPage() {
   const { records, marketSurveys, loaded } = useAppState();
   const { meritMatrix, cycles, budgetSettings, experienceBands } = useParametersState();
   const { policies, customModels, tierTables } = usePolicyEngineState();
-  const [selectedCycleId] = useSelectedCycle(cycles);
+  const [selectedCycleId] = useSelectedCycle();
   const [scenarioA, setScenarioA] = useState<ScenarioAValue>('current');
   const [scenarioB, setScenarioB] = useState<ScenarioBValue>('merit-matrix-only');
   const [resultA, setResultA] = useState<ScenarioRunResult | null>(null);
@@ -228,9 +228,9 @@ export function CompareScenariosPage() {
     }
   }, [targetRecords, configA, configB, marketResolver, scenarioALabel, scenarioBLabel]);
 
-  const handleExportXlsx = useCallback(() => {
+  const handleExportXlsx = useCallback(async () => {
     if (!resultA || !resultB) return;
-    const buffer = exportCompareScenariosToXlsx(targetRecords, resultA, resultB);
+    const buffer = await exportCompareScenariosToXlsx(targetRecords, resultA, resultB);
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -283,7 +283,7 @@ export function CompareScenariosPage() {
 
   return (
     <div className="flex flex-col min-w-0">
-      <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07)]">
+      <div className="min-w-0 flex flex-col border border-indigo-100 rounded-2xl bg-white shadow-[0_4px_6px_-1px_rgba(79,70,229,0.08)]">
         {/* Header row - same structure as Salary Review */}
         <div className="shrink-0 px-5 pt-4 pb-2 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
           <div className="flex flex-col gap-0.5">
@@ -324,7 +324,7 @@ export function CompareScenariosPage() {
               type="button"
               onClick={handleRunComparison}
               disabled={targetRecords.length === 0 || isRunning}
-              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isRunning ? 'Running...' : 'Run comparison'}
             </button>

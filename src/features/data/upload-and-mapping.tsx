@@ -5,19 +5,22 @@ import {
   buildDefaultProviderMapping,
   getCsvHeaders,
   getXlsxHeaders,
-  DEFAULT_CYCLE_ID,
 } from '../../lib/parse-file';
 import { persistLearnedProviderMapping } from '../../lib/column-mapping-storage';
 import type { ProviderColumnMapping, ProviderUploadResult } from '../../types';
 import type { ProviderRecord } from '../../types/provider';
+import { Button } from '../../components/ui/button';
 import { FileDropzone } from '../../components/file-dropzone';
 import { SearchableSelect } from '../../components/searchable-select';
-import { ImportStepper } from '../../components/import-stepper';
+import { ImportWizardShell } from '../../components/import-wizard-shell';
 import { UploadPreviewTable } from '../../components/upload-preview-table';
-import { downloadErrorReport } from '../../lib/error-report-csv';
+import { ImportModeCards, type UploadMode } from '../../components/import-mode-cards';
+import { UploadValidationSummary } from '../../components/upload-validation-summary';
+import { UploadResultStep } from '../../components/upload-result-step';
+import { CycleSelect } from '../../components/cycle-select';
 import { MAX_UPLOAD_FILE_BYTES, UPLOAD_FORMAT_HINT } from '../../lib/upload-constants';
+import { mappingGridClass, type ImportWizardLayout } from '../../lib/import-wizard-layout';
 
-type UploadMode = 'replace' | 'add';
 type Step = 1 | 2 | 3 | 4;
 
 interface UploadAndMappingProps {
@@ -25,9 +28,17 @@ interface UploadAndMappingProps {
   cycleId: string;
   setCycleId: (v: string) => void;
   onDone?: () => void;
+  layout?: ImportWizardLayout;
 }
 
-export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: UploadAndMappingProps) {
+const STEP_DESCRIPTIONS: Record<Step, string | undefined> = {
+  1: undefined,
+  2: 'Match your file columns to provider fields.',
+  3: 'Confirm rows before importing.',
+  4: undefined,
+};
+
+export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone, layout = 'page' }: UploadAndMappingProps) {
   const [step, setStep] = useState<Step>(1);
   const [file, setFile] = useState<File | null>(null);
   const [mapping, setMapping] = useState<ProviderColumnMapping>({});
@@ -56,14 +67,14 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
     setLoading(true);
     const isCsv = f.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const buf = reader.result;
       if (typeof buf === 'string') {
         const h = getCsvHeaders(buf);
         setHeaders(h);
         setMapping(buildDefaultProviderMapping(h));
       } else if (buf instanceof ArrayBuffer) {
-        const h = getXlsxHeaders(buf);
+        const h = await getXlsxHeaders(buf);
         setHeaders(h);
         setMapping(buildDefaultProviderMapping(h));
       }
@@ -87,12 +98,12 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
     setLoading(true);
     const isCsv = file.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const buf = reader.result;
       try {
         let result: ProviderUploadResult;
         if (typeof buf === 'string') result = parseCsv(buf, mapping);
-        else if (buf instanceof ArrayBuffer) result = parseXlsx(buf, mapping);
+        else if (buf instanceof ArrayBuffer) result = await parseXlsx(buf, mapping);
         else {
           setLoading(false);
           return;
@@ -169,149 +180,95 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
     ? (Object.keys(previewResult.rows[0]) as (keyof ProviderRecord)[])
     : [];
 
+  const footerLeft =
+    step === 2 ? (
+      <Button type="button" variant="outline" onClick={() => setStep(1)}>
+        Back
+      </Button>
+    ) : step === 3 ? (
+      <Button type="button" variant="outline" onClick={() => setStep(2)}>
+        Back
+      </Button>
+    ) : undefined;
+
+  const footerRight =
+    step === 1 ? (
+      <Button type="button" onClick={goToStep2} disabled={!file || loading || !!fileError}>
+        Next
+      </Button>
+    ) : step === 2 ? (
+      <Button type="button" onClick={runValidation} disabled={loading}>
+        {loading ? 'Validating…' : 'Next'}
+      </Button>
+    ) : step === 3 ? (
+      <Button
+        type="button"
+        onClick={doImport}
+        disabled={
+          !previewResult ||
+          previewResult.rows.length === 0 ||
+          (previewResult.errors.length > 0 && !ackErrors)
+        }
+      >
+        Import
+      </Button>
+    ) : (
+      <Button type="button" onClick={onDone}>
+        Done
+      </Button>
+    );
+
   return (
-    <div className="bg-white rounded-2xl border border-indigo-100 p-6 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.07),0_2px_4px_-2px_rgba(79,70,229,0.07)]">
-      <ImportStepper step={step} className="mb-6" />
-      <h2 className="text-lg font-semibold text-slate-800 mb-4">
-        {step === 1 && 'Select file'}
-        {step === 2 && 'Map columns'}
-        {step === 3 && 'Preview & validate'}
-        {step === 4 && 'Result'}
-      </h2>
-
-      {/* Step 1: Select file */}
+    <ImportWizardShell
+      step={step}
+      layout={layout}
+      description={STEP_DESCRIPTIONS[step]}
+      headerTrailing={
+        step === 1 ? <CycleSelect layout="inline" value={cycleId} onChange={setCycleId} /> : undefined
+      }
+      footerLeft={footerLeft}
+      footerRight={footerRight}
+    >
       {step === 1 && (
-        <>
-          <div className="flex flex-wrap gap-4 items-end mb-4">
-            <div className="min-w-[200px] flex-1">
-              <FileDropzone
-                onFileSelect={handleFileSelect}
-                selectedFile={file}
-                label="Provider data file"
-                hint={UPLOAD_FORMAT_HINT}
-              />
-              {fileError && <p className="text-sm text-amber-700 mt-1">{fileError}</p>}
-              {loading && <p className="text-sm text-slate-500 mt-1">Reading file…</p>}
-            </div>
-            <div>
-              <label htmlFor="upload-provider-cycle-id" className="block text-sm font-medium text-slate-700 mb-1">
-                Cycle
-              </label>
-              <input
-                id="upload-provider-cycle-id"
-                type="text"
-                value={cycleId}
-                onChange={(e) => setCycleId(e.target.value)}
-                placeholder={DEFAULT_CYCLE_ID}
-                className="border border-slate-300 rounded-xl px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4 mb-6">
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input
-                type="radio"
-                name="provider-mode"
-                checked={mode === 'replace'}
-                onChange={() => setMode('replace')}
-                className="text-indigo-600 focus:ring-indigo-500"
-              />
-              Replace all
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="radio" name="provider-mode" checked={mode === 'add'} onChange={() => setMode('add')} className="text-indigo-600 focus:ring-indigo-500" />
-              Add to existing
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={goToStep2}
-              disabled={!file || loading || !!fileError}
-              className="app-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </>
+        <div className="space-y-3.5">
+          <FileDropzone
+            onFileSelect={handleFileSelect}
+            selectedFile={file}
+            label="Provider data file"
+            hint={UPLOAD_FORMAT_HINT}
+          />
+          {fileError && <p className="text-sm text-amber-700">{fileError}</p>}
+          {loading && <p className="text-sm text-slate-500">Reading file…</p>}
+          <ImportModeCards name="provider-mode" value={mode} onChange={setMode} />
+        </div>
       )}
 
-      {/* Step 2: Map columns */}
       {step === 2 && (
-        <>
-          <p className="text-sm text-slate-600 mb-2">Map your file columns to provider fields. Your choices are saved for future uploads.</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
-            {mappingKeys.map((key) => (
-              <div key={key}>
-                <SearchableSelect
-                  label={key === 'Population' ? 'Provider Type' : key}
-                  value={mapping[key] ?? ''}
-                  options={headers}
-                  onChange={(v) => setMapping((m) => ({ ...m, [key]: v || undefined }))}
-                  emptyOptionLabel="—"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between">
-            <button type="button" onClick={() => setStep(1)} className="app-btn-secondary">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={runValidation}
-              disabled={loading}
-              className="app-btn-primary disabled:opacity-50"
-            >
-              {loading ? 'Validating…' : 'Next'}
-            </button>
-          </div>
-        </>
+        <div className={mappingGridClass(layout)}>
+          {mappingKeys.map((key) => (
+            <div key={key}>
+              <SearchableSelect
+                label={key === 'Population' ? 'Provider Type' : key}
+                value={mapping[key] ?? ''}
+                options={headers}
+                onChange={(v) => setMapping((m) => ({ ...m, [key]: v || undefined }))}
+                emptyOptionLabel="—"
+              />
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Step 3: Preview & validate */}
       {step === 3 && previewResult && (
-        <>
-          <div className="mb-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <p className="text-sm font-medium text-slate-800">
-              {previewResult.rows.length} valid row{previewResult.rows.length !== 1 ? 's' : ''}
-              {previewResult.errors.length > 0 && (
-                <span className="text-amber-700 ml-2">
-                  · {previewResult.errors.length} error{previewResult.errors.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </p>
-          </div>
-          {previewResult.errors.length > 0 && (
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={() => downloadErrorReport(previewResult.errors, 'provider-upload-errors')}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
-              >
-                Download error report
-              </button>
-            </div>
-          )}
-          {previewResult.errors.length > 0 && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <label className="flex items-start gap-2 text-sm text-amber-900">
-                <input
-                  type="checkbox"
-                  checked={ackErrors}
-                  onChange={(e) => setAckErrors(e.target.checked)}
-                  className="mt-1 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>
-                  I understand there are validation errors. I reviewed the error report and still want to import the rows that parsed successfully.
-                </span>
-              </label>
-              <p className="mt-2 text-xs text-amber-800">
-                Note: the preview shows parsed rows; error row numbers refer to the original file.
-              </p>
-            </div>
-          )}
-          <div className="mb-4">
+        <div className="space-y-4">
+          <UploadValidationSummary
+            validCount={previewResult.rows.length}
+            errors={previewResult.errors}
+            errorReportName="provider-upload-errors"
+            ackErrors={ackErrors}
+            onAckChange={setAckErrors}
+          />
+          <div>
             <p className="text-sm font-medium text-slate-700 mb-2">Preview (first 10 rows)</p>
             <UploadPreviewTable<ProviderRecord>
               rows={previewResult.rows}
@@ -321,40 +278,12 @@ export function UploadAndMapping({ onUpload, cycleId, setCycleId, onDone }: Uplo
             />
           </div>
           {previewResult.rows.length === 0 && (
-            <p className="text-sm text-amber-700 mb-4">No valid rows. Fix errors and try again, or go back to adjust mapping.</p>
+            <p className="text-sm text-amber-700">No valid rows. Fix errors and try again, or go back to adjust mapping.</p>
           )}
-          <div className="flex justify-between">
-            <button type="button" onClick={() => setStep(2)} className="app-btn-secondary">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={doImport}
-              disabled={previewResult.rows.length === 0 || (previewResult.errors.length > 0 && !ackErrors)}
-              className="app-btn-primary disabled:opacity-50"
-            >
-              Import
-            </button>
-          </div>
-        </>
+        </div>
       )}
 
-      {/* Step 4: Result */}
-      {step === 4 && (
-        <>
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
-            <p className="text-sm font-semibold text-emerald-800">
-              Imported {successCount ?? 0} row{(successCount ?? 0) !== 1 ? 's' : ''}.
-            </p>
-            <p className="text-sm text-emerald-700 mt-1">You can view and edit data in the Data browser.</p>
-          </div>
-          <div className="flex justify-end">
-            <button type="button" onClick={onDone} className="app-btn-primary">
-              Done
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+      {step === 4 && <UploadResultStep count={successCount ?? 0} />}
+    </ImportWizardShell>
   );
 }

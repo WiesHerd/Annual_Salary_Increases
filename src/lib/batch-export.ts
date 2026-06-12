@@ -6,7 +6,7 @@
  */
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsx-loader';
 import type { ProviderRecord } from '../types/provider';
 import type { PolicyEvaluationResult } from '../types/compensation-policy';
 import type { CustomDataset, RawRow } from '../types/upload';
@@ -99,12 +99,13 @@ export function exportToCsv(
   return Papa.unparse(rows);
 }
 
-export function exportToXlsx(
+export async function exportToXlsx(
   records: ProviderRecord[],
   evaluationResults?: Map<string, PolicyEvaluationResult>,
   customDatasets?: CustomDataset[],
   customStreamLookups?: CustomStreamExportLookup[]
-): ArrayBuffer {
+): Promise<ArrayBuffer> {
+  const XLSX = await loadXlsx();
   const rows = records.map((r) =>
     recordToRow(r, evaluationResults?.get(r.Employee_ID), customDatasets, customStreamLookups)
   );

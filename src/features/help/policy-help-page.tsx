@@ -11,11 +11,7 @@ import type { PolicyStage } from '../../types/compensation-policy';
 import { CONDITION_FACT_OPTIONS } from '../../lib/policy-engine/condition-builder';
 import { PolicyConfigFlow } from './policy-config-flow';
 import { PolicyEvaluationPipeline, POLICY_STAGE_DESCRIPTIONS } from './policy-evaluation-pipeline';
-
-export interface PolicyHelpPageProps {
-  /** Called when user clicks a link to go to Controls (Parameters). */
-  onNavigateToParameters?: () => void;
-}
+import { useAppNavigation } from '../../context/app-navigation-context';
 
 const STAGE_ORDER: PolicyStage[] = [...POLICY_STAGE_ORDER];
 
@@ -101,7 +97,8 @@ function SubSection({ title, children }: { title: string; children: ReactNode })
   );
 }
 
-export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) {
+export function PolicyHelpPage() {
+  const { openControls } = useAppNavigation();
   const sectionIds = useMemo(() => [...CHAPTER_IDS], []);
   const activeChapterId = useTocScrollSpy(sectionIds, {});
   const mobileTocRef = useRef<HTMLDetailsElement>(null);
@@ -282,7 +279,7 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
       <Section id="help-best-practices" title="Best practices">
         <ul className="list-disc list-inside space-y-1.5">
           <li>Use <strong>one</strong> General Merit Matrix policy as fallback so everyone has a default result.</li>
-          <li>Put guardrails and exclusions first (they run in the Exclusions / Guardrails stage).</li>
+          <li>Put exclusions first (they run in the Exclusions stage before merit matrix and caps).</li>
           <li>Use <strong>Policy sandbox</strong> to run two policy configs (e.g. current vs merit-only) and see
             impact side-by-side; use <strong>Merit review</strong> and the provider detail panel to see why a given
             provider got a specific recommendation.
@@ -305,17 +302,15 @@ export function PolicyHelpPage({ onNavigateToParameters }: PolicyHelpPageProps) 
           Use <strong>Policy sandbox</strong> to test configs side-by-side; use <strong>Merit review</strong> to run
           the full cycle and open a provider to see the policy explanation.
         </p>
-        {onNavigateToParameters && (
-          <p className="mt-4">
-            <button
-              type="button"
-              onClick={onNavigateToParameters}
-              className="rounded-md font-semibold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:bg-indigo-50 hover:text-indigo-900 px-1 -mx-1 py-0.5 transition-colors"
-            >
-              Go to Controls →
-            </button>
-          </p>
-        )}
+        <p className="mt-4">
+          <button
+            type="button"
+            onClick={() => openControls('policy-engine-rules')}
+            className="rounded-md font-semibold text-indigo-800 underline decoration-indigo-300 underline-offset-2 hover:bg-indigo-50 hover:text-indigo-900 px-1 -mx-1 py-0.5 transition-colors"
+          >
+            Go to Controls →
+          </button>
+        </p>
       </Section>
       </div>
 

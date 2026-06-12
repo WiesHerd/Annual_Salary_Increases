@@ -4,6 +4,7 @@ import { ReviewStatus } from '../types/enums';
 import {
   applyFilters,
   DEFAULT_SALARY_REVIEW_FILTERS,
+  getEffectiveApprovedIncreasePercent,
   getPresetFilters,
   getActivePresetId,
   deriveFilterOptions,
@@ -102,6 +103,28 @@ describe('applyFilters', () => {
     expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, approvedIncreasePercentMin: 4 })).toHaveLength(2);
     expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, approvedIncreasePercentMax: 6 })).toHaveLength(2);
     expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, approvedIncreasePercentMin: 3, approvedIncreasePercentMax: 7 })).toHaveLength(1);
+  });
+
+  it('filters by derived increase percent when approved field is unset', () => {
+    const records = [
+      makeRecord({
+        Employee_ID: 'e1',
+        Approved_Increase_Percent: undefined,
+        Current_Base_Salary: 200_000,
+        Proposed_Base_Salary: 210_000,
+      }),
+      makeRecord({
+        Employee_ID: 'e2',
+        Approved_Increase_Percent: undefined,
+        Current_Base_Salary: 200_000,
+        Proposed_Base_Salary: 204_000,
+      }),
+    ];
+    expect(getEffectiveApprovedIncreasePercent(records[0])).toBe(5);
+    expect(applyFilters(records, { ...DEFAULT_SALARY_REVIEW_FILTERS, approvedIncreasePercentMin: 5 })).toHaveLength(1);
+    const highIncreaseFilters = { ...DEFAULT_SALARY_REVIEW_FILTERS, ...getPresetFilters('high-increase') };
+    expect(getActivePresetId(highIncreaseFilters)).toBe('high-increase');
+    expect(applyFilters(records, highIncreaseFilters)).toHaveLength(1);
   });
 
   it('filters by TCC percentile min/max', () => {

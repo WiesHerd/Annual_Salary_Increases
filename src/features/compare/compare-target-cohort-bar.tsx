@@ -69,7 +69,7 @@ export function CompareTargetCohortBar({
             <span className="text-slate-500">All providers ({totalCount})</span>
           )}
           {activeCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[1.125rem] h-4.5 px-1 rounded bg-indigo-100 text-indigo-700 text-[11px] font-medium">
+            <span className="inline-flex items-center justify-center min-w-[1.125rem] h-4.5 px-1 rounded bg-indigo-100 text-indigo-800 text-[11px] font-medium">
               {activeCount}
             </span>
           )}
@@ -78,7 +78,7 @@ export function CompareTargetCohortBar({
           <button
             type="button"
             onClick={clearAll}
-            className="text-[13px] font-medium text-indigo-600 hover:text-indigo-700"
+            className="text-[13px] font-medium text-indigo-600 hover:text-indigo-800"
           >
             Clear target filters
           </button>

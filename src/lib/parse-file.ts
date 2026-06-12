@@ -4,7 +4,7 @@
  */
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsx-loader';
 import type {
   RawRow,
   ProviderColumnMapping,
@@ -81,7 +81,8 @@ export function parseCsv(csv: string, mapping: ProviderColumnMapping): ProviderU
 }
 
 /** Parse XLSX file (first sheet) with provider mapping. */
-export function parseXlsx(buffer: ArrayBuffer, mapping: ProviderColumnMapping): ProviderUploadResult {
+export async function parseXlsx(buffer: ArrayBuffer, mapping: ProviderColumnMapping): Promise<ProviderUploadResult> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return { rows: [], errors: ['No sheet in workbook'], mapping };
@@ -104,7 +105,8 @@ export function getCsvHeaders(csv: string): string[] {
 }
 
 /** Get headers from XLSX buffer (first sheet). */
-export function getXlsxHeaders(buffer: ArrayBuffer): string[] {
+export async function getXlsxHeaders(buffer: ArrayBuffer): Promise<string[]> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return [];
@@ -289,7 +291,8 @@ export function parseMarketCsv(csv: string, mapping: MarketColumnMapping): Marke
   return { rows, errors, mapping };
 }
 
-export function parseMarketXlsx(buffer: ArrayBuffer, mapping: MarketColumnMapping): MarketUploadResult {
+export async function parseMarketXlsx(buffer: ArrayBuffer, mapping: MarketColumnMapping): Promise<MarketUploadResult> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return { rows: [], errors: ['No sheet in workbook'], mapping };
@@ -357,7 +360,8 @@ export function parseEvaluationCsv(csv: string, mapping: EvaluationColumnMapping
   return { rows, errors, mapping };
 }
 
-export function parseEvaluationXlsx(buffer: ArrayBuffer, mapping: EvaluationColumnMapping): EvaluationUploadResult {
+export async function parseEvaluationXlsx(buffer: ArrayBuffer, mapping: EvaluationColumnMapping): Promise<EvaluationUploadResult> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return { rows: [], errors: ['No sheet in workbook'], mapping };
@@ -385,7 +389,8 @@ export function parseCustomCsv(csv: string): CustomUploadResult {
 }
 
 /** Parse XLSX (first sheet) for custom upload: returns raw rows and column names. No schema applied. */
-export function parseCustomXlsx(buffer: ArrayBuffer): CustomUploadResult {
+export async function parseCustomXlsx(buffer: ArrayBuffer): Promise<CustomUploadResult> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array' });
   const first = wb.SheetNames[0];
   if (!first) return { rows: [], errors: ['No sheet in workbook'], columns: [], joinKeyColumn: null };

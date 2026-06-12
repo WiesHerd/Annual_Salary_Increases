@@ -23,9 +23,17 @@ import { MultiSelectDropdown } from '../../components/multi-select-dropdown';
 import { RangeInputs } from '../../components/range-inputs';
 import { evaluatePolicyForProvider } from '../../lib/policy-engine/evaluator';
 import type { PolicyEvaluationContext } from '../../lib/policy-engine/evaluator';
+import {
+  POLICY_ACTION_OPTIONS,
+  policyActionUsesMetadata,
+  policyActionUsesValue,
+} from '../../lib/policy-action-ui';
 import { validatePolicy, testConditionAgainstFacts } from '../../lib/policy-engine/validation';
 import type { MarketResolver } from '../../types/market-survey-config';
 import type { MeritMatrixRow } from '../../types/merit-matrix-row';
+import { HorizontalStepper, type HorizontalStepperStep } from '../../components/horizontal-stepper';
+import { StepContextHelp } from '../../components/step-context-help';
+import { POLICY_CREATE_STEP_CAPTIONS, POLICY_CREATE_STEP_HELP } from '../../lib/policy-wizard-step-help';
 
 const POLICY_TYPE_CARDS: {
   id: string;
@@ -47,10 +55,10 @@ const POLICY_TYPE_CARDS: {
   },
   {
     id: 'guardrail',
-    label: 'Guardrail Rule',
-    description: 'A rule that stops or overrides increases if certain thresholds are met.',
+    label: 'Exclusion rule',
+    description: 'Stops or overrides increases when thresholds are met (FMV, high TCC, low performer, etc.).',
     stage: 'EXCLUSION_GUARDRAIL',
-    policyType: 'Guardrail',
+    policyType: 'Exclusion',
     conflictStrategy: 'FORCE_RESULT',
     defaultActions: [{ type: 'ZERO_OUT_INCREASE' }],
   },
@@ -133,19 +141,9 @@ const PRIORITY_OPTIONS: { value: number; label: string; isFallback: boolean; sen
   { value: 100, label: 'Fallback', isFallback: true, sentence: 'Used only when no other policy has set a result.' },
 ];
 
-const ACTION_LABELS: Record<string, string> = {
-  SET_BASE_INCREASE_PERCENT: 'Set increase percentage',
-  ADD_INCREASE_PERCENT: 'Add increase percentage',
-  CAP_INCREASE_PERCENT: 'Cap increase percentage',
-  FLOOR_INCREASE_PERCENT: 'Floor increase percentage',
-  FORCE_INCREASE_PERCENT: 'Force increase to',
-  ZERO_OUT_INCREASE: 'Force increase to zero',
-  FLAG_MANUAL_REVIEW: 'Require manual review',
-  EXCLUDE_FROM_STANDARD_PROCESS: 'Exclude from standard process',
-  ASSIGN_TIER_TABLE: 'Assign tier table',
-  ASSIGN_CUSTOM_MODEL: 'Assign custom model',
-  ADD_POLICY_LABEL: 'Attach policy label',
-};
+const ACTION_LABELS: Record<string, string> = Object.fromEntries(
+  POLICY_ACTION_OPTIONS.map((o) => [o.value, o.label])
+);
 
 function newPolicyId(): string {
   return `pol-${Date.now()}`;
@@ -499,6 +497,23 @@ export function PolicyCreateWizard({
   const providerTypeOptions =
     (parameterOptions.providerTypes?.length ?? 0) > 0 ? parameterOptions.providerTypes : DEFAULT_PROVIDER_TYPES;
 
+  const wizardStepLabels = useMemo(() => {
+    const isTiered = selectedTypeId === 'yoe-tier-increase' || selectedTypeId === 'yoe-tier-base-salary';
+    return STEPS.map((s) => {
+      if (s === 'action' && isTiered) return 'Define tiers';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    });
+  }, [selectedTypeId]);
+
+  const wizardStepperSteps = useMemo((): HorizontalStepperStep[] => {
+    return STEPS.map((s, i) => ({
+      id: s,
+      label: wizardStepLabels[i] ?? s,
+      state: i === stepIndex ? 'active' : i < stepIndex ? 'complete' : 'upcoming',
+      onClick: () => setStepIndex(i),
+    }));
+  }, [stepIndex, wizardStepLabels]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-label="Create policy">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
@@ -508,21 +523,20 @@ export function PolicyCreateWizard({
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-        <div className="shrink-0 px-6 py-2 flex gap-2 overflow-x-auto border-b border-slate-100">
-          {STEPS.map((s, i) => {
-            const isTiered = selectedTypeId === 'yoe-tier-increase' || selectedTypeId === 'yoe-tier-base-salary';
-            const label = s === 'action' && isTiered ? 'Define tiers' : s.charAt(0).toUpperCase() + s.slice(1);
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStepIndex(i)}
-                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium ${i === stepIndex ? 'bg-indigo-600 text-white' : i < stepIndex ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'}`}
-              >
-                {i + 1}. {label}
-              </button>
-            );
-          })}
+        <div className="shrink-0 px-6 pt-4 pb-3 border-b border-slate-100 bg-slate-50/40">
+          {POLICY_CREATE_STEP_HELP[step] && (
+            <div className="mb-2 flex justify-end">
+              <StepContextHelp content={POLICY_CREATE_STEP_HELP[step]} popoverAlign="end" />
+            </div>
+          )}
+          <HorizontalStepper
+            steps={wizardStepperSteps}
+            activeStepId={STEPS[stepIndex]}
+            ariaLabel="Create policy steps"
+            showStepLabels
+            showActiveCaption={false}
+          />
+          <p className="mt-2 text-xs text-slate-500 leading-snug">{POLICY_CREATE_STEP_CAPTIONS[step]}</p>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {step === 'type' && (
@@ -847,7 +861,7 @@ export function PolicyCreateWizard({
                   <button
                     type="button"
                     onClick={addTierRow}
-                    className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+                    className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
                   >
                     + Add tier
                   </button>
@@ -930,7 +944,7 @@ export function PolicyCreateWizard({
                   <button
                     type="button"
                     onClick={addTierBaseRow}
-                    className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+                    className="mt-2 px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
                   >
                     + Add tier
                   </button>
@@ -953,13 +967,36 @@ export function PolicyCreateWizard({
                             <option key={val} value={val}>{label}</option>
                           ))}
                         </select>
-                        {['ADD_INCREASE_PERCENT', 'CAP_INCREASE_PERCENT', 'FLOOR_INCREASE_PERCENT', 'SET_BASE_INCREASE_PERCENT', 'FORCE_INCREASE_PERCENT'].includes(a.type) && (
+                        {policyActionUsesValue(a.type) === 'percent' && (
                           <input
                             type="number"
                             value={a.value ?? 0}
                             onChange={(e) => (actions.length ? updateAction(i, { value: Number(e.target.value) }) : setActions([{ ...a, value: Number(e.target.value) }]))}
                             className="w-20 text-sm border border-slate-300 rounded px-2 py-1.5 text-right bg-white"
                             step={0.1}
+                          />
+                        )}
+                        {policyActionUsesValue(a.type) === 'dollars' && (
+                          <input
+                            type="number"
+                            value={a.value ?? 0}
+                            onChange={(e) => (actions.length ? updateAction(i, { value: Number(e.target.value) }) : setActions([{ ...a, value: Number(e.target.value) }]))}
+                            className="w-28 text-sm border border-slate-300 rounded px-2 py-1.5 text-right bg-white"
+                            step={100}
+                            min={0}
+                          />
+                        )}
+                        {policyActionUsesMetadata(a.type) && (
+                          <input
+                            type="text"
+                            value={a.metadata ?? ''}
+                            onChange={(e) =>
+                              actions.length
+                                ? updateAction(i, { metadata: e.target.value })
+                                : setActions([{ ...a, metadata: e.target.value }])
+                            }
+                            placeholder="Note or code"
+                            className="flex-1 min-w-[8rem] text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
                           />
                         )}
                         {actions.length > 0 && <button type="button" onClick={() => removeAction(i)} className="p-1 text-slate-400 hover:text-red-600">×</button>}
@@ -1104,7 +1141,7 @@ export function PolicyCreateWizard({
               type="button"
               onClick={() => setStepIndex((i) => Math.min(STEPS.length - 1, i + 1))}
               disabled={!canNext}
-              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none"
             >
               Next
             </button>
@@ -1113,7 +1150,7 @@ export function PolicyCreateWizard({
               type="button"
               onClick={handleSave}
               disabled={!saveStepValid}
-              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none"
+              className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none"
             >
               Save policy
             </button>

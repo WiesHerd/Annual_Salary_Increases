@@ -49,7 +49,7 @@ export function PcpAppRulesTab({ pcpAppRules, setPcpAppRules, options }: PcpAppR
         <button
           type="button"
           onClick={addRow}
-          className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+          className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-800"
         >
           Add row
         </button>

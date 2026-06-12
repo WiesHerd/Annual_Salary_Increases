@@ -49,4 +49,28 @@ describe('tcc-components', () => {
     expect(sumExplicitTccComponents(p, settings)).toBe(100_000);
     expect(applyDerivedCurrentTcc(p, settings).Current_TCC).toBe(100_000);
   });
+
+  it('derives Current_TCC_Percentile from market knots present on the row', () => {
+    const p: ProviderRecord = {
+      Employee_ID: 'E1',
+      Current_Base_Salary: 450_000,
+      Current_FTE: 1,
+      Market_TCC_25: 380_000,
+      Market_TCC_50: 450_000,
+      Market_TCC_75: 520_000,
+      Market_TCC_90: 600_000,
+    };
+    const out = applyDerivedCurrentTcc(p);
+    expect(out.Current_TCC_at_1FTE).toBe(450_000);
+    expect(out.Current_TCC_Percentile).toBeCloseTo(50, 6);
+  });
+
+  it('leaves Current_TCC_Percentile untouched when no market knots are present', () => {
+    const p: ProviderRecord = {
+      Employee_ID: 'E1',
+      Current_Base_Salary: 300_000,
+      Current_TCC_Percentile: 42,
+    };
+    expect(applyDerivedCurrentTcc(p).Current_TCC_Percentile).toBe(42);
+  });
 });

@@ -20,12 +20,30 @@ export const POLICY_STAGE_ORDER: PolicyStage[] = [
 ];
 
 export const POLICY_STAGE_LABELS: Record<PolicyStage, string> = {
-  EXCLUSION_GUARDRAIL: 'Exclusions / Guardrails',
+  EXCLUSION_GUARDRAIL: 'Exclusions',
   CUSTOM_MODEL: 'Custom model',
   MODIFIER: 'Modifier',
   GENERAL_MATRIX: 'General merit matrix',
   CAP_FLOOR: 'Caps / Floors',
 };
+
+/** Plain-language description for admins (rule editor, help, tooltips). */
+export const POLICY_STAGE_DESCRIPTIONS: Record<PolicyStage, string> = {
+  EXCLUSION_GUARDRAIL:
+    'Hard stops first—exclude from standard processing, zero out increases, or flag manual review before other stages apply.',
+  CUSTOM_MODEL:
+    'Plan-specific models (e.g. YOE tier tables) that set or replace the base increase for providers who match.',
+  MODIFIER:
+    'Adjustments on top of the current result—typically additive (e.g. +% or lump-sum $) after a base is set.',
+  GENERAL_MATRIX:
+    'Default merit matrix from evaluation score and performance category—often the fallback when no custom model applies.',
+  CAP_FLOOR:
+    'Final limits on the increase—maximum caps and minimum floors so every result stays within policy bounds.',
+};
+
+/** One-line pipeline order for inline UI hints. */
+export const POLICY_STAGE_PIPELINE_HINT =
+  'Pipeline order: Exclusions → Custom model → Modifier → General merit matrix → Caps / Floors';
 
 /** How this policy interacts with the current result. */
 export type ConflictStrategy =
@@ -57,9 +75,14 @@ export type PolicyActionType =
   | 'ASSIGN_TIER_TABLE'
   | 'ASSIGN_TIER_BY_YOE'
   | 'ADD_INCREASE_PERCENT'
+  | 'ADD_INCREASE_DOLLARS'
+  | 'SET_INCREASE_DOLLARS'
   | 'CAP_INCREASE_PERCENT'
+  | 'CAP_INCREASE_DOLLARS'
   | 'FLOOR_INCREASE_PERCENT'
+  | 'FLOOR_INCREASE_DOLLARS'
   | 'FORCE_INCREASE_PERCENT'
+  | 'FORCE_INCREASE_DOLLARS'
   | 'ZERO_OUT_INCREASE'
   | 'EXCLUDE_FROM_STANDARD_PROCESS'
   | 'FLAG_MANUAL_REVIEW'
@@ -171,6 +194,16 @@ export interface PolicyEvaluationResult {
   finalPolicySource?: string;
   finalModelType?: string;
   finalRecommendedIncreasePercent: number;
+  /** Total recommended merit increase in dollars (percent-derived + lump-sum, after $ caps/floors). */
+  recommendedIncreaseDollars?: number;
+  /** Lump-sum dollars added on top of percent-based increase (e.g. retention award). */
+  lumpSumDollars?: number;
+  /** When set, merit increase is this fixed dollar amount before lump-sum add-ons. */
+  fixedIncreaseDollars?: number;
+  /** Audit reason codes from ADD_REASON_CODE actions. */
+  reasonCodes?: string[];
+  /** Display labels from ADD_POLICY_LABEL actions. */
+  policyLabels?: string[];
   /** When set, policy assigns a fixed base salary (e.g. YOE tier); recalc uses this instead of current + increase. */
   proposedBaseSalary?: number;
   tierAssigned?: string;

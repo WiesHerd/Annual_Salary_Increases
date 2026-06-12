@@ -128,7 +128,7 @@ describe('compare-scenarios export', () => {
     };
   }
 
-  it('writes blanks instead of 0 when scenario results are missing for a provider id', () => {
+  it('writes blanks instead of 0 when scenario results are missing for a provider id', async () => {
     const records: ProviderRecord[] = [
       { Employee_ID: '1', Provider_Name: 'P1', Specialty: 'Spec', Primary_Division: 'Div', Population: 'Pop' },
       { Employee_ID: '2', Provider_Name: 'P2', Specialty: 'Spec', Primary_Division: 'Div', Population: 'Pop' },
@@ -155,7 +155,7 @@ describe('compare-scenarios export', () => {
       summary: { totalIncreaseDollars: 25, providerCount: 2, zeroedCount: 0, manualReviewCount: 0 },
     };
 
-    const buffer = exportCompareScenariosToXlsx(records, resultA, resultB);
+    const buffer = await exportCompareScenariosToXlsx(records, resultA, resultB);
     const wb = XLSX.read(buffer, { type: 'array' });
     const ws = wb.Sheets['Compare Scenarios'];
     expect(ws).toBeTruthy();

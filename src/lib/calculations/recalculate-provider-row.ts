@@ -18,6 +18,10 @@ import { getEffectiveCfForProvider } from '../cf-resolver';
 import { getEffectiveYoe } from '../effective-yoe';
 import { getBandMarketDollarRange, getDollarRangeAlignment, formatBandMarketDollarRangeSummary } from '../experience-band-dollar-range';
 import { meritMatrixEvaluationMatches } from '../evaluation-score';
+import {
+  interpolatePercentile as interpolatePercentileShared,
+  interpolateTccPercentile as interpolateTccPercentileShared,
+} from './percentile';
 
 /** FTE below this is flagged as higher risk when normalizing to 1.0 FTE for market comparison. */
 export const FTE_NORMALIZATION_CAUTION_THRESHOLD = 0.7;
@@ -32,10 +36,14 @@ export function isLowFteForNormalization(record: ProviderRecord): boolean {
   return currentFte < FTE_NORMALIZATION_CAUTION_THRESHOLD || clinicalFte < FTE_NORMALIZATION_CAUTION_THRESHOLD;
 }
 
-/** Supplemental pay components that add to modeled Proposed_TCC (explicit $ from roster). */
-function getSupplementalTotal(p: ProviderRecord): number {
+/**
+ * Supplemental pay components that add to modeled Proposed_TCC (explicit $ from roster).
+ * When `excludeWrvuIncentive` is set, the actual wRVU/productivity incentive line is left out —
+ * used when productivity is already modeled as CF×wRVU so the same productivity is never counted twice.
+ */
+function getSupplementalTotal(p: ProviderRecord, opts?: { excludeWrvuIncentive?: boolean }): number {
   return (
-    (p.Prior_Year_WRVU_Incentive ?? 0) +
+    (opts?.excludeWrvuIncentive ? 0 : p.Prior_Year_WRVU_Incentive ?? 0) +
     (p.Value_Based_Payment ?? 0) +
     (p.Shift_Incentive ?? 0) +
     (p.Division_Chief_Pay ?? 0) +
@@ -57,19 +65,12 @@ function getProductivityComponent(cf: number, p: ProviderRecord): number {
 }
 
 /**
- * Interpolate percentile from value and bands (25, 50, 75, 90). Shared by TCC and wRVU.
+ * Interpolate percentile from value and survey knots (25, 50, 75, 90). Shared by TCC and wRVU.
+ * Delegates to the centralized, guarded implementation in ./percentile so every caller
+ * (review grid, joins, policy engine) uses identical, FMV-defensible math.
  */
 export function interpolatePercentile(value: number, percentiles: Record<number, number>): number | undefined {
-  if (!percentiles || percentiles[50] == null) return undefined;
-  const p25 = percentiles[25] ?? percentiles[50];
-  const p50 = percentiles[50];
-  const p75 = percentiles[75] ?? percentiles[50];
-  const p90 = percentiles[90] ?? percentiles[75] ?? percentiles[50];
-  if (value <= p25) return 25 * (value / p25) || 0;
-  if (value <= p50) return 25 + 25 * ((value - p25) / (p50 - p25));
-  if (value <= p75) return 50 + 25 * ((value - p50) / (p75 - p50));
-  if (value <= p90) return 75 + 15 * ((value - p75) / (p90 - p75));
-  return 90 + 10 * Math.min(1, (value - p90) / (p90 - p50) || 0);
+  return interpolatePercentileShared(value, percentiles);
 }
 
 /**
@@ -77,7 +78,7 @@ export function interpolatePercentile(value: number, percentiles: Record<number,
  * Market survey TCC benchmarks are typically at 1.0 FTE; call with TCC at 1 FTE for correct comparison.
  */
 function interpolateTccPercentile(tcc: number, market: MarketRow): number | undefined {
-  return interpolatePercentile(tcc, market.tccPercentiles ?? {});
+  return interpolateTccPercentileShared(tcc, market);
 }
 
 function inListExact(value: string | undefined, list: string[] | undefined): boolean {
@@ -306,20 +307,27 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
   }
   // Otherwise keep default increase and derive proposed base (policy result, record, or merit matrix lookup)
   else {
-    let defaultPct = p.Default_Increase_Percent ?? input.policyResult?.finalRecommendedIncreasePercent;
-    const evalScore = p.Evaluation_Score;
-    if (defaultPct == null && input.meritMatrixRows?.length && evalScore != null && p.Performance_Category) {
-      const match = input.meritMatrixRows.find(
-        (m) =>
-          meritMatrixEvaluationMatches(m.evaluationScore, evalScore) &&
-          m.performanceLabel.toLowerCase().trim() === String(p.Performance_Category).toLowerCase().trim()
-      );
-      if (match) defaultPct = match.defaultIncreasePercent;
+    const policyDollars = input.policyResult?.recommendedIncreaseDollars;
+    if (policyDollars != null && Number.isFinite(policyDollars)) {
+      approvedAmt = policyDollars;
+      approvedPct = currentBase > 0 ? (policyDollars / currentBase) * 100 : 0;
+      proposedBase = currentBase + policyDollars;
+    } else {
+      let defaultPct = p.Default_Increase_Percent ?? input.policyResult?.finalRecommendedIncreasePercent;
+      const evalScore = p.Evaluation_Score;
+      if (defaultPct == null && input.meritMatrixRows?.length && evalScore != null && p.Performance_Category) {
+        const match = input.meritMatrixRows.find(
+          (m) =>
+            meritMatrixEvaluationMatches(m.evaluationScore, evalScore) &&
+            m.performanceLabel.toLowerCase().trim() === String(p.Performance_Category).toLowerCase().trim()
+        );
+        if (match) defaultPct = match.defaultIncreasePercent;
+      }
+      defaultPct = defaultPct ?? 0;
+      approvedPct = approvedPct ?? defaultPct;
+      approvedAmt = (currentBase * (approvedPct ?? 0)) / 100;
+      proposedBase = currentBase + (approvedAmt ?? 0);
     }
-    defaultPct = defaultPct ?? 0;
-    approvedPct = approvedPct ?? defaultPct;
-    approvedAmt = (currentBase * (approvedPct ?? 0)) / 100;
-    proposedBase = currentBase + (approvedAmt ?? 0);
   }
 
   let cf = p.Proposed_CF ?? p.Current_CF;
@@ -328,7 +336,9 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
   }
   cf = cf ?? 0;
   const productivity = getProductivityComponent(cf, p);
-  const supplemental = getSupplementalTotal(p);
+  // Count productivity once: when CF×wRVU is modeled (cf > 0), the actual wRVU incentive line is
+  // excluded from supplementals to avoid double-counting the same productivity pay in Proposed TCC.
+  const supplemental = getSupplementalTotal(p, { excludeWrvuIncentive: productivity > 0 });
   const proposedTcc = (proposedBase ?? 0) + productivity + supplemental;
 
   // Market TCC percentiles are at 1.0 FTE; use TCC at 1 FTE when available, else derive from raw TCC / FTE
@@ -345,6 +355,14 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     proposedTccPercentile = p.Proposed_TCC_Percentile;
   }
 
+  // Keep the current market percentile derived from the SAME interpolation as proposed, so the
+  // before/after columns in the review grid are always comparable on one ruler.
+  let currentTccPercentile = p.Current_TCC_Percentile;
+  if (marketRow && p.Current_TCC_at_1FTE != null && Number.isFinite(p.Current_TCC_at_1FTE)) {
+    const derived = interpolateTccPercentile(p.Current_TCC_at_1FTE, marketRow);
+    if (derived != null) currentTccPercentile = derived;
+  }
+
   const policyResult = input.policyResult;
   return {
     ...p,
@@ -355,6 +373,7 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
     Merit_Increase_Amount: approvedAmt,
     Proposed_TCC: proposedTcc,
     Proposed_TCC_Percentile: proposedTccPercentile,
+    Current_TCC_Percentile: currentTccPercentile,
     ...(policyResult && {
       Policy_Applied: true,
       Policy_Source_Name: policyResult.finalPolicySource,
@@ -364,6 +383,8 @@ export function recalculateProviderRow(input: RecalculateProviderRowInput): Prov
       Policy_Rule_Id: policyResult.appliedPolicies?.[0]?.id,
       Policy_Tier_Assigned: policyResult.tierAssigned,
       Manual_Review_Flag: policyResult.manualReview,
+      Policy_Reason_Codes: policyResult.reasonCodes?.join(', '),
+      Policy_Labels: policyResult.policyLabels?.join(', '),
       // When policy assigns a tier and Proposed_Tier is empty, populate so the tier is visible in "Proposed Tier" column
       ...(policyResult.tierAssigned != null &&
         (p.Proposed_Tier == null || String(p.Proposed_Tier).trim() === '') && {

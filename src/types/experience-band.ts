@@ -3,6 +3,20 @@
  * Each band defines a YOE range and target TCC percentile range.
  */
 
+/** Where to aim TCC at 1.0 FTE when a provider is below the experience-band target. */
+export type EquityTargetPoint =
+  | 'percentileLow'
+  | 'percentileMid'
+  | 'percentileHigh'
+  | 'percentileCustom'
+  | 'dollarMin'
+  | 'dollarMidpoint'
+  | 'dollarMax'
+  | 'dollarAnchor';
+
+/** Which compensation snapshot drives below / in / above alignment for equity. */
+export type EquityJudgeOn = 'proposedOrCurrent' | 'proposed' | 'current';
+
 export interface ExperienceBand {
   id: string;
   label: string;
@@ -41,6 +55,30 @@ export interface ExperienceBand {
   /**
    * When below the dollar range and this flag is set, equity suggestion targets TCC at 1.0 FTE
    * at the midpoint of the dollar min/max (in addition to percentile-based logic when no dollar range).
+   * @deprecated Use `equitySuggestionsEnabled` + `equityTargetPoint` / `equityPreferDollarTarget`.
    */
   suggestBaseToHitDollarRangeMidpoint?: boolean;
+
+  // --- Internal equity suggestions (Merit review → Apply equity) ---
+
+  /** Master switch: show suggestions and allow Apply equity for providers in this band. */
+  equitySuggestionsEnabled?: boolean;
+  /** Where to aim TCC at 1.0 FTE when below target. */
+  equityTargetPoint?: EquityTargetPoint;
+  /** Used when equityTargetPoint is percentileCustom (0–100). */
+  equityCustomPercentile?: number;
+  /** % of the gap to close toward target (100 = full target, 50 = halfway). */
+  equityGapClosePercent?: number;
+  /** Which TCC snapshot drives below / in / above for equity. */
+  equityJudgeOn?: EquityJudgeOn;
+  /** When the band has a dollar range, use dollar target vs percentile target. */
+  equityPreferDollarTarget?: boolean;
+  /** Optional cap on suggested approved increase percent. */
+  equityMaxIncreasePercent?: number;
+  /** Optional floor on suggested approved increase percent. */
+  equityMinIncreasePercent?: number;
+  /** When true (default), back-solve holds CF×wRVU fixed. */
+  equityHoldProductivityFixed?: boolean;
+  /** When true (default), back-solve holds supplemental comp fixed. */
+  equityHoldSupplementalFixed?: boolean;
 }

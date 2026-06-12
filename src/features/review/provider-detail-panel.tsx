@@ -269,9 +269,37 @@ export function ProviderDetailPanel({
                 {rec.detail != null && (
                   <p className="text-slate-600">{rec.detail}</p>
                 )}
+                {rec.method != null && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-600 space-y-1">
+                    <p className="font-semibold text-slate-700">Method (from Controls → Experience &amp; equity)</p>
+                    <p>Band: {rec.method.bandLabel}</p>
+                    <p>Alignment: {rec.method.alignment} · Judge on: {rec.method.judgeOn}</p>
+                    <p>
+                      Target: {rec.method.targetLabel} ({rec.method.targetPath})
+                      {rec.method.gapClosePercent < 100 ? ` · ${rec.method.gapClosePercent}% of gap` : ''}
+                    </p>
+                    <p>
+                      Back-solve:{' '}
+                      {rec.method.holdProductivityFixed ? 'productivity fixed' : 'productivity not fixed'}
+                      {' · '}
+                      {rec.method.holdSupplementalFixed ? 'supplemental fixed' : 'supplemental not fixed'}
+                    </p>
+                    {rec.method.capsApplied.length > 0 && (
+                      <p className="text-amber-800">{rec.method.capsApplied.join(' · ')}</p>
+                    )}
+                  </div>
+                )}
+                {rec.fullTargetTccAt1Fte != null &&
+                  rec.suggestedTccAt1Fte != null &&
+                  rec.fullTargetTccAt1Fte !== rec.suggestedTccAt1Fte && (
+                    <p className="text-slate-600 text-xs">
+                      Full target ~{formatCurrency(rec.fullTargetTccAt1Fte)} at 1.0 FTE → applied target{' '}
+                      ~{formatCurrency(rec.suggestedTccAt1Fte)} after gap %.
+                    </p>
+                  )}
                 {rec.suggestedTccAt1Fte != null && Number.isFinite(rec.suggestedTccAt1Fte) && (
                   <p className="text-slate-700">
-                    Consider moving toward ~{formatCurrency(rec.suggestedTccAt1Fte)} at 1.0 FTE.
+                    Target TCC at 1.0 FTE: ~{formatCurrency(rec.suggestedTccAt1Fte)}.
                   </p>
                 )}
                 {hasSuggestedBase && (
@@ -279,14 +307,17 @@ export function ProviderDetailPanel({
                     <p className="text-slate-700">
                       Suggested base: {formatCurrency(rec.suggestedBaseAtFte!)} (increase {formatCurrency(rec.suggestedIncreaseAmount!)}).
                     </p>
-                    <p className="text-xs text-slate-500">
-                      Uses current productivity and supplemental; missing wRVU/CF treated as 0.
-                    </p>
+                    {rec.uncappedIncreaseAmount != null &&
+                      rec.uncappedIncreaseAmount !== rec.suggestedIncreaseAmount && (
+                        <p className="text-xs text-amber-800">
+                          Uncapped increase would be {formatCurrency(rec.uncappedIncreaseAmount)}.
+                        </p>
+                      )}
                     {onApplyEquitySuggestion && (
                       <button
                         type="button"
                         onClick={() => onApplyEquitySuggestion(rec.suggestedIncreaseAmount!)}
-                        className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                        className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-800"
                       >
                         Apply suggestion
                       </button>

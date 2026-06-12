@@ -207,7 +207,8 @@ export function saveCustomDatasets(datasets: CustomDataset[]): void {
   migratedStorageSetItem(STORAGE_KEY_CUSTOM_DATASETS, JSON.stringify(datasets));
 }
 
-function shouldClearStorageKey(key: string): boolean {
+/** True for any localStorage key owned by this app (data, parameters, policies, UI prefs, audit). */
+export function isAppStorageKey(key: string): boolean {
   return (
     key.startsWith('tcc-') ||
     key.startsWith('meritly-') ||
@@ -226,7 +227,7 @@ export function clearAllTccData(): void {
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && shouldClearStorageKey(key)) {
+    if (key && isAppStorageKey(key)) {
       keysToRemove.push(key);
     }
   }

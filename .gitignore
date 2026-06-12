@@ -21,6 +21,9 @@ npm-debug.log*
 .env.local
 .env.*.local
 
+# Supabase CLI link state (contains access token)
+.supabase/
+
 # TypeScript / Vite
 *.tsbuildinfo
 .vercel

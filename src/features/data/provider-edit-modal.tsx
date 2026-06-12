@@ -9,6 +9,7 @@ import { getChangeHistoryForEntity } from '../../lib/audit';
 import { formatCurrency } from '../../utils/format';
 import { sumExplicitTccComponents } from '../../lib/tcc-components';
 import { useParametersState } from '../../hooks/use-parameters-state';
+import { ModalShell } from '../../components/modal-shell';
 
 function extractOptions(records: ProviderRecord[], key: keyof ProviderRecord): string[] {
   const set = new Set<string>();
@@ -199,17 +200,12 @@ export function ProviderEditModal({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit provider"
-      onClick={onClose}
+    <ModalShell
+      open
+      onClose={onClose}
+      panelClassName="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+      aria-label={`Edit provider: ${record.Provider_Name ?? record.Employee_ID}`}
     >
-      <div
-        className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="shrink-0 px-5 pt-5 pb-3 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">
             Edit provider: {record.Provider_Name ?? record.Employee_ID}
@@ -334,12 +330,11 @@ export function ProviderEditModal({
           <button
             type="button"
             onClick={handleSave}
-            className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
             Save
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

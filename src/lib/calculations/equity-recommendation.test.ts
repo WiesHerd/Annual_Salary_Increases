@@ -5,7 +5,16 @@ import type { MarketRow } from '../../types/market';
 import { getEquityRecommendation } from './equity-recommendation';
 
 const BANDS: ExperienceBand[] = [
-  { id: 'b1', label: '0-2 YOE', minYoe: 0, maxYoe: 2, targetTccPercentileLow: 25, targetTccPercentileHigh: 50 },
+  {
+    id: 'b1',
+    label: '0-2 YOE',
+    minYoe: 0,
+    maxYoe: 2,
+    targetTccPercentileLow: 25,
+    targetTccPercentileHigh: 50,
+    equitySuggestionsEnabled: true,
+    equityTargetPoint: 'percentileLow',
+  },
   { id: 'b2', label: '3-5 YOE', minYoe: 3, maxYoe: 5, targetTccPercentileLow: 50, targetTccPercentileHigh: 75 },
 ];
 
@@ -80,5 +89,49 @@ describe('getEquityRecommendation', () => {
     );
     expect(rec).toBeDefined();
     expect(rec!.suggestedTccAt1Fte).toBe(300000);
+  });
+
+  it('returns methodSummary for transparency', () => {
+    const rec = getEquityRecommendation(
+      makeRecord({ Current_TCC_Percentile: 10, Proposed_TCC_Percentile: 10 }),
+      BANDS
+    );
+    expect(rec!.methodSummary).toContain('0-2 YOE');
+    expect(rec!.method).toBeDefined();
+  });
+
+  it('applies gap close percent to target TCC', () => {
+    const marketRow: MarketRow = {
+      specialty: 'Test',
+      tccPercentiles: { 25: 300000, 50: 350000, 75: 400000, 90: 450000 },
+      wrvuPercentiles: {},
+    };
+    const bands: ExperienceBand[] = [
+      {
+        ...BANDS[0],
+        equityGapClosePercent: 50,
+      },
+    ];
+    const rec = getEquityRecommendation(
+      makeRecord({
+        Years_of_Experience: 1,
+        Current_TCC_Percentile: 10,
+        Proposed_TCC_Percentile: 10,
+        Current_TCC_at_1FTE: 200000,
+      }),
+      bands,
+      marketRow
+    );
+    expect(rec!.fullTargetTccAt1Fte).toBe(300000);
+    expect(rec!.suggestedTccAt1Fte).toBe(250000);
+  });
+
+  it('does not compute increase when suggestions disabled on band', () => {
+    const rec = getEquityRecommendation(
+      makeRecord({ Years_of_Experience: 4, Current_TCC_Percentile: 10, Proposed_TCC_Percentile: 10 }),
+      [BANDS[1]]
+    );
+    expect(rec!.action).toContain('Enable equity suggestions');
+    expect(rec!.suggestedIncreaseAmount).toBeUndefined();
   });
 });

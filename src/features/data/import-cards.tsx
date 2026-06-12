@@ -18,6 +18,8 @@ import {
 } from '../../types/market-survey-config';
 import { loadProviderTypeToSurveyMapping } from '../../lib/parameters-storage';
 import { useCustomStreams } from '../../hooks/use-custom-streams';
+import { useParametersState } from '../../hooks/use-parameters-state';
+import { getPreferredCycleId } from '../../lib/cycle-defaults';
 import { UploadAndMapping } from './upload-and-mapping';
 import { MarketUpload } from './market-upload';
 import { EvaluationUpload } from './evaluation-upload';
@@ -26,8 +28,17 @@ import { AddCustomStreamModal } from './add-custom-stream-modal';
 import type { CustomStreamUploadResult } from '../../types/custom-stream';
 import { UPLOAD_FORMAT_HINT } from '../../lib/upload-constants';
 import { downloadUploadTemplate, type UploadTemplateKind } from '../../lib/upload-template-download';
+import { ImportWizardModal } from '../../components/import-wizard-modal';
+import { ImportWizardPage } from '../../components/import-wizard-page';
+import { BarChart3, ArrowRight, ChevronRight, ClipboardCheck, Database, Download, Users } from 'lucide-react';
+import { WorkflowChecklist } from '../../components/workflow-checklist';
+import { ModalShell } from '../../components/modal-shell';
+import { usePolicyEngineState } from '../../hooks/use-policy-engine-state';
+import { useSelectedCycle } from '../../hooks/use-selected-cycle';
+import { ReviewStatus } from '../../types/enums';
+import { useAppNavigation } from '../../context/app-navigation-context';
 
-type UploadCardType = 'provider' | 'market' | 'evaluation' | 'custom';
+type UploadWizardType = 'provider' | 'market' | 'evaluation';
 
 type DataBrowserTab = 'provider' | 'market' | 'evaluation' | 'specialty-map' | 'custom';
 
@@ -53,10 +64,7 @@ function AddSurveyModal({
     onAdd(derivedId, label.trim());
   };
   return (
-    <div
-      className="app-card shadow-xl max-w-md w-full"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="app-card shadow-xl max-w-md w-full">
       <div className="p-5">
         <h3 className="text-lg font-semibold text-slate-800">Add survey slot</h3>
         <p className="text-sm text-slate-500 mt-1">
@@ -71,7 +79,7 @@ function AddSurveyModal({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Sullivan Cotter APP"
-              className="mt-1 w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="mt-1 w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-green-600"
             />
             {derivedId && (
               <p className="mt-1 text-xs text-slate-500">ID: {derivedId}</p>
@@ -96,27 +104,26 @@ function AddSurveyModal({
   );
 }
 
-interface ImportCardsProps {
-  onNavigateToBrowser: (tab?: DataBrowserTab) => void;
-}
+interface ImportCardsProps {}
 
-const ICON_BG = 'rounded-xl bg-emerald-100 p-3.5 text-emerald-700 shrink-0 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-700';
-const ICON_SIZE = 'w-7 h-7';
+const ICON_SIZE = 'w-5 h-5 stroke-[2]';
 
-/** Same height on every import tile — single row; no flex-wrap (avoids thicker bar on Custom stream). */
-const IMPORT_TILE_FOOTER_CLASS =
-  'flex flex-nowrap items-center h-11 shrink-0 gap-x-2 sm:gap-x-3 px-6 border-t border-slate-100 bg-slate-50/70 text-xs';
-
-function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
+function TemplateFormatLinks({
+  kind,
+  compact = false,
+}: {
+  kind: UploadTemplateKind;
+  compact?: boolean;
+}) {
   const onCsv = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    downloadUploadTemplate(kind, 'csv');
+    void downloadUploadTemplate(kind, 'csv');
   };
   const onXlsx = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    downloadUploadTemplate(kind, 'xlsx');
+    void downloadUploadTemplate(kind, 'xlsx');
   };
   const label =
     kind === 'provider'
@@ -129,12 +136,11 @@ function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
             ? 'Custom (provider-linked)'
             : 'Custom (standalone)';
   return (
-    <div className={IMPORT_TILE_FOOTER_CLASS} onClick={(e) => e.stopPropagation()}>
-      <span className="text-slate-500 shrink-0">Upload structure</span>
+    <span className={`inline-flex items-center gap-x-1.5 ${compact ? 'shrink-0' : ''}`}>
       <button
         type="button"
         onClick={onCsv}
-        className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+        className="import-template-link"
         aria-label={`Download ${label} template as CSV`}
       >
         CSV
@@ -145,77 +151,45 @@ function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
       <button
         type="button"
         onClick={onXlsx}
-        className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
+        className="import-template-link"
         aria-label={`Download ${label} template as Excel`}
       >
         XLSX
       </button>
+    </span>
+  );
+}
+
+function TemplateDownloadFooter({ kind }: { kind: UploadTemplateKind }) {
+  return (
+    <div className="import-tile-footer" role="group" aria-label="Download template">
+      <Download className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+      <span className="shrink-0 text-slate-500">Template</span>
+      <span className="text-slate-300" aria-hidden>
+        ·
+      </span>
+      <TemplateFormatLinks kind={kind} />
     </div>
   );
 }
 
-/** Footer for Custom stream tile (provider-linked + standalone template links). */
+/** Footer for Custom stream tile — same height and rhythm as the other three tiles. */
 function CustomStreamUploadFooter() {
   return (
-    <div className={IMPORT_TILE_FOOTER_CLASS} onClick={(e) => e.stopPropagation()}>
-      <span className="text-slate-500 shrink-0">Upload structure</span>
-      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-x-auto whitespace-nowrap sm:gap-x-3">
-        <span className="text-slate-400 shrink-0" aria-hidden>
+    <div className="import-tile-footer overflow-x-auto" role="group" aria-label="Download custom stream templates">
+      <div className="flex min-w-max items-center gap-x-2 sm:gap-x-3">
+        <Download className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+        <span className="shrink-0 text-slate-500">Template</span>
+        <span className="text-slate-300" aria-hidden>
           ·
         </span>
-        <span className="text-slate-600 shrink-0">Linked</span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            downloadUploadTemplate('customProvider', 'csv');
-          }}
-          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-          aria-label="Download provider-linked (Employee_ID) custom stream template as CSV"
-        >
-          CSV
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            downloadUploadTemplate('customProvider', 'xlsx');
-          }}
-          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-          aria-label="Download provider-linked (Employee_ID) custom stream template as Excel"
-        >
-          XLSX
-        </button>
-        <span className="text-slate-400 shrink-0" aria-hidden>
+        <span className="shrink-0 text-slate-600">Linked</span>
+        <TemplateFormatLinks kind="customProvider" compact />
+        <span className="text-slate-300" aria-hidden>
           ·
         </span>
-        <span className="text-slate-600 shrink-0">Standalone</span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            downloadUploadTemplate('customStandalone', 'csv');
-          }}
-          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-          aria-label="Download standalone custom stream template as CSV"
-        >
-          CSV
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            downloadUploadTemplate('customStandalone', 'xlsx');
-          }}
-          className="font-medium text-indigo-600 hover:text-indigo-800 focus:outline-none focus-visible:underline"
-          aria-label="Download standalone custom stream template as Excel"
-        >
-          XLSX
-        </button>
+        <span className="shrink-0 text-slate-600">Standalone</span>
+        <TemplateFormatLinks kind="customStandalone" compact />
       </div>
     </div>
   );
@@ -242,50 +216,39 @@ const TILES: readonly ImportTileConfig[] = [
     templateKind: 'provider' as const,
     title: 'Provider',
     description: 'Roster with base pay, TCC components (wRVU incentive, VBP, shift, stipends), wRVUs, and plan details',
-    icon: (
-      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
+    icon: <Users className={ICON_SIZE} strokeWidth={1.75} aria-hidden />,
   },
   {
     type: 'market' as const,
     templateKind: 'market' as const,
     title: 'Market survey',
     description: 'Benchmark percentiles (TCC, wRVU, CF) by specialty',
-    icon: (
-      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
+    icon: <BarChart3 className={ICON_SIZE} strokeWidth={1.75} aria-hidden />,
   },
   {
     type: 'evaluation' as const,
     templateKind: 'evaluation' as const,
     title: 'Evaluations',
     description: 'Performance scores and increase percentages by provider',
-    icon: (
-      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>
-    ),
+    icon: <ClipboardCheck className={ICON_SIZE} strokeWidth={1.75} aria-hidden />,
   },
   {
     type: 'custom' as const,
     title: 'Custom stream',
     description: 'Upload or manage additional data streams — risk scores, quality metrics, and more',
-    icon: (
-      <svg className={ICON_SIZE} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-      </svg>
-    ),
+    icon: <Database className={ICON_SIZE} strokeWidth={1.75} aria-hidden />,
   },
 ] as const;
 
-export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
-  const [cycleId, setCycleId] = useState('FY2025');
+export function ImportCards(_props: ImportCardsProps = {}) {
+  const { navigateWorkflow, navigateToDataBrowser } = useAppNavigation();
+  const { cycles, meritMatrix, budgetSettings } = useParametersState();
+  const { policies } = usePolicyEngineState();
+  const [selectedCycleId] = useSelectedCycle();
+  const [cycleId, setCycleId] = useState(() => getPreferredCycleId(cycles) ?? 'FY2025');
   const [selectedMarketSurveyId, setSelectedMarketSurveyId] = useState('');
-  const [modalOpen, setModalOpen] = useState<UploadCardType | null>(null);
+  const [activeWizard, setActiveWizard] = useState<UploadWizardType | null>(null);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
   const [addSurveyModalOpen, setAddSurveyModalOpen] = useState(false);
   const [surveyPickerOpen, setSurveyPickerOpen] = useState(false);
   const [surveySearch, setSurveySearch] = useState('');
@@ -298,6 +261,12 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     }
   }, [surveyPickerOpen]);
 
+  useEffect(() => {
+    const preferred = getPreferredCycleId(cycles);
+    if (!preferred) return;
+    setCycleId((prev) => (cycles.some((c) => c.id === prev) ? prev : preferred));
+  }, [cycles]);
+
   const {
     records,
     addFromUpload,
@@ -307,6 +276,7 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     addMarketFromUpload,
     replaceMarketFromUpload,
     addSurveySlot,
+    evaluationRows,
     addEvaluationFromUpload,
     replaceEvaluationFromUpload,
     loadDemoData,
@@ -338,6 +308,32 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
 
   const marketSurveyForUpload = selectedMarketSurveyId || surveyIds[0] || '';
 
+  const totalMarketRows = useMemo(
+    () => Object.values(marketSurveys).reduce((acc, rows) => acc + rows.length, 0),
+    [marketSurveys],
+  );
+
+  const hasImportedData =
+    records.length > 0 ||
+    totalMarketRows > 0 ||
+    evaluationRows.length > 0 ||
+    customStreamDefinitions.length > 0;
+
+  const mappingCount = useMemo(() => Object.keys(loadProviderTypeToSurveyMapping()).length, []);
+
+  const hasReviewedProviders = useMemo(
+    () =>
+      records.some((r) => {
+        const s = (r.Review_Status ?? '').trim();
+        return s === ReviewStatus.InReview || s === ReviewStatus.Approved || s === ReviewStatus.Effective;
+      }),
+    [records]
+  );
+
+  const navigateToBrowserAfterImport = (tab: DataBrowserTab) => {
+    navigateToDataBrowser(tab, { returnToCurrent: true });
+  };
+
   const filteredSurveyIds = useMemo(() => {
     if (!surveySearch.trim()) return surveyIds;
     const q = surveySearch.trim().toLowerCase();
@@ -367,10 +363,12 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
   };
 
   const openCustomStreams = () => {
-    setModalOpen('custom');
+    setCustomModalOpen(true);
     setCustomStreamView('list');
     setAddStreamModalOpen(false);
   };
+
+  const closeWizard = () => setActiveWizard(null);
 
   if (!loaded) {
     return (
@@ -386,128 +384,259 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
     </svg>
   );
 
+  if (activeWizard === 'provider') {
+    return (
+      <ImportWizardPage title="Import provider data" onBack={closeWizard}>
+        <UploadAndMapping
+          layout="page"
+          onUpload={handleProviderUpload}
+          cycleId={cycleId}
+          setCycleId={setCycleId}
+          onDone={() => {
+            closeWizard();
+            navigateToBrowserAfterImport('provider');
+          }}
+        />
+      </ImportWizardPage>
+    );
+  }
+
+  if (activeWizard === 'market') {
+    return (
+      <ImportWizardPage
+        title="Import market survey"
+        subtitle={getSurveyLabel(marketSurveyForUpload, surveyMetadata)}
+        onBack={closeWizard}
+      >
+        <MarketUpload
+          layout="page"
+          surveyId={marketSurveyForUpload}
+          surveyLabel={getSurveyLabel(marketSurveyForUpload, surveyMetadata)}
+          onUpload={handleMarketUpload}
+          onDone={() => {
+            closeWizard();
+            navigateToBrowserAfterImport('market');
+          }}
+        />
+      </ImportWizardPage>
+    );
+  }
+
+  if (activeWizard === 'evaluation') {
+    return (
+      <ImportWizardPage title="Import evaluations" onBack={closeWizard}>
+        <EvaluationUpload
+          layout="page"
+          onUpload={handleEvaluationUpload}
+          onDone={() => {
+            closeWizard();
+            navigateToBrowserAfterImport('evaluation');
+          }}
+        />
+      </ImportWizardPage>
+    );
+  }
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Page header */}
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Import data</h1>
-        <p className="text-sm text-slate-500 mt-1">Select the type of data you want to import.</p>
-      </div>
-
-      {records.length === 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
-          <span>New workspace — import below or</span>
-          <button
-            type="button"
-            onClick={() => {
-              loadDemoData();
-              onNavigateToBrowser?.('provider');
-            }}
-            className="font-medium text-indigo-700 hover:text-indigo-900"
-            title="Loads bundled sample providers, market surveys, and evaluations. Current TCC is computed from roster components per your Parameters → Current TCC settings."
-          >
-            load data
-          </button>
-        </div>
-      )}
-
-      {/* 2×2 type-selector tile grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        {TILES.map((tile) => (
-          <div
-            key={tile.type}
-            className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:border-indigo-300 hover:shadow-md overflow-hidden"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                if (tile.type === 'market') {
-                  setSurveyPickerOpen(true);
-                } else if (tile.type === 'custom') {
-                  openCustomStreams();
-                } else {
-                  setModalOpen(tile.type);
-                }
-              }}
-              className="group flex flex-1 min-h-0 items-start gap-5 p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
-            >
-              <div className={ICON_BG}>{tile.icon}</div>
-              <div className="min-w-0 pt-0.5 space-y-1.5">
-                <p className="text-base font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{tile.title}</p>
-                <p className="text-sm leading-relaxed text-slate-500">{tile.description}</p>
+    <div className="import-hub">
+      <div className="mx-auto max-w-6xl space-y-5">
+        {/* Page header — flat on gradient, no card wrapper */}
+        <header className="import-hub-header">
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <h1 className="font-meritly text-2xl font-semibold tracking-tight text-slate-900">
+                Import data
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">Select a data type to get started.</p>
+            </div>
+            {hasImportedData && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="import-stat-pill">
+                  Providers <strong>{records.length.toLocaleString()}</strong>
+                </span>
+                <span className="import-stat-pill">
+                  Market <strong>{totalMarketRows.toLocaleString()}</strong>
+                </span>
+                <span className="import-stat-pill">
+                  Evaluations <strong>{evaluationRows.length.toLocaleString()}</strong>
+                </span>
+                {customStreamDefinitions.length > 0 && (
+                  <span className="import-stat-pill">
+                    Custom <strong>{customStreamDefinitions.length.toLocaleString()}</strong>
+                  </span>
+                )}
               </div>
-            </button>
-            {'templateKind' in tile ? <TemplateDownloadFooter kind={tile.templateKind} /> : <CustomStreamUploadFooter />}
+            )}
           </div>
-        ))}
-      </div>
+          {records.length === 0 && (
+            <p className="mt-2 text-xs text-slate-400">
+              Exploring the app?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  loadDemoData();
+                  navigateToDataBrowser('provider');
+                }}
+                className="font-medium text-[var(--meritly-green)] underline-offset-2 hover:text-[var(--meritly-green-dark)] hover:underline"
+                title="Loads bundled sample providers, market surveys, and evaluations."
+              >
+                Load sample data
+              </button>
+            </p>
+          )}
+        </header>
 
-      <p className="text-xs text-slate-400">{UPLOAD_FORMAT_HINT}</p>
+        <WorkflowChecklist
+          className="mb-6"
+          recordsCount={records.length}
+          marketRowCount={totalMarketRows}
+          cycles={cycles}
+          meritMatrix={meritMatrix}
+          policies={policies}
+          mappingCount={mappingCount}
+          budgetSettings={budgetSettings}
+          selectedCycleId={selectedCycleId}
+          hasReviewedProviders={hasReviewedProviders}
+          onNavigate={navigateWorkflow}
+        />
+
+        {/* 2×2 type-selector tile grid */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {TILES.map((tile) => (
+            <div key={tile.type} className="import-tile">
+              <button
+                type="button"
+                onClick={() => {
+                  if (tile.type === 'market') {
+                    setSurveyPickerOpen(true);
+                  } else if (tile.type === 'custom') {
+                    openCustomStreams();
+                  } else {
+                    setActiveWizard(tile.type);
+                  }
+                }}
+                className="group flex min-h-0 flex-1 gap-3.5 p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-500/40"
+              >
+                <div className="import-tile-icon">{tile.icon}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-base font-semibold text-slate-900 transition-colors group-hover:text-[var(--meritly-green-dark)]">
+                      {tile.title}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="import-tile-cta">
+                        Start import
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
+                      </span>
+                      <ChevronRight
+                        className="h-4 w-4 text-slate-300 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--meritly-green)]"
+                        aria-hidden
+                      />
+                    </div>
+                  </div>
+                  <p
+                    className="mt-1 line-clamp-2 text-sm leading-snug text-slate-500"
+                    title={tile.description}
+                  >
+                    {tile.description}
+                  </p>
+                </div>
+              </button>
+              {'templateKind' in tile ? (
+                <TemplateDownloadFooter kind={tile.templateKind} />
+              ) : (
+                <CustomStreamUploadFooter />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-center text-xs text-slate-400">{UPLOAD_FORMAT_HINT}</p>
+      </div>
 
       {/* Survey picker — shown before market wizard to select target survey */}
-      {surveyPickerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Select survey"
-          onClick={() => setSurveyPickerOpen(false)}
-        >
-          <div
-            className="app-card shadow-xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-slate-100 shrink-0">
-              <h3 className="text-lg font-semibold text-slate-800">Choose target survey</h3>
-              <p className="text-sm text-slate-500 mt-0.5">Which survey slot should this file be imported into?</p>
-              <input
-                ref={surveySearchRef}
-                type="search"
-                value={surveySearch}
-                onChange={(e) => setSurveySearch(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-                placeholder="Search surveys…"
-                aria-label="Search surveys"
-                className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+      <ModalShell
+        open={surveyPickerOpen}
+        onClose={() => setSurveyPickerOpen(false)}
+        panelClassName="app-card shadow-2xl ring-1 ring-slate-900/5 w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
+        aria-label="Select survey"
+      >
+        {surveyPickerOpen && (
+          <>
+            <div className="px-6 pt-6 pb-5 shrink-0">
+              <h3 className="text-lg font-semibold text-slate-900">Choose target survey</h3>
+              <p className="text-sm text-slate-500 mt-1">Which survey slot should this file be imported into?</p>
+              <div className="relative mt-4">
+                <svg
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" />
+                </svg>
+                <input
+                  ref={surveySearchRef}
+                  type="search"
+                  value={surveySearch}
+                  onChange={(e) => setSurveySearch(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  placeholder="Search surveys…"
+                  aria-label="Search surveys"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition-colors focus:border-green-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-600/20"
+                />
+              </div>
             </div>
             <ul
               role="listbox"
-              className="flex-1 overflow-y-auto py-2 min-h-0"
+              className="flex-1 overflow-y-auto px-3 pb-2 min-h-0 space-y-0.5"
               aria-label="Survey list"
             >
               {filteredSurveyIds.length === 0 ? (
-                <li className="px-4 py-3 text-sm text-slate-500">No matches</li>
+                <li className="px-3 py-8 text-center text-sm text-slate-400">No matching surveys</li>
               ) : (
-                filteredSurveyIds.map((id) => (
-                  <li key={id} role="option" aria-selected={selectedMarketSurveyId === id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedMarketSurveyId(id);
-                        setSurveyPickerOpen(false);
-                        setModalOpen('market');
-                      }}
-                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                        selectedMarketSurveyId === id
-                          ? 'bg-indigo-50 text-indigo-700 font-medium'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {getSurveyLabel(id, surveyMetadata)}
-                    </button>
-                  </li>
-                ))
+                filteredSurveyIds.map((id) => {
+                  const isSelected = selectedMarketSurveyId === id;
+                  return (
+                    <li key={id} role="option" aria-selected={isSelected}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMarketSurveyId(id);
+                          setSurveyPickerOpen(false);
+                          setActiveWizard('market');
+                        }}
+                        className={`group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-green-50 text-green-800 font-medium'
+                            : 'text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="truncate">{getSurveyLabel(id, surveyMetadata)}</span>
+                        {isSelected ? (
+                          <svg className="w-4 h-4 shrink-0 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+                          </svg>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })
               )}
             </ul>
-            <div className="p-4 border-t border-slate-100 flex justify-between items-center shrink-0">
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
               <button
                 type="button"
                 onClick={() => {
                   setSurveyPickerOpen(false);
                   setAddSurveyModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -518,18 +647,17 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalShell>
 
-      {addSurveyModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add survey slot"
-          onClick={() => setAddSurveyModalOpen(false)}
-        >
+      <ModalShell
+        open={addSurveyModalOpen}
+        onClose={() => setAddSurveyModalOpen(false)}
+        panelClassName="max-w-md w-full"
+        aria-label="Add survey slot"
+      >
+        {addSurveyModalOpen && (
           <AddSurveyModal
             existingIds={surveyIds}
             onClose={() => setAddSurveyModalOpen(false)}
@@ -538,109 +666,30 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                 setSelectedMarketSurveyId(surveyId);
               }
               setAddSurveyModalOpen(false);
-              setModalOpen('market');
+              setActiveWizard('market');
             }}
           />
-        </div>
-      )}
+        )}
+      </ModalShell>
 
-      {/* Upload wizard modals */}
-      {modalOpen === 'provider' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Upload provider data"
-          onClick={() => setModalOpen(null)}
-        >
-          <div
-            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <UploadAndMapping
-                onUpload={handleProviderUpload}
-                cycleId={cycleId}
-                setCycleId={setCycleId}
-                onDone={() => setModalOpen(null)}
-              />
-            </div>
-            <div className="px-5 pb-5 flex justify-end">
-              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalOpen === 'market' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Upload market survey"
-          onClick={() => setModalOpen(null)}
-        >
-          <div
-            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <MarketUpload
-                surveyId={marketSurveyForUpload}
-                surveyLabel={getSurveyLabel(marketSurveyForUpload, surveyMetadata)}
-                onUpload={handleMarketUpload}
-                onDone={() => setModalOpen(null)}
-              />
-            </div>
-            <div className="px-5 pb-5 flex justify-end">
-              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalOpen === 'evaluation' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Upload evaluations"
-          onClick={() => setModalOpen(null)}
-        >
-          <div
-            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <EvaluationUpload onUpload={handleEvaluationUpload} onDone={() => setModalOpen(null)} />
-            </div>
-            <div className="px-5 pb-5 flex justify-end">
-              <button type="button" onClick={() => setModalOpen(null)} className="app-btn-secondary">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalOpen === 'custom' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Custom data streams"
-          onClick={() => { setModalOpen(null); setCustomStreamView('list'); setAddStreamModalOpen(false); }}
-        >
-          <div
-            className="app-card shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              {addStreamModalOpen ? (
+      {/* Custom streams — list + upload stay in modal */}
+      <ImportWizardModal
+        open={customModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCustomModalOpen(false);
+            setCustomStreamView('list');
+            setAddStreamModalOpen(false);
+          }
+        }}
+        ariaLabel="Custom data streams"
+        maxWidth={
+          typeof customStreamView === 'object' && 'upload' in customStreamView ? 'xl' : '2xl'
+        }
+      >
+        {customModalOpen ? (
+          addStreamModalOpen ? (
+              <div className="overflow-y-auto p-6">
                 <AddCustomStreamModal
                   existingIds={customStreamDefinitions.map((d) => d.id)}
                   onClose={() => setAddStreamModalOpen(false)}
@@ -649,28 +698,23 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                     setAddStreamModalOpen(false);
                   }}
                 />
-              ) : typeof customStreamView === 'object' && 'upload' in customStreamView ? (
-                (() => {
-                  const def = customStreamDefinitions.find((d) => d.id === customStreamView.upload);
-                  if (!def) return null;
-                  return (
-                    <>
-                      <CustomStreamUpload
-                        streamId={def.id}
-                        definition={def}
-                        onUpload={(result, mode) => handleCustomStreamUpload(def.id, result, mode)}
-                        onClose={() => setCustomStreamView('list')}
-                      />
-                      <div className="mt-4 flex justify-end">
-                        <button type="button" onClick={() => setCustomStreamView('list')} className="app-btn-secondary">
-                          Back to list
-                        </button>
-                      </div>
-                    </>
-                  );
-                })()
-              ) : customStreamView === 'list' ? (
-                <>
+              </div>
+            ) : typeof customStreamView === 'object' && 'upload' in customStreamView ? (
+              (() => {
+                const def = customStreamDefinitions.find((d) => d.id === customStreamView.upload);
+                if (!def) return null;
+                return (
+                  <CustomStreamUpload
+                    layout="modal"
+                    streamId={def.id}
+                    definition={def}
+                    onUpload={(result, mode) => handleCustomStreamUpload(def.id, result, mode)}
+                    onClose={() => setCustomStreamView('list')}
+                  />
+                );
+              })()
+            ) : customStreamView === 'list' ? (
+              <div className="overflow-y-auto p-6">
                   <h2 className="text-lg font-semibold text-slate-800 mb-4">Custom data streams</h2>
                   <p className="text-sm text-slate-600 mb-4">
                     Add streams (e.g. risk, quality) and upload files. Provider-linked streams can be joined to providers by Employee ID in exports.
@@ -728,16 +772,14 @@ export function ImportCards({ onNavigateToBrowser }: ImportCardsProps) {
                     >
                       + Add new stream
                     </button>
-                    <button type="button" onClick={() => { setModalOpen(null); setCustomStreamView('list'); }} className="app-btn-secondary">
+                    <button type="button" onClick={() => { setCustomModalOpen(false); setCustomStreamView('list'); }} className="app-btn-secondary">
                       Close
                     </button>
                   </div>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
+              </div>
+            ) : null
+        ) : null}
+      </ImportWizardModal>
     </div>
   );
 }

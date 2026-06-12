@@ -159,7 +159,7 @@ function FilterDropdown({
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
           selected.length > 0
-            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+            ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
             : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
         }`}
         aria-expanded={open}
@@ -295,7 +295,7 @@ export function ProviderTable({
   };
 
   const handleExportXlsx = async () => {
-    const buffer = exportToXlsx(sorted, undefined, customDatasets, customStreamLookups);
+    const buffer = await exportToXlsx(sorted, undefined, customDatasets, customStreamLookups);
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -489,7 +489,7 @@ export function ProviderTable({
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
             >
               Clear filters
             </button>
@@ -554,7 +554,7 @@ export function ProviderTable({
                   <div className="flex items-center gap-1">
                     {isModified && (
                       <span
-                        className="inline-flex items-center justify-center w-6 h-6 rounded bg-indigo-100 text-indigo-700 shrink-0"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded bg-indigo-100 text-indigo-800 shrink-0"
                         title="This record has been edited"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
