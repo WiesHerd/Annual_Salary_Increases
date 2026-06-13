@@ -8,6 +8,7 @@ dist/
 # IDE / OS
 .idea/
 .vscode/
+.cursor/_agent-skills-src/
 *.swp
 .DS_Store
 Thumbs.db
