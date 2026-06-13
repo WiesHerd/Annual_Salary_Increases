@@ -12,6 +12,7 @@ export interface SalaryReviewExportDropdownProps {
   allCount: number;
   onExportCsv: (scope: ExportScope, tableViewOnly: boolean) => void;
   onExportXlsx: (scope: ExportScope, tableViewOnly: boolean) => void | Promise<void>;
+  onExportCommitteeXlsx?: (scope: ExportScope) => void | Promise<void>;
 }
 
 function ExportSection({
@@ -70,6 +71,7 @@ export function SalaryReviewExportDropdown({
   allCount,
   onExportCsv,
   onExportXlsx,
+  onExportCommitteeXlsx,
 }: SalaryReviewExportDropdownProps) {
   const [open, setOpen] = useState(false);
 
@@ -111,6 +113,28 @@ export function SalaryReviewExportDropdown({
             onClick={() => setOpen(false)}
           />
           <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[14rem] py-1 app-dropdown-panel" role="menu">
+            {onExportCommitteeXlsx && (
+              <>
+                <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Committee
+                </p>
+                <button
+                  type="button"
+                  onClick={() => run(() => onExportCommitteeXlsx('filtered'))}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Governance summary · Excel ({filteredCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => run(() => onExportCommitteeXlsx('cycle'))}
+                  className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Governance summary · Excel ({cycleCount})
+                </button>
+                <div className="mx-2 my-1 h-px bg-slate-100" aria-hidden />
+              </>
+            )}
             <ExportSection
               title={`Filtered view (${filteredCount})`}
               onCsvTable={() => run(() => onExportCsv('filtered', true))}

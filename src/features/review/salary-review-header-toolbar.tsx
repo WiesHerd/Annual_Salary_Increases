@@ -17,6 +17,7 @@ export interface SalaryReviewHeaderToolbarProps {
   onOpenCompare: () => void;
   onExportCsv: (scope: ExportScope, tableViewOnly: boolean) => void;
   onExportXlsx: (scope: ExportScope, tableViewOnly: boolean) => void | Promise<void>;
+  onExportCommitteeXlsx?: (scope: ExportScope) => void | Promise<void>;
   reviewViewMode: 'table' | 'trend';
   onReviewViewModeChange: (mode: 'table' | 'trend') => void;
 }
@@ -32,6 +33,7 @@ export function SalaryReviewHeaderToolbar({
   onOpenCompare,
   onExportCsv,
   onExportXlsx,
+  onExportCommitteeXlsx,
   reviewViewMode,
   onReviewViewModeChange,
 }: SalaryReviewHeaderToolbarProps) {
@@ -164,6 +166,7 @@ export function SalaryReviewHeaderToolbar({
             allCount={totalRecordsCount}
             onExportCsv={onExportCsv}
             onExportXlsx={onExportXlsx}
+            onExportCommitteeXlsx={onExportCommitteeXlsx}
           />
         </div>
       </div>

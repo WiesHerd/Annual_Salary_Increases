@@ -31,6 +31,7 @@ export interface SalaryReviewFilterBarProps {
 const PRESETS: { id: SalaryReviewPresetId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'needs-review', label: 'In progress' },
+  { id: 'manual-review', label: 'Manual review' },
   { id: 'approved', label: 'Complete' },
   { id: 'below-market', label: 'Below market' },
   { id: 'high-increase', label: 'High increase' },
@@ -236,6 +237,7 @@ export function SalaryReviewFilterBar({
       approvedIncreasePercentMax: undefined,
       tccPercentileMin: undefined,
       tccPercentileMax: undefined,
+      manualReviewOnly: false,
     });
   };
 

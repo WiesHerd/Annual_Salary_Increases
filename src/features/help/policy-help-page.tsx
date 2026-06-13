@@ -25,6 +25,17 @@ const HELP_CHAPTERS = [
 
 const CHAPTER_IDS = HELP_CHAPTERS.map((c) => c.id);
 
+const CONFLICT_STRATEGIES: { strategy: string; when: string; stage: string }[] = [
+  { strategy: 'Override and set the result', when: 'Guardrail to 0%, or force a specific %', stage: 'Exclusions / Overrides' },
+  { strategy: 'Replace the base result', when: 'Custom model or merit matrix becomes the baseline', stage: 'Custom models / Merit matrix' },
+  { strategy: 'Add to the current result', when: 'Modifier (+0.5% for high wRVU, etc.)', stage: 'Modifiers' },
+  { strategy: 'Cap the result at a maximum', when: 'Limit how high the increase can go', stage: 'Caps / Floors' },
+  { strategy: 'Set a minimum floor', when: 'Guarantee a minimum increase %', stage: 'Caps / Floors' },
+  { strategy: 'Block automation (require manual review)', when: 'FMV or compliance — flag without auto-applying', stage: 'Exclusions' },
+  { strategy: 'Apply only when no other policy has set a result', when: 'Single General Merit Matrix fallback', stage: 'Merit matrix' },
+  { strategy: 'Annotate only (do not change the result)', when: 'Audit notes or labels only', stage: 'Any' },
+];
+
 const POLICY_TYPES: { name: string; stage: string; use: string }[] = [
   { name: 'General Merit Matrix', stage: 'Merit matrix', use: 'Default score → increase table; use one as fallback' },
   { name: 'Guardrail', stage: 'Exclusions', use: 'FMV / compliance stops (e.g. TCC above 75th → 0%)' },
@@ -263,16 +274,26 @@ export function PolicyHelpPage() {
         </p>
         <SubSection title="Conflict strategy options">
           <p className="mb-2">Choose the option that best matches what this policy does:</p>
-          <ul className="list-disc list-inside space-y-1.5 text-slate-700">
-            <li><strong>Override and set the result</strong> — Sets the increase to a specific value (e.g. guardrail to 0%, or override to 4%). Replaces whatever was there.</li>
-            <li><strong>Replace the base result</strong> — This policy’s result becomes the new baseline (e.g. custom model or merit matrix output).</li>
-            <li><strong>Add to the current result</strong> — Adds a percentage on top of the current result (e.g. +0.5% for high wRVU). Used for modifiers.</li>
-            <li><strong>Cap the result at a maximum</strong> — Does not let the increase go above the specified maximum. Used in the Caps / Floors stage.</li>
-            <li><strong>Set a minimum floor</strong> — Does not let the increase go below the specified minimum. Used in the Caps / Floors stage.</li>
-            <li><strong>Block automation (require manual review)</strong> — Flags the provider for manual review; the system does not auto-apply. Use for FMV or compliance guardrails.</li>
-            <li><strong>Apply only when no other policy has set a result</strong> — Runs only when no earlier policy has set a result. Use for your single General Merit Matrix fallback.</li>
-            <li><strong>Annotate only (do not change the result)</strong> — Adds notes or context without changing the numeric increase. For audit or labeling.</li>
-          </ul>
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-3 py-2 font-semibold text-slate-700">Strategy</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">When to use</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Typical stage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {CONFLICT_STRATEGIES.map((row) => (
+                  <tr key={row.strategy} className="text-slate-800">
+                    <td className="px-3 py-2 font-medium text-slate-900">{row.strategy}</td>
+                    <td className="px-3 py-2 text-slate-700">{row.when}</td>
+                    <td className="px-3 py-2 text-slate-600">{row.stage}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </SubSection>
         <p className="mt-3">
           <strong>Stop processing</strong>: when enabled, no later policies run for that provider after this one

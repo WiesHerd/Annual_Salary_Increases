@@ -43,6 +43,8 @@ import { useAppNavigation } from '../../context/app-navigation-context';
 import { computeControlsReadiness } from '../../lib/controls-readiness';
 
 import { ControlsReadinessStrip } from '../../components/controls-readiness-strip';
+import { ControlsSetupBanner } from '../../components/controls-setup-banner';
+import type { ControlsReadinessItem } from '../../lib/controls-readiness';
 
 import { MeritMatrixTab } from './tabs/merit-matrix-tab';
 
@@ -427,6 +429,17 @@ export function ParametersPage() {
 
   );
 
+  const handleReadinessItem = useCallback(
+    (item: ControlsReadinessItem) => {
+      if (item.id === 'data') {
+        navigateToView('import', { returnToCurrent: true });
+        return;
+      }
+      if (item.tabId) setActiveTab(item.tabId);
+    },
+    [navigateToView, setActiveTab]
+  );
+
 
 
   const clearControlsFocus = useCallback(() => setControlsFocus(null), []);
@@ -575,7 +588,9 @@ export function ParametersPage() {
 
 
 
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col px-5 pt-4">
+
+        <ControlsSetupBanner items={readinessItems} onGoToItem={handleReadinessItem} />
 
         <div
 

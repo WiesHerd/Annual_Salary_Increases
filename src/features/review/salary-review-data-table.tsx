@@ -17,6 +17,8 @@ import {
   type ReviewTableColumnDef,
   type ReviewTableColumnId,
 } from './review-table-columns';
+import { GovernanceFlag } from '../../components/governance-flag';
+import { getGovernanceFlagKinds } from '../../lib/governance-metrics';
 import { useAppNavigation } from '../../context/app-navigation-context';
 
 type SortDir = 'asc' | 'desc';
@@ -466,6 +468,35 @@ export function SalaryReviewDataTable({
                           onClick={(e) => e.stopPropagation()}
                           className="w-full max-w-full min-w-0 px-2 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                         />
+                      ) : col.id === 'manualReviewFlag' ? (
+                        (() => {
+                          const flags = getGovernanceFlagKinds(
+                            r,
+                            evaluationResults.get(r.Employee_ID)
+                          ).filter((kind) => kind === 'manual-review' || kind === 'fmv');
+                          if (flags.length === 0) {
+                            return <span className="text-slate-400">—</span>;
+                          }
+                          return (
+                            <span className="inline-flex flex-wrap gap-1">
+                              {flags.map((kind) => (
+                                <GovernanceFlag key={kind} kind={kind} />
+                              ))}
+                            </span>
+                          );
+                        })()
+                      ) : col.id === 'policyOutcome' ? (
+                        (() => {
+                          const evaluation = evaluationResults.get(r.Employee_ID);
+                          const blocked = evaluation?.blocked || r.Policy_Logic_Status === 'Blocked';
+                          if (blocked) return <GovernanceFlag kind="blocked" />;
+                          const applied = evaluation != null || r.Policy_Applied === true;
+                          return (
+                            <span className="block truncate min-w-0" title={applied ? 'Applied' : '—'}>
+                              {applied ? 'Applied' : '—'}
+                            </span>
+                          );
+                        })()
                       ) : col.id === 'policySource' &&
                         (r.Policy_Rule_Id || evaluationResults.get(r.Employee_ID)?.appliedPolicies?.[0]?.id) ? (
                         <button

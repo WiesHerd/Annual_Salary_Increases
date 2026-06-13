@@ -32,6 +32,7 @@ import { ImportWizardModal } from '../../components/import-wizard-modal';
 import { ImportWizardPage } from '../../components/import-wizard-page';
 import { BarChart3, ArrowRight, ChevronRight, ClipboardCheck, Database, Download, Users } from 'lucide-react';
 import { WorkflowChecklist } from '../../components/workflow-checklist';
+import { EmptyStatePanel } from '../../components/empty-state-panel';
 import { ModalShell } from '../../components/modal-shell';
 import { usePolicyEngineState } from '../../hooks/use-policy-engine-state';
 import { useSelectedCycle } from '../../hooks/use-selected-cycle';
@@ -476,6 +477,30 @@ export function ImportCards(_props: ImportCardsProps = {}) {
             </p>
           )}
         </header>
+
+        {records.length === 0 && (
+          <EmptyStatePanel
+            compact
+            title="Start with your provider roster"
+            message={
+              <>
+                Import providers first, then add market survey data. After that, open{' '}
+                <strong>Controls</strong> to set up your cycle, merit matrix, mappings, and policies before running
+                merit review.
+              </>
+            }
+            icon={<Users className="h-5 w-5" aria-hidden />}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveWizard('provider')}
+              className="app-btn-primary inline-flex items-center gap-2"
+            >
+              Import providers
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </button>
+          </EmptyStatePanel>
+        )}
 
         <WorkflowChecklist
           className="mb-6"

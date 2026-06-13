@@ -17,9 +17,11 @@ import {
   deriveFilterOptionsCascading,
   loadFiltersFromStorage,
   saveFiltersToStorage,
+  getPresetFilters,
   DEFAULT_SALARY_REVIEW_FILTERS,
   type SalaryReviewFilters,
 } from '../../lib/review-filters';
+import { computeGovernanceMetrics } from '../../lib/governance-metrics';
 import {
   getReviewCellSortValue,
   type ReviewTableColumnId,
@@ -239,6 +241,10 @@ export function SalaryReviewPage({
   );
 
   const summaryTotals = useMemo(() => computeSummary(filteredRecords), [filteredRecords]);
+  const governanceMetrics = useMemo(
+    () => computeGovernanceMetrics(filteredRecords, evaluationResults),
+    [filteredRecords, evaluationResults]
+  );
   const summaryBreakdown = useMemo(
     () => ({
       division: computeSummaryByDimension(filteredRecords, 'division'),
@@ -656,7 +662,7 @@ export function SalaryReviewPage({
     [cycleLocked, filteredRecords, records, setRecords, showUndoToast]
   );
 
-  const { handleExportCsv, handleExportXlsx } = useSalaryReviewExport({
+  const { handleExportCsv, handleExportXlsx, handleExportCommitteeXlsx } = useSalaryReviewExport({
     records,
     cycleScopedRecords,
     filteredRecords,
@@ -664,7 +670,16 @@ export function SalaryReviewPage({
     customDatasets,
     customStreamLookups,
     reviewExportOptions,
+    cycleLabel: selectedCycleLabel,
   });
+
+  const handleManualReviewFilter = useCallback(() => {
+    handleFiltersChange({
+      ...filters,
+      ...getPresetFilters('manual-review'),
+      searchText: filters.searchText,
+    } as SalaryReviewFilters);
+  }, [filters, handleFiltersChange]);
 
   const mappingCount = useMemo(() => Object.keys(loadProviderTypeToSurveyMapping()).length, []);
   const totalMarketRows = useMemo(
@@ -799,12 +814,15 @@ export function SalaryReviewPage({
           onOpenCompare={() => setCompareModalOpen(true)}
           onExportCsv={handleExportCsv}
           onExportXlsx={handleExportXlsx}
+          onExportCommitteeXlsx={handleExportCommitteeXlsx}
           reviewViewMode={reviewViewMode}
           onReviewViewModeChange={setReviewViewMode}
         />
         <SalaryReviewSummaryBar
           summaryTotals={summaryTotals}
           breakdown={summaryBreakdown}
+          governanceMetrics={governanceMetrics}
+          onManualReviewFilter={handleManualReviewFilter}
           budgetUsage={
             headerBudgetUsagePercent != null &&
             budgetAmount != null &&

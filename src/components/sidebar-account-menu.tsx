@@ -15,11 +15,18 @@ function displayNameFromEmail(email: string): string {
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function roleLabel(role: string): string {
+  if (role === 'admin') return 'Admin';
+  if (role === 'editor') return 'Editor';
+  if (role === 'viewer') return 'Viewer';
+  return role;
+}
+
 function UserAvatar({ email, busy }: { email: string; busy?: boolean }) {
   return (
     <span className="relative inline-flex shrink-0">
       <span
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#166534] text-[11px] font-medium text-white shadow-sm ring-1 ring-slate-200/90"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-indigo-700 text-[11px] font-medium text-white shadow-sm ring-1 ring-slate-200/90"
         aria-hidden
       >
         {initialsFromEmail(email)}
@@ -39,7 +46,7 @@ interface SidebarAccountMenuProps {
 }
 
 export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProps) {
-  const { mode, user, signOut } = useSupabaseAuth();
+  const { mode, user, organization, signOut } = useSupabaseAuth();
   const sync = useWorkspaceSyncOptional();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -64,6 +71,8 @@ export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProp
 
   const email = user?.email ?? '';
   const displayName = email ? displayNameFromEmail(email) : 'Account';
+  const orgName = organization?.orgName;
+  const orgRole = organization?.role;
   const isBusy = sync?.status === 'syncing' || sync?.status === 'hydrating';
   const syncError = sync?.status === 'error' ? sync.lastError ?? 'Could not save to cloud.' : null;
 
@@ -78,6 +87,12 @@ export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProp
         >
           <div className="px-3 py-2">
             <p className="truncate text-sm font-medium text-slate-900">{displayName}</p>
+            {orgName && (
+              <p className="truncate text-xs font-medium text-indigo-800" title={orgName}>
+                {orgName}
+              </p>
+            )}
+            {orgRole && <p className="text-xs text-slate-500">{roleLabel(orgRole)}</p>}
             {email && (
               <p className="truncate text-xs text-slate-500" title={email}>
                 {email}
@@ -113,7 +128,14 @@ export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProp
         {email ? <UserAvatar email={email} busy={isBusy} /> : null}
         {!collapsed && (
           <>
-            <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{displayName}</span>
+            <span className="min-w-0 flex-1 truncate">
+              <span className="block truncate text-sm text-slate-700">{displayName}</span>
+              {orgName && (
+                <span className="block truncate text-[11px] text-slate-500" title={orgName}>
+                  {orgName}
+                </span>
+              )}
+            </span>
             <ChevronDown
               className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
               aria-hidden

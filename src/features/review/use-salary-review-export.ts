@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
+import { exportGovernanceCommitteeXlsx } from '../../lib/governance-export';
 import { exportReviewTableToCsv, exportReviewTableToXlsx } from '../../lib/review-table-export';
 import type { ProviderRecord } from '../../types/provider';
 import type { PolicyEvaluationResult } from '../../types/compensation-policy';
@@ -24,6 +25,7 @@ export function useSalaryReviewExport({
   customDatasets,
   customStreamLookups,
   reviewExportOptions,
+  cycleLabel,
 }: {
   records: ProviderRecord[];
   cycleScopedRecords: ProviderRecord[];
@@ -32,6 +34,7 @@ export function useSalaryReviewExport({
   customDatasets: CustomDataset[];
   customStreamLookups: CustomStreamExportLookup[];
   reviewExportOptions: Omit<ReviewTableExportOptions, 'records'>;
+  cycleLabel?: string;
 }) {
   const handleExportCsv = useCallback(
     (scope: 'filtered' | 'cycle' | 'all', visibleColumnsOnly = false) => {
@@ -82,5 +85,21 @@ export function useSalaryReviewExport({
     ]
   );
 
-  return { handleExportCsv, handleExportXlsx };
+  const handleExportCommitteeXlsx = useCallback(
+    async (scope: 'filtered' | 'cycle' | 'all') => {
+      const toExport =
+        scope === 'all' ? records : scope === 'cycle' ? cycleScopedRecords : filteredRecords;
+      const scopeSlug = scope === 'all' ? 'all' : scope === 'cycle' ? 'cycle' : 'filtered';
+      const buffer = await exportGovernanceCommitteeXlsx(toExport, evaluationResults, cycleLabel);
+      downloadBlob(
+        new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+        `merit-review-committee-${scopeSlug}.xlsx`
+      );
+    },
+    [records, cycleScopedRecords, filteredRecords, evaluationResults, cycleLabel]
+  );
+
+  return { handleExportCsv, handleExportXlsx, handleExportCommitteeXlsx };
 }

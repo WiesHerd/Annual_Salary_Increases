@@ -8,6 +8,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { SummaryTotals, SummaryRow } from '../../lib/salary-review-summary';
+import type { GovernanceMetrics } from '../../lib/governance-metrics';
 import { formatCurrencyTwoDecimals } from './review-table-columns';
 const BLANK_LABEL = '—';
 
@@ -120,6 +121,8 @@ export interface SalaryReviewSummaryBarProps {
     isWarning: boolean;
     isHardStop?: boolean;
   };
+  governanceMetrics?: GovernanceMetrics;
+  onManualReviewFilter?: () => void;
 }
 
 /** Metric cards grow evenly across the row width; stretch to one height. */
@@ -173,7 +176,13 @@ function SummaryCard({
   );
 }
 
-export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }: SalaryReviewSummaryBarProps) {
+export function SalaryReviewSummaryBar({
+  summaryTotals,
+  breakdown,
+  budgetUsage,
+  governanceMetrics,
+  onManualReviewFilter,
+}: SalaryReviewSummaryBarProps) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [breakdownTab, setBreakdownTab] = useState<keyof SalaryReviewSummaryBarProps['breakdown']>('division');
 
@@ -450,6 +459,40 @@ export function SalaryReviewSummaryBar({ summaryTotals, breakdown, budgetUsage }
                   </span>
                 }
               />
+            </SummaryMetricTile>
+          )}
+
+          {governanceMetrics != null && governanceMetrics.manualReview > 0 && (
+            <SummaryMetricTile>
+              <button
+                type="button"
+                onClick={onManualReviewFilter}
+                title="Filter to providers flagged for manual review by policy"
+                className="h-full w-full text-left"
+              >
+                <SummaryCard
+                  icon={
+                    <svg className={iconCls} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                      />
+                    </svg>
+                  }
+                  iconBgClassName="bg-amber-100 text-amber-800"
+                  label="Manual review"
+                  hint="Providers flagged by policy for committee or FMV review. Click to filter the grid."
+                  value={<span className="text-amber-900">{governanceMetrics.manualReview}</span>}
+                  subline={
+                    governanceMetrics.fmvRelated > 0 ? (
+                      <span>{governanceMetrics.fmvRelated} FMV-related</span>
+                    ) : undefined
+                  }
+                  className="cursor-pointer hover:border-amber-200 hover:bg-amber-50/40"
+                />
+              </button>
             </SummaryMetricTile>
           )}
         </div>

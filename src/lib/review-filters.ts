@@ -31,6 +31,8 @@ export interface SalaryReviewFilters {
   approvedIncreasePercentMax?: number;
   tccPercentileMin?: number;
   tccPercentileMax?: number;
+  /** When true, show only providers flagged for manual review by policy. */
+  manualReviewOnly?: boolean;
 }
 
 export const DEFAULT_SALARY_REVIEW_FILTERS: SalaryReviewFilters = {
@@ -45,6 +47,7 @@ export const DEFAULT_SALARY_REVIEW_FILTERS: SalaryReviewFilters = {
   experienceBands: [],
   bandAlignments: [],
   policySources: [],
+  manualReviewOnly: false,
 };
 
 const SEARCH_FIELDS: (keyof ProviderRecord)[] = [
@@ -174,6 +177,8 @@ export function applyFilters(
       if (!selectedSetMatches(policySource, filters.policySources)) return false;
     }
 
+    if (filters.manualReviewOnly && !r.Manual_Review_Flag) return false;
+
     const incPct = getEffectiveApprovedIncreasePercent(r);
     if (filters.approvedIncreasePercentMin != null && (incPct == null || incPct < filters.approvedIncreasePercentMin))
       return false;
@@ -196,7 +201,8 @@ export type SalaryReviewPresetId =
   | 'in-review'
   | 'approved'
   | 'below-market'
-  | 'high-increase';
+  | 'high-increase'
+  | 'manual-review';
 
 const HIGH_INCREASE_PERCENT_THRESHOLD = 5;
 
@@ -223,6 +229,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         approvedIncreasePercentMax: undefined,
         tccPercentileMin: undefined,
         tccPercentileMax: undefined,
+        manualReviewOnly: false,
       };
     case 'draft':
       return {
@@ -236,6 +243,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         experienceBands: [],
         bandAlignments: [],
         policySources: [],
+        manualReviewOnly: false,
       };
     case 'in-review':
       return {
@@ -249,6 +257,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         experienceBands: [],
         bandAlignments: [],
         policySources: [],
+        manualReviewOnly: false,
       };
     case 'approved':
       return {
@@ -262,6 +271,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         experienceBands: [],
         bandAlignments: [],
         policySources: [],
+        manualReviewOnly: false,
       };
     case 'below-market':
       return {
@@ -277,6 +287,7 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         policySources: [],
         tccPercentileMin: undefined,
         tccPercentileMax: 50,
+        manualReviewOnly: false,
       };
     case 'high-increase':
       return {
@@ -292,6 +303,27 @@ export function getPresetFilters(presetId: SalaryReviewPresetId): Partial<Salary
         policySources: [],
         approvedIncreasePercentMin: HIGH_INCREASE_PERCENT_THRESHOLD,
         approvedIncreasePercentMax: undefined,
+        tccPercentileMin: undefined,
+        tccPercentileMax: undefined,
+        manualReviewOnly: false,
+      };
+    case 'manual-review':
+      return {
+        reviewStatuses: [],
+        providerNames: [],
+        specialties: [],
+        divisions: [],
+        departments: [],
+        planTypes: [],
+        populations: [],
+        experienceBands: [],
+        bandAlignments: [],
+        policySources: [],
+        approvedIncreasePercentMin: undefined,
+        approvedIncreasePercentMax: undefined,
+        tccPercentileMin: undefined,
+        tccPercentileMax: undefined,
+        manualReviewOnly: true,
       };
     default:
       return {};
@@ -319,7 +351,8 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
       filters.approvedIncreasePercentMin == null &&
       filters.approvedIncreasePercentMax == null &&
       filters.tccPercentileMin == null &&
-      filters.tccPercentileMax == null
+      filters.tccPercentileMax == null &&
+      !filters.manualReviewOnly
     ) {
       return 'all';
     }
@@ -363,9 +396,21 @@ export function getActivePresetId(filters: SalaryReviewFilters): SalaryReviewPre
       filters.reviewStatuses.length === 0 &&
       filters.tccPercentileMin == null &&
       filters.tccPercentileMax == null &&
+      !filters.manualReviewOnly &&
       noDimension
     ) {
       return 'high-increase';
+    }
+    if (
+      filters.manualReviewOnly &&
+      filters.reviewStatuses.length === 0 &&
+      filters.approvedIncreasePercentMin == null &&
+      filters.approvedIncreasePercentMax == null &&
+      filters.tccPercentileMin == null &&
+      filters.tccPercentileMax == null &&
+      noDimension
+    ) {
+      return 'manual-review';
     }
   }
   return null;
@@ -676,6 +721,7 @@ export function loadFiltersFromStorage(): SalaryReviewFilters {
         typeof parsed.approvedIncreasePercentMax === 'number' ? parsed.approvedIncreasePercentMax : undefined,
       tccPercentileMin: typeof parsed.tccPercentileMin === 'number' ? parsed.tccPercentileMin : undefined,
       tccPercentileMax: typeof parsed.tccPercentileMax === 'number' ? parsed.tccPercentileMax : undefined,
+      manualReviewOnly: parsed.manualReviewOnly === true,
     };
   } catch {
     return { ...DEFAULT_SALARY_REVIEW_FILTERS };
