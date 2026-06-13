@@ -196,13 +196,13 @@ export function Layout({ children, currentView, onNavigate, sidebarHidden = fals
         </nav>
 
         {/* Footer: account menu + collapse */}
-        <div className="shrink-0 flex flex-col">
+        <div className="shrink-0 flex flex-col pb-1">
           <SidebarAccountMenu collapsed={collapsed} />
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             className={`group flex items-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:ring-offset-2 ${
-              collapsed ? 'justify-center py-3' : 'justify-start px-4 py-2.5'
+              collapsed ? 'justify-center py-2' : 'justify-start px-4 py-1.5'
             }`}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

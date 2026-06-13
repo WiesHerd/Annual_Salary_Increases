@@ -76,7 +76,7 @@ export function computeControlsReadiness(input: ControlsReadinessInput): Control
 
       id: 'data',
 
-      label: 'Data',
+      label: 'Import data',
 
       ready: recordsCount > 0,
 
@@ -104,7 +104,7 @@ export function computeControlsReadiness(input: ControlsReadinessInput): Control
 
       id: 'matrix',
 
-      label: 'Matrix',
+      label: 'Merit matrix',
 
       ready: matrixReady,
 

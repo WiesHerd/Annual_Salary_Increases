@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppState } from '../../hooks/use-app-state';
 import { getSurveyLabel, sortSurveyIdsByLabel } from '../../types/market-survey-config';
 import { ImportCards } from './import-cards';
+import { ImportHubSkeleton } from './import-hub-skeleton';
 import { ProviderTable } from './provider-table';
 import { MarketTable } from './market-table';
 import { EvaluationTable } from './evaluation-table';
@@ -123,6 +124,7 @@ export function DataPage({
   };
 
   if (!loaded) {
+    if (focus === 'import') return <ImportHubSkeleton />;
     return (
       <div className="flex items-center justify-center min-h-[200px] text-slate-500 font-medium">
         Loading…

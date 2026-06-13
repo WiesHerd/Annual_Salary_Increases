@@ -457,16 +457,6 @@ export function ParametersPage() {
 
         </div>
 
-        {activeTab !== 'policy-engine-rules' && (
-          <ControlsReadinessStrip
-            items={readinessItems}
-            activeTab={activeTab}
-            onSelectTab={setActiveTab}
-          />
-        )}
-
-
-
         <nav
 
           className="flex w-full flex-wrap items-center gap-x-3 gap-y-2"
@@ -574,6 +564,12 @@ export function ParametersPage() {
           )}
 
         </nav>
+
+        <ControlsReadinessStrip
+          items={readinessItems}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+        />
 
       </div>
 

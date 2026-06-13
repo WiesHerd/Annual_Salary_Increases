@@ -25,7 +25,7 @@ export const CONTROLS_TAB_IDS: ControlsTabId[] = [
   'policy-engine-rules',
 ];
 
-export const CONTROLS_DEFAULT_TAB: ControlsTabId = 'policy-engine-rules';
+export const CONTROLS_DEFAULT_TAB: ControlsTabId = 'review-cycles';
 
 const LAST_TAB_STORAGE_KEY = 'meritly-controls-last-tab';
 

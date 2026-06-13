@@ -280,7 +280,6 @@ export function ImportCards(_props: ImportCardsProps = {}) {
     addEvaluationFromUpload,
     replaceEvaluationFromUpload,
     loadDemoData,
-    loaded,
   } = useAppState();
 
   const {
@@ -369,14 +368,6 @@ export function ImportCards(_props: ImportCardsProps = {}) {
   };
 
   const closeWizard = () => setActiveWizard(null);
-
-  if (!loaded) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px] text-slate-500 font-medium">
-        Loading…
-      </div>
-    );
-  }
 
   const TrashIcon = () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

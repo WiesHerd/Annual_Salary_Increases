@@ -7,7 +7,7 @@ import {
 
 describe('controls-tab-url', () => {
   it('defaults to policy library tab id', () => {
-    expect(CONTROLS_DEFAULT_TAB).toBe('policy-engine-rules');
+    expect(CONTROLS_DEFAULT_TAB).toBe('review-cycles');
     expect(CONTROLS_TAB_IDS).toContain('policy-engine-rules');
   });
 

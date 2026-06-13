@@ -68,11 +68,11 @@ export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProp
   const syncError = sync?.status === 'error' ? sync.lastError ?? 'Could not save to cloud.' : null;
 
   return (
-    <div ref={rootRef} className="relative border-t border-slate-100 px-3 py-2.5">
+    <div ref={rootRef} className="relative border-t border-slate-100 px-4 py-2">
       {open && (
         <div
           className={`absolute z-50 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-md ${
-            collapsed ? 'left-full bottom-0 ml-2 w-52' : 'bottom-full left-3 right-3 mb-1'
+            collapsed ? 'left-full bottom-0 ml-2 w-52' : 'bottom-full left-4 right-4 mb-1'
           }`}
           role="menu"
         >
@@ -105,8 +105,8 @@ export function SidebarAccountMenu({ collapsed = false }: SidebarAccountMenuProp
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Account menu"
-        className={`flex w-full items-center gap-2.5 rounded-md py-1 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 ${
-          collapsed ? 'justify-center px-0' : 'px-0.5'
+        className={`flex w-full items-center gap-3 rounded-md py-1 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 ${
+          collapsed ? 'justify-center' : ''
         }`}
         title={collapsed ? displayName : undefined}
       >

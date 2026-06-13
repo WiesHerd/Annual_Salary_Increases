@@ -125,7 +125,7 @@ export function HorizontalStepper({
 
           return (
             <div key={step.id} className="flex items-center shrink-0">
-              <div className="flex flex-col items-center gap-1 max-w-[5.5rem]">
+              <div className="flex flex-col items-center gap-1 min-w-[4.25rem] max-w-[6.25rem]">
                 <StepCircle step={step} index={i} isCurrent={step.id === resolvedActiveId}>
                   {i + 1}
                 </StepCircle>
