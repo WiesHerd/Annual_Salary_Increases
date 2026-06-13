@@ -6,14 +6,10 @@ import type { ReactNode } from 'react';
 import { useMemo, useRef } from 'react';
 import { useTocScrollSpy } from '../../components/help/use-toc-scroll-spy';
 import { mainDockedTocArticlePaddingClass, useMainDockedPanelStyle } from '../../hooks/use-main-docked-panel-style';
-import { POLICY_STAGE_LABELS, POLICY_STAGE_ORDER } from '../../types/compensation-policy';
-import type { PolicyStage } from '../../types/compensation-policy';
 import { CONDITION_FACT_OPTIONS } from '../../lib/policy-engine/condition-builder';
 import { PolicyConfigFlow } from './policy-config-flow';
-import { PolicyEvaluationPipeline, POLICY_STAGE_DESCRIPTIONS } from './policy-evaluation-pipeline';
+import { PolicyEvaluationPipeline } from './policy-evaluation-pipeline';
 import { useAppNavigation } from '../../context/app-navigation-context';
-
-const STAGE_ORDER: PolicyStage[] = [...POLICY_STAGE_ORDER];
 
 /** Manual-style chapters (order = table of contents). IDs are stable for scroll targets — not URL hash (app uses #view). */
 const HELP_CHAPTERS = [
@@ -28,6 +24,29 @@ const HELP_CHAPTERS = [
 ] as const;
 
 const CHAPTER_IDS = HELP_CHAPTERS.map((c) => c.id);
+
+const POLICY_TYPES: { name: string; stage: string; use: string }[] = [
+  { name: 'General Merit Matrix', stage: 'Merit matrix', use: 'Default score → increase table; use one as fallback' },
+  { name: 'Guardrail', stage: 'Exclusions', use: 'FMV / compliance stops (e.g. TCC above 75th → 0%)' },
+  { name: 'Modifier', stage: 'Modifiers', use: 'Add or adjust % on top of base result' },
+  { name: 'Cap / Floor', stage: 'Caps / Floors', use: 'Limit max or min increase %' },
+  { name: 'Manual Review', stage: 'Exclusions', use: 'Flag for review without changing the %' },
+  { name: 'Override', stage: 'Custom models', use: 'Force a specific increase for a group' },
+  { name: 'YOE Tier (Increase %)', stage: 'Custom models', use: 'Band table by years of experience' },
+  { name: 'YOE Tier (Base Salary)', stage: 'Custom models', use: 'Fixed base salary by YOE band' },
+];
+
+function GuideLinkButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-800 shadow-sm transition-colors hover:bg-indigo-50 hover:border-indigo-300"
+    >
+      {children}
+    </button>
+  );
+}
 
 function scrollToChapter(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -98,7 +117,7 @@ function SubSection({ title, children }: { title: string; children: ReactNode })
 }
 
 export function PolicyHelpPage() {
-  const { openControls } = useAppNavigation();
+  const { openControls, navigateToView } = useAppNavigation();
   const sectionIds = useMemo(() => [...CHAPTER_IDS], []);
   const activeChapterId = useTocScrollSpy(sectionIds, {});
   const mobileTocRef = useRef<HTMLDetailsElement>(null);
@@ -110,7 +129,7 @@ export function PolicyHelpPage() {
         <div className="sticky top-4 z-30 mb-6 bg-[#f8fafc]/95 pb-2 pt-1 backdrop-blur-sm lg:static lg:z-auto lg:mb-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           <details
             ref={mobileTocRef}
-            className="group rounded-xl border-2 border-slate-800/90 bg-white shadow-md lg:hidden open:shadow-lg"
+            className="group rounded-xl border border-slate-200 bg-white shadow-sm lg:hidden open:shadow-md"
           >
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-slate-900 [&::-webkit-details-marker]:hidden">
               <span className="flex items-center justify-between gap-2">
@@ -135,15 +154,33 @@ export function PolicyHelpPage() {
           </details>
         </div>
 
-      <div className="mb-10 border-l-4 border-indigo-600 pl-4">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Policy Engine help</h1>
+      <div className="mb-8 border-l-4 border-indigo-600 pl-4">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Policy guide</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-700">
-          How the Compensation Policy Engine works and how to build policies effectively for annual salary increases.
+          How the compensation policy engine works and how to build effective rules for annual merit increases.
         </p>
         <p className="mt-3 text-xs text-slate-600">
           Skim the sections below, or use <span className="lg:hidden">the chapter list above</span>
           <span className="hidden lg:inline">the outline on the right</span> to jump.
         </p>
+      </div>
+
+      <div className="mb-10 rounded-xl border border-indigo-200/80 bg-indigo-50/50 p-4">
+        <h2 className="text-sm font-semibold text-indigo-900">Quick start — first merit cycle</h2>
+        <ol className="mt-2 list-decimal list-inside space-y-1.5 text-sm leading-relaxed text-slate-700">
+          <li>
+            <strong>Import data</strong> — provider roster, market survey, and evaluations.
+          </li>
+          <li>
+            <strong>Controls</strong> — set review cycle, merit matrix, and type → market mappings.
+          </li>
+          <li>
+            <strong>Policies</strong> — add one General Merit Matrix (fallback) plus guardrails or modifiers as needed.
+          </li>
+          <li>
+            <strong>Merit review</strong> — run the cycle; use <strong>Policy sandbox</strong> to compare configs.
+          </li>
+        </ol>
       </div>
 
       <Section id="help-overview" title="Overview">
@@ -159,59 +196,35 @@ export function PolicyHelpPage() {
 
       <Section id="help-evaluation-order" title="Evaluation order">
         <PolicyEvaluationPipeline />
-        <p>
-          Policies run in five stages, in this order. Within each stage, lower <strong>priority number</strong> runs
-          first (e.g. priority 5 before 50).
-        </p>
-        <ol className="list-decimal list-inside space-y-1.5 mt-2">
-          {STAGE_ORDER.map((stage) => (
-            <li key={stage}>
-              <strong>{POLICY_STAGE_LABELS[stage]}</strong> — {POLICY_STAGE_DESCRIPTIONS[stage]}
-            </li>
-          ))}
-        </ol>
         <p className="mt-3">
-          <strong>Fallback</strong> policies run only when no other policy has set a result yet. Use this for your
-          default General Merit Matrix so it applies when no guardrail, custom model, or modifier has already
-          determined the increase.
+          Within each stage, lower <strong>priority number</strong> runs first (e.g. priority 5 before 50).{' '}
+          <strong>Fallback</strong> policies run only when no other policy has set a result yet — typically your
+          single General Merit Matrix.
         </p>
       </Section>
 
       <Section id="help-policy-types" title="Policy types">
         <p>Choose the type when creating a policy. Each type maps to a stage and typical use.</p>
-        <ul className="list-disc list-inside space-y-2 mt-2">
-          <li>
-            <strong>General Merit Matrix</strong> — Default increase table from review scores. Use as a single
-            fallback policy so everyone gets a matrix result when nothing else applies.
-          </li>
-          <li>
-            <strong>Guardrail</strong> — Stops or overrides increases when conditions are met (e.g. TCC above 75th
-            → 0% and flag for manual review). Use for FMV and compliance.
-          </li>
-          <li>
-            <strong>Modifier</strong> — Adds or adjusts the increase (e.g. +0.5% for high wRVU). Runs after base
-            result is set.
-          </li>
-          <li>
-            <strong>Cap / Floor</strong> — Caps or sets a minimum on the increase percentage. Use after modifiers
-            to keep results in range.
-          </li>
-          <li>
-            <strong>Manual Review</strong> — Requires manual review when conditions are met; does not change the
-            numeric result by itself.
-          </li>
-          <li>
-            <strong>Override</strong> — Forces a specific increase for selected providers or conditions (e.g. 4% for
-            a named group).
-          </li>
-          <li>
-            <strong>YOE Tier (Increase %)</strong> — Assigns increase % by years of experience tier (custom model).
-          </li>
-          <li>
-            <strong>YOE Tier (Base Salary)</strong> — Assigns a fixed base salary by YOE tier instead of a merit
-            percent.
-          </li>
-        </ul>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-3 py-2 font-semibold text-slate-700">Type</th>
+                <th className="px-3 py-2 font-semibold text-slate-700">Stage</th>
+                <th className="px-3 py-2 font-semibold text-slate-700">Typical use</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {POLICY_TYPES.map((row) => (
+                <tr key={row.name} className="text-slate-800">
+                  <td className="px-3 py-2 font-medium text-slate-900">{row.name}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.stage}</td>
+                  <td className="px-3 py-2 text-slate-700">{row.use}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section id="help-targeting" title="Targeting">
@@ -294,23 +307,16 @@ export function PolicyHelpPage() {
       </Section>
 
       <Section id="help-where-next" title="Where to go next">
-        <p className="mb-3">In <strong>Controls → Base increases → Policy library</strong> you can create new policies,
-          add from library (templates), edit, duplicate, or archive. Policies are listed in evaluation order (stage,
-          then priority).
+        <p className="mb-4 text-sm text-slate-700">
+          Open the area you need — policies are listed in evaluation order (stage, then priority) in the Policy
+          library.
         </p>
-        <p className="mt-3 text-sm text-slate-700">
-          Use <strong>Policy sandbox</strong> to test configs side-by-side; use <strong>Merit review</strong> to run
-          the full cycle and open a provider to see the policy explanation.
-        </p>
-        <p className="mt-4">
-          <button
-            type="button"
-            onClick={() => openControls('policy-engine-rules')}
-            className="rounded-md font-semibold text-indigo-800 underline decoration-indigo-300 underline-offset-2 hover:bg-indigo-50 hover:text-indigo-900 px-1 -mx-1 py-0.5 transition-colors"
-          >
-            Go to Controls →
-          </button>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <GuideLinkButton onClick={() => openControls('policy-engine-rules')}>Policy library</GuideLinkButton>
+          <GuideLinkButton onClick={() => navigateToView('salary-review')}>Merit review</GuideLinkButton>
+          <GuideLinkButton onClick={() => navigateToView('compare')}>Policy sandbox</GuideLinkButton>
+          <GuideLinkButton onClick={() => openControls('merit')}>Merit matrix</GuideLinkButton>
+        </div>
       </Section>
       </div>
 

@@ -44,6 +44,7 @@ import {
   type UserPolicyTemplate,
 } from '../../../lib/policy-library-storage';
 import { useToast } from '../../../components/ui/toast';
+import { useAppNavigation } from '../../../context/app-navigation-context';
 import { parametersPrimaryButtonClass, parametersSectionHeadingClass } from '../parameters-tab-ui';
 
 const PRIORITY_OPTIONS: { value: number; label: string; isFallback?: boolean }[] = [
@@ -263,6 +264,7 @@ export function PolicyEngineRulesTab({
   asOfDate,
 }: PolicyEngineRulesTabProps) {
   const { toast } = useToast();
+  const { navigateToView } = useAppNavigation();
   const { policies, setPolicies, tierTables, setTierTables, customModels, setCustomModels, persistNow } = policyState;
   const [savePackOpen, setSavePackOpen] = useState(false);
   const [savePackName, setSavePackName] = useState('');
@@ -558,6 +560,14 @@ export function PolicyEngineRulesTab({
             {policies.length > 0
               ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'}. Click a row to edit or duplicate.`
               : 'Start with a recipe from "Add from library" or create a new policy.'}
+            {' '}
+            <button
+              type="button"
+              onClick={() => navigateToView('help', { returnToCurrent: true })}
+              className="font-medium text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900"
+            >
+              Read the Policy guide
+            </button>
           </p>
           {orderHelpOpen && (
             <p className="text-xs text-slate-500 mt-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
