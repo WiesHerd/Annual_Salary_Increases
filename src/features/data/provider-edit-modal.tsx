@@ -314,7 +314,7 @@ export function ProviderEditModal({
                     <span className="font-medium text-slate-700">{entry.field}</span>:{' '}
                     {formatAuditValue(entry.oldValue)} → {formatAuditValue(entry.newValue)}
                     <span className="text-slate-400 ml-1">
-                      ({new Date(entry.timestamp).toLocaleDateString()} by {entry.userId ?? 'Unknown'})
+                      ({new Date(entry.timestamp).toLocaleDateString()} by {entry.userLabel ?? entry.userId ?? 'Unknown'})
                     </span>
                   </li>
                 ))}

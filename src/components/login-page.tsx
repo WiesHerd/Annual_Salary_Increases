@@ -172,7 +172,7 @@ export function LoginPage() {
       subtitle={subtitle}
       footer={
         <p className="text-center text-xs leading-relaxed text-slate-500">
-          Authorized compensation personnel only. Activity may be logged for audit purposes.
+          Authorized compensation personnel only. Sign-in, exports, imports, and data edits are logged locally for audit. Errors are recorded on this device — no third-party tracking.
           {!allowSignUp && view === 'sign-in' && (
             <>
               {' '}

@@ -24,6 +24,7 @@ import { friendlyAuthError } from '../lib/auth-error-messages';
 
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase/client';
 
+import { recordAuditAction } from '../lib/audit';
 import { ensureOrganization, isOrgSetupRequiredError, type OrganizationContext } from '../lib/supabase/org-bootstrap';
 
 
@@ -214,6 +215,13 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
       setAuthError(null);
 
+      recordAuditAction({
+        entityType: 'session',
+        action: 'sign-in',
+        entityId: org.orgId,
+        detail: org.orgName,
+      });
+
     } catch (e) {
 
       const raw = e instanceof Error ? e.message : String(e);
@@ -318,6 +326,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
       setFriendlyError(setAuthError, error.message);
 
+      recordAuditAction({ entityType: 'session', action: 'sign-in-failed' });
+
       throw error;
 
     }
@@ -405,6 +415,14 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
 
     const supabase = getSupabaseClient();
+
+    if (organization) {
+      recordAuditAction({
+        entityType: 'session',
+        action: 'sign-out',
+        entityId: organization.orgId,
+      });
+    }
 
     clearHydratedOrg();
 

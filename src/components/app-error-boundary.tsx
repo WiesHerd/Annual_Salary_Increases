@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { recordAuditAction } from '../lib/audit';
+import { appendErrorLog } from '../lib/error-log';
 
 interface Props {
   children: ReactNode;
@@ -18,6 +20,12 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('App render error:', error, info.componentStack);
+    appendErrorLog(error.message, 'react-boundary');
+    recordAuditAction({
+      entityType: 'system',
+      action: 'render-error',
+      detail: error.message,
+    });
   }
 
   handleReset = (): void => {

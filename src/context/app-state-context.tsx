@@ -37,7 +37,7 @@ import {
   saveCustomDatasets,
   clearLegacyPaymentLinesStorage,
 } from '../lib/storage';
-import { appendAuditEntry } from '../lib/audit';
+import { appendAuditEntry, recordAuditAction } from '../lib/audit';
 import { getDemoData, getSeedProviderRecords, getSeedMarketSurveys } from '../lib/seed-data';
 import {
   loadSurveySpecialtyMappingSet,
@@ -232,6 +232,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
         const toAdd = stamped.filter((r) => !existingIds.has(r.Employee_ID));
         return applyMarketAndTcc([...prev, ...toAdd], marketSurveys);
       });
+      recordAuditAction({
+        entityType: 'import',
+        action: 'provider-add',
+        detail: { rowCount: stamped.length, cycleId },
+      });
       return stamped.length;
     },
     [marketSurveys, applyMarketAndTcc, stampRowsForCycle]
@@ -244,6 +249,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       setRecords((prev) => {
         const kept = prev.filter((r) => !providerMatchesCycle(r, cycleId, cycles, { includeUnassigned: false }));
         return applyMarketAndTcc([...kept, ...stamped], marketSurveys);
+      });
+      recordAuditAction({
+        entityType: 'import',
+        action: 'provider-replace',
+        detail: { rowCount: stamped.length, cycleId },
       });
       return stamped.length;
     },
@@ -264,7 +274,14 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       const next = { ...marketSurveys, [surveyId]: nextRows };
       setMarketSurveys(next);
       setRecords((prev) => applyMarketAndTcc(prev, next));
-      return mode === 'replace' ? result.rows.length : nextRows.length - current.length;
+      const count = mode === 'replace' ? result.rows.length : nextRows.length - current.length;
+      recordAuditAction({
+        entityType: 'import',
+        action: `market-${mode}`,
+        entityId: surveyId,
+        detail: { rowCount: count },
+      });
+      return count;
     },
     [marketSurveys, applyMarketAndTcc]
   );
@@ -274,6 +291,12 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
       const next = { ...marketSurveys, [surveyId]: result.rows };
       setMarketSurveys(next);
       setRecords((prev) => applyMarketAndTcc(prev, next));
+      recordAuditAction({
+        entityType: 'import',
+        action: 'market-replace',
+        entityId: surveyId,
+        detail: { rowCount: result.rows.length },
+      });
       return result.rows.length;
     },
     [marketSurveys, applyMarketAndTcc]
@@ -283,11 +306,21 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
     (result: EvaluationUploadResult, mode: 'replace' | 'add') => {
       if (mode === 'replace') {
         setEvaluationRows(result.rows);
+        recordAuditAction({
+          entityType: 'import',
+          action: 'evaluation-replace',
+          detail: { rowCount: result.rows.length },
+        });
         return result.rows.length;
       }
       const byId = new Set(evaluationRows.map((r) => r.Employee_ID));
       const toAdd = result.rows.filter((r) => !byId.has(r.Employee_ID));
       setEvaluationRows((prev) => [...prev, ...toAdd]);
+      recordAuditAction({
+        entityType: 'import',
+        action: 'evaluation-add',
+        detail: { rowCount: toAdd.length },
+      });
       return toAdd.length;
     },
     [evaluationRows]
@@ -295,6 +328,11 @@ function AppStateProviderInner({ children }: { children: ReactNode }) {
 
   const replaceEvaluationFromUpload = useCallback((result: EvaluationUploadResult) => {
     setEvaluationRows(result.rows);
+    recordAuditAction({
+      entityType: 'import',
+      action: 'evaluation-replace',
+      detail: { rowCount: result.rows.length },
+    });
     return result.rows.length;
   }, []);
 

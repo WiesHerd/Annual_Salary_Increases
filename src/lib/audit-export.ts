@@ -16,10 +16,11 @@ function formatAuditValue(value: unknown): string {
 }
 
 export function auditEntriesToCsv(entries: AuditEntry[]): string {
-  const header = ['Timestamp', 'Entity type', 'Entity ID', 'Field', 'Old value', 'New value'];
+  const header = ['Timestamp', 'User', 'Entity type', 'Entity ID', 'Field', 'Old value', 'New value'];
   const rows = entries.map((e) =>
     [
       e.timestamp,
+      e.userLabel ?? e.userId ?? '',
       e.entityType,
       e.entityId,
       e.field,

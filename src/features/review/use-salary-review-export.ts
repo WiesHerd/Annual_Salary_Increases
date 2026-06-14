@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { recordAuditAction } from '../../lib/audit';
 import { exportToCsv, exportToXlsx } from '../../lib/batch-export';
 import { exportGovernanceCommitteeXlsx } from '../../lib/governance-export';
 import { exportReviewTableToCsv, exportReviewTableToXlsx } from '../../lib/review-table-export';
@@ -46,6 +47,11 @@ export function useSalaryReviewExport({
         ? exportReviewTableToCsv({ records: toExport, ...reviewExportOptions })
         : exportToCsv(toExport, evaluationResults, customDatasets, customStreamLookups);
       downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `merit-review-${scopeSlug}-${viewSlug}.csv`);
+      recordAuditAction({
+        entityType: 'export',
+        action: 'merit-review-csv',
+        detail: { scope, visibleColumnsOnly, rowCount: toExport.length },
+      });
     },
     [
       records,
@@ -73,6 +79,11 @@ export function useSalaryReviewExport({
         }),
         `merit-review-${scopeSlug}-${viewSlug}.xlsx`
       );
+      recordAuditAction({
+        entityType: 'export',
+        action: 'merit-review-xlsx',
+        detail: { scope, visibleColumnsOnly, rowCount: toExport.length },
+      });
     },
     [
       records,
@@ -97,6 +108,11 @@ export function useSalaryReviewExport({
         }),
         `merit-review-committee-${scopeSlug}.xlsx`
       );
+      recordAuditAction({
+        entityType: 'export',
+        action: 'merit-review-committee-xlsx',
+        detail: { scope, rowCount: toExport.length },
+      });
     },
     [records, cycleScopedRecords, filteredRecords, evaluationResults, cycleLabel]
   );

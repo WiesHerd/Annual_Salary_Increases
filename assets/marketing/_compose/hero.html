@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1200px; height: 627px; overflow: hidden; font-family: Inter, system-ui, sans-serif;
+    background: radial-gradient(1200px 500px at 0% 0%, #e0e7ff 0%, transparent 55%), #f8fafc;
+    color: #0f172a;
+  }
+  .grid { display: grid; grid-template-columns: 1.05fr 1fr; height: 100%; gap: 28px; padding: 44px 48px; }
+  .brand { font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #4338ca; }
+  h1 { margin-top: 14px; font-size: 42px; line-height: 1.08; font-weight: 800; letter-spacing: -0.03em; }
+  .sub { margin-top: 14px; font-size: 18px; line-height: 1.45; color: #475569; max-width: 520px; }
+  .bullets { margin-top: 22px; display: grid; gap: 10px; }
+  .bullet { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; color: #334155; }
+  .bullet span { width: 22px; height: 22px; border-radius: 999px; background: #4f46e5; color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cta { margin-top: 26px; display: inline-flex; padding: 12px 18px; border-radius: 12px; background: #312e81; color: #fff; font-weight: 600; font-size: 14px; }
+  .shots { display: grid; grid-template-rows: 1fr 1fr; gap: 12px; min-height: 0; }
+  .shot { border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 18px 40px rgba(15,23,42,.12); background: #fff; }
+  .shot img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div>
+      <div class="brand">Meritly</div>
+      <h1>Enterprise physician merit review</h1>
+      <p class="sub">Real app UI — import data, configure policies, run merit review with governance flags and committee exports.</p>
+      <div class="bullets">
+        <div class="bullet"><span>1</span> Import roster + market surveys</div>
+        <div class="bullet"><span>2</span> Controls: cycle, matrix, policies</div>
+        <div class="bullet"><span>3</span> Merit review with FMV governance</div>
+      </div>
+      <div class="cta">annual-salary-increases.vercel.app</div>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="../screenshots/03-merit-review.png" alt="" /></div>
+      <div class="shot"><img src="../screenshots/01-import.png" alt="" /></div>
+    </div>
+  </div>
+</body>
+</html>
